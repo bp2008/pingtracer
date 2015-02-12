@@ -3,9 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
 using System.Data;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Threading;
 
@@ -180,13 +178,13 @@ namespace PingTest
 			statusStr = "[" + min + "," + max + "," + avg + "," + last + "]";
 			else
 				statusStr = "[" + avg + "," + last + "]";
-			if (!string.IsNullOrWhiteSpace(MouseHintText))
+			if (!string.IsNullOrEmpty(MouseHintText))
 			{
-				if (!string.IsNullOrWhiteSpace(DisplayName))
+				if (!string.IsNullOrEmpty(DisplayName))
 					statusStr += " " + DisplayName;
 				statusStr += " " + MouseHintText;
 			}
-			else if (AlwaysShowServerNames && !string.IsNullOrWhiteSpace(DisplayName))
+			else if (AlwaysShowServerNames && !string.IsNullOrEmpty(DisplayName))
 				statusStr += " " + DisplayName;
 
 			e.Graphics.DrawString(statusStr, this.Font, brushText, 1, 1);

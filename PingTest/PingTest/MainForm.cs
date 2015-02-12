@@ -4,12 +4,10 @@ using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.IO;
-using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace PingTest
@@ -116,7 +114,7 @@ namespace PingTest
 					{
 						if (!clearedDeadHosts && startedPingingAt.AddSeconds(10) < DateTime.Now)
 						{
-							int[] pingTargetIds = pingTargets.Keys.ToArray();
+							IList<int> pingTargetIds = pingTargets.Keys;
 							foreach (int pingTargetId in pingTargetIds)
 							{
 								if (!pingTargetHasAtLeastOneSuccess[pingTargetId])
@@ -229,7 +227,7 @@ namespace PingTest
 					pingTargetHasAtLeastOneSuccess.Add(id, false);
 
 					string ipString = ipAddress.ToString();
-					if (!string.IsNullOrWhiteSpace(name))
+					if (!string.IsNullOrEmpty(name))
 					{
 						if (ipString == name)
 							graph.DisplayName = name;
@@ -330,6 +328,8 @@ namespace PingTest
 
 		private void panel_Graphs_Resize(object sender, EventArgs e)
 		{
+			if (pingGraphs.Count == 0)
+				return;
 			int width = panel_Graphs.Width;
 			int outerHeight = panel_Graphs.Height / pingGraphs.Count;
 			int innerHeight = outerHeight - 1;

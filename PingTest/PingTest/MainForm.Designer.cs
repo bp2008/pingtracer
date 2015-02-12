@@ -52,7 +52,6 @@
 			this.nudWorseThreshold = new System.Windows.Forms.NumericUpDown();
 			this.cbMinMax = new System.Windows.Forms.CheckBox();
 			((System.ComponentModel.ISupportInitialize)(this.nudPingsPerSecond)).BeginInit();
-			((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
 			this.splitContainer1.Panel1.SuspendLayout();
 			this.splitContainer1.Panel2.SuspendLayout();
 			this.splitContainer1.SuspendLayout();
@@ -220,7 +219,7 @@
 			this.label5.BackColor = System.Drawing.SystemColors.Window;
 			this.label5.Font = new System.Drawing.Font("Microsoft Sans Serif", 14F);
 			this.label5.ForeColor = System.Drawing.SystemColors.ControlText;
-			this.label5.Location = new System.Drawing.Point(2, 11);
+			this.label5.Location = new System.Drawing.Point(2, 12);
 			this.label5.Name = "label5";
 			this.label5.Size = new System.Drawing.Size(603, 24);
 			this.label5.TabIndex = 0;
@@ -368,7 +367,6 @@
 			this.splitContainer1.Panel1.ResumeLayout(false);
 			this.splitContainer1.Panel1.PerformLayout();
 			this.splitContainer1.Panel2.ResumeLayout(false);
-			((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).EndInit();
 			this.splitContainer1.ResumeLayout(false);
 			this.panel_Graphs.ResumeLayout(false);
 			((System.ComponentModel.ISupportInitialize)(this.nudBadThreshold)).EndInit();
