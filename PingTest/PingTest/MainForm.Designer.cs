@@ -360,7 +360,7 @@
 			this.Controls.Add(this.txtHost);
 			this.MinimumSize = new System.Drawing.Size(300, 200);
 			this.Name = "MainForm";
-			this.Text = "Ping Test";
+			this.Text = "Ping Tracer";
 			this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.MainForm_FormClosing);
 			this.Load += new System.EventHandler(this.MainForm_Load);
 			((System.ComponentModel.ISupportInitialize)(this.nudPingsPerSecond)).EndInit();
