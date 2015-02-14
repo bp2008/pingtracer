@@ -61,6 +61,7 @@
     <Compile Include="PingGraphControl.Designer.cs">
       <DependentUpon>PingGraphControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="PingInstancePool.cs" />
     <Compile Include="PingLog.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
