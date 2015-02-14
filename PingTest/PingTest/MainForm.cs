@@ -145,9 +145,9 @@ namespace PingTest
 						{
 							PingGraphControl graph = pingGraphs[targetMapping.Key];
 							long offset = graph.ClearNextOffset();
-							Ping pinger = new Ping();
+							Ping pinger = PingInstancePool.Get();
 							pinger.PingCompleted += pinger_PingCompleted;
-							pinger.SendAsync(targetMapping.Value, 5000, buffer, new object[] { lastPingAt, offset, graph, targetMapping.Key, targetMapping.Value });
+							pinger.SendAsync(targetMapping.Value, 5000, buffer, new object[] { lastPingAt, offset, graph, targetMapping.Key, targetMapping.Value, pinger });
 						}
 					}
 					catch (ThreadAbortException ex)
@@ -182,6 +182,9 @@ namespace PingTest
 				PingGraphControl graph = (PingGraphControl)args[2];
 				int pingTargetId = (int)args[3]; // Do not assume the pingTargets or pingGraphs containers will have this key!
 				IPAddress remoteHost = (IPAddress)args[4];
+				Ping pinger = (Ping)args[5];
+				pinger.PingCompleted -= pinger_PingCompleted;
+				PingInstancePool.Recycle(pinger);
 				if (e.Cancelled)
 				{
 					graph.AddPingLogToSpecificOffset(pingNum, new PingLog(time, 0, IPStatus.Unknown));

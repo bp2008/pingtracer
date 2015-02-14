@@ -37,7 +37,7 @@ namespace PingTest
 			get
 			{
 				long currentOffset = Interlocked.Read(ref _nextIndexOffset);
-				if(currentOffset == -1)
+				if (currentOffset == -1)
 					return 0;
 				return (int)((currentOffset - DisplayableCount) % pings.Length);
 			}
@@ -47,7 +47,7 @@ namespace PingTest
 			get
 			{
 				long currentOffset = Interlocked.Read(ref _nextIndexOffset);
-				if(currentOffset == -1)
+				if (currentOffset == -1)
 					return 0;
 				else
 					return (int)Math.Min(currentOffset, pings.Length);
@@ -115,12 +115,14 @@ namespace PingTest
 			int height = Math.Min(this.Height, short.MaxValue);
 			Pen pen = penSuccess;
 			int start = StartIndex;
+			if (start == -1)
+				return;
 			int count = DisplayableCount;
 
 			max = int.MinValue;
 			min = int.MaxValue;
 			int sum = 0;
-			for(int i = 0; i < count; i++)
+			for (int i = 0; i < count; i++)
 			{
 				int idx = (start + i) % pings.Length;
 				if (pings[idx] != null)
@@ -148,7 +150,7 @@ namespace PingTest
 				e.Graphics.FillRectangle(brushBackgroundBad, new Rectangle(0, this.Height - scaledWorseLine, this.Width, scaledWorseLine - scaledBadLine));
 			Point pStart = new Point(this.Width - count, height);
 			Point pEnd = new Point(this.Width - count, height);
-			for(int i = 0; i < count; i++)
+			for (int i = 0; i < count; i++)
 			{
 				int idx = (start + i) % pings.Length;
 				if (pings[idx] == null)
@@ -174,8 +176,8 @@ namespace PingTest
 				pEnd.X++;
 			}
 			string statusStr;
-			if(ShowMinMax)
-			statusStr = "[" + min + "," + max + "," + avg + "," + last + "]";
+			if (ShowMinMax)
+				statusStr = "[" + min + "," + max + "," + avg + "," + last + "]";
 			else
 				statusStr = "[" + avg + "," + last + "]";
 			if (!string.IsNullOrEmpty(MouseHintText))
