@@ -40,6 +40,10 @@ namespace PingTest
 		/// </summary>
 		Form panelForm = new Form();
 
+		Settings settings = new Settings();
+
+		DateTime suppressHostSettingsSaveUntil = DateTime.MinValue;
+
 		public MainForm()
 		{
 			InitializeComponent();
@@ -47,6 +51,13 @@ namespace PingTest
 
 		private void MainForm_Load(object sender, EventArgs e)
 		{
+			this.Text += " " + System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString();
+			settings.Load();
+			lock (settings.hostHistory)
+			{
+				if (settings.hostHistory.Count > 0)
+					LoadHostSettings(settings.hostHistory[0]);
+			}
 			nudPingsPerSecond_ValueChanged(null, null);
 		}
 
@@ -179,6 +190,7 @@ namespace PingTest
 				object[] args = (object[])e.UserState;
 				DateTime time = (DateTime)args[0];
 				long pingNum = (long)args[1];
+
 				PingGraphControl graph = (PingGraphControl)args[2];
 				int pingTargetId = (int)args[3]; // Do not assume the pingTargets or pingGraphs containers will have this key!
 				IPAddress remoteHost = (IPAddress)args[4];
@@ -277,6 +289,7 @@ namespace PingTest
 
 		private void btnStart_Click(object sender, EventArgs e)
 		{
+			SaveHost();
 			btnStart.Enabled = false;
 			if (isRunning)
 			{
@@ -284,6 +297,7 @@ namespace PingTest
 				btnStart.Text = "Idle";
 				btnStart.BackColor = Color.FromArgb(255, 128, 128);
 				controllerThread.Abort();
+				txtHost.Enabled = true;
 				cbTraceroute.Enabled = true;
 			}
 			else
@@ -293,6 +307,7 @@ namespace PingTest
 				btnStart.BackColor = Color.FromArgb(128, 255, 128);
 				controllerThread = new Thread(controllerLoop);
 				controllerThread.Start(new object[] { txtHost.Text, cbTraceroute.Checked });
+				txtHost.Enabled = false;
 				cbTraceroute.Enabled = false;
 			}
 			btnStart.Enabled = true;
@@ -300,6 +315,7 @@ namespace PingTest
 
 		private void nudPingsPerSecond_ValueChanged(object sender, EventArgs e)
 		{
+			SaveHostIfHostAlreadyExists();
 			if (nudPingsPerSecond.Value == 0)
 				pingDelay = -1;
 			else
@@ -326,7 +342,10 @@ namespace PingTest
 		private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
 		{
 			if (isRunning)
+			{
+				SaveHost();
 				btnStart_Click(null, null);
+			}
 		}
 
 		private void panel_Graphs_Resize(object sender, EventArgs e)
@@ -351,6 +370,7 @@ namespace PingTest
 
 		private void cbAlwaysShowServerNames_CheckedChanged(object sender, EventArgs e)
 		{
+			SaveHostIfHostAlreadyExists();
 			try
 			{
 				IList<PingGraphControl> graphs = pingGraphs.Values;
@@ -367,6 +387,7 @@ namespace PingTest
 
 		private void nudBadThreshold_ValueChanged(object sender, EventArgs e)
 		{
+			SaveHostIfHostAlreadyExists();
 			if (nudWorseThreshold.Value < nudBadThreshold.Value)
 				nudWorseThreshold.Value = nudBadThreshold.Value;
 			try
@@ -385,6 +406,7 @@ namespace PingTest
 
 		private void nudWorseThreshold_ValueChanged(object sender, EventArgs e)
 		{
+			SaveHostIfHostAlreadyExists();
 			if (nudBadThreshold.Value > nudWorseThreshold.Value)
 				nudBadThreshold.Value = nudWorseThreshold.Value;
 			try
@@ -403,6 +425,7 @@ namespace PingTest
 
 		private void cbMinMax_CheckedChanged(object sender, EventArgs e)
 		{
+			SaveHostIfHostAlreadyExists();
 			try
 			{
 				IList<PingGraphControl> graphs = pingGraphs.Values;
@@ -415,6 +438,16 @@ namespace PingTest
 			catch (Exception)
 			{
 			}
+		}
+
+		private void cbTraceroute_CheckedChanged(object sender, EventArgs e)
+		{
+			SaveHostIfHostAlreadyExists();
+		}
+
+		private void txtDisplayName_TextChanged(object sender, EventArgs e)
+		{
+			SaveHostIfHostAlreadyExists();
 		}
 
 		private void panel_Graphs_Click(object sender, EventArgs e)
@@ -434,6 +467,131 @@ namespace PingTest
 				panel_Graphs.Dock = DockStyle.Fill;
 				this.Show();
 				panelForm.Hide();
+			}
+		}
+
+		private void lblHost_Click(object sender, EventArgs e)
+		{
+			ShowHostHistory();
+			contextMenuStripHostHistory.Show(Cursor.Position);
+		}
+		private void ShowHostHistory()
+		{
+			contextMenuStripHostHistory.Items.Clear();
+			bool first = true;
+			lock (settings.hostHistory)
+			{
+				foreach (HostSettings hs in settings.hostHistory)
+				{
+					ToolStripItem item = new ToolStripMenuItem();
+					//Name that will appear on the menu
+					if (string.IsNullOrWhiteSpace(hs.displayName))
+						item.Text = hs.host;
+					else
+						item.Text = hs.displayName + " [" + hs.host + "]";
+					//Put in the Name property whatever neccessery to retrive your data on click event
+					item.Tag = hs;
+					//On-Click event
+					item.Click += new EventHandler(rsitem_Click);
+
+					if (first)
+						item.Font = new Font(item.Font, FontStyle.Bold);
+					first = false;
+
+					//Add the submenu to the parent menu
+					contextMenuStripHostHistory.Items.Add(item);
+				}
+			}
+		}
+		private void rsitem_Click(object sender, EventArgs e)
+		{
+			if (isRunning)
+			{
+				MessageBox.Show("Cannot load a stored host while pings are running." + Environment.NewLine + "Please stop the pings first.");
+				return;
+			}
+
+			ToolStripItem tsi = (ToolStripItem)sender;
+			HostSettings hs = (HostSettings)tsi.Tag;
+			LoadHostSettings(hs);
+		}
+
+		private void LoadHostSettings(HostSettings hs)
+		{
+			suppressHostSettingsSaveUntil = DateTime.Now.AddMilliseconds(100);
+
+			txtHost.Text = hs.host;
+			txtDisplayName.Text = hs.displayName;
+			nudPingsPerSecond.Value = hs.rate;
+			cbTraceroute.Checked = hs.doTraceRoute;
+			cbAlwaysShowServerNames.Checked = hs.drawServerNames;
+			cbMinMax.Checked = hs.drawMinMax;
+			nudBadThreshold.Value = hs.badThreshold;
+			nudWorseThreshold.Value = hs.worseThreshold;
+
+
+			lock (settings.hostHistory)
+			{
+				for (int i = 1; i < settings.hostHistory.Count; i++)
+					if (settings.hostHistory[i].host == hs.host)
+					{
+						HostSettings justLoaded = settings.hostHistory[i];
+						settings.hostHistory.RemoveAt(i);
+						settings.hostHistory.Insert(0, justLoaded);
+						break;
+					}
+			}
+		}
+		private void SaveHostIfHostAlreadyExists()
+		{
+			lock (settings.hostHistory)
+			{
+				bool hostExists = false;
+				foreach (HostSettings hs in settings.hostHistory)
+					if (hs.host == txtHost.Text)
+					{
+						hostExists = true;
+						continue;
+					}
+				if (hostExists)
+					SaveHost();
+			}
+		}
+		/// <summary>
+		/// Adds the current host and settings to the recent hosts history and saves the history if necessary.
+		/// </summary>
+		private void SaveHost()
+		{
+			if (DateTime.Now < suppressHostSettingsSaveUntil)
+				return;
+			HostSettings hs = new HostSettings();
+			hs.host = txtHost.Text;
+			hs.displayName = txtDisplayName.Text;
+			hs.rate = (int)nudPingsPerSecond.Value;
+			hs.doTraceRoute = cbTraceroute.Checked;
+			hs.drawServerNames = cbAlwaysShowServerNames.Checked;
+			hs.drawMinMax = cbMinMax.Checked;
+			hs.badThreshold = (int)nudBadThreshold.Value;
+			hs.worseThreshold = (int)nudWorseThreshold.Value;
+
+			if (!string.IsNullOrWhiteSpace(hs.host))
+			{
+				lock (settings.hostHistory)
+				{
+					if (settings.hostHistory.Count == 0)
+						settings.hostHistory.Add(hs);
+					else
+					{
+						for (int i = 0; i < settings.hostHistory.Count; i++)
+							if (settings.hostHistory[i].host == hs.host)
+							{
+								settings.hostHistory.RemoveAt(i);
+								break;
+							}
+						settings.hostHistory.Insert(0, hs);
+					}
+					settings.Save();
+				}
 			}
 		}
 	}

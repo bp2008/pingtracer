@@ -6,6 +6,7 @@ using System.Data;
 using System.Text;
 using System.Windows.Forms;
 using System.Threading;
+using System.Net.NetworkInformation;
 
 namespace PingTest
 {
@@ -125,7 +126,7 @@ namespace PingTest
 			for (int i = 0; i < count; i++)
 			{
 				int idx = (start + i) % pings.Length;
-				if (pings[idx] != null)
+				if (pings[idx] != null && pings[idx].result == IPStatus.Success)
 				{
 					last = pings[idx].pingTime;
 					sum += last;
@@ -139,7 +140,12 @@ namespace PingTest
 			if (max == int.MinValue)
 				max = 0;
 			if (max > this.Height)
-				vScale = (double)this.Height / (double)(max * 1.1);
+			{
+				// max value is too high to draw in the box.
+				int maxForScaling = Math.Min((int)(max * 1.1), (int)(Threshold_Worse * 1.5));
+				maxForScaling = Math.Max(maxForScaling, this.Height);
+				vScale = (double)this.Height / (double)maxForScaling;
+			}
 			else
 				vScale = 1f;
 			int scaledBadLine = (int)(vScale * Threshold_Bad);
