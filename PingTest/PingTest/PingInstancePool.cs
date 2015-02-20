@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.NetworkInformation;
@@ -8,13 +9,13 @@ namespace PingTest
 {
 	public static class PingInstancePool
 	{
-		static Queue<Ping> pool = new Queue<Ping>();
+		static ConcurrentQueue<Ping> pool = new ConcurrentQueue<Ping>();
 		public static Ping Get()
 		{
-			if(pool.Count == 0)
-				return new Ping();
-			else
-				return pool.Dequeue();
+			Ping pinger;
+			if (!pool.TryDequeue(out pinger))
+				pinger = new Ping();
+			return pinger;
 		}
 		public static void Recycle(Ping pinger)
 		{

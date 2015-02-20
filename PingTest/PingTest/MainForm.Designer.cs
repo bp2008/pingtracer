@@ -28,9 +28,10 @@
 		/// </summary>
 		private void InitializeComponent()
 		{
+			this.components = new System.ComponentModel.Container();
 			this.txtOut = new System.Windows.Forms.TextBox();
 			this.txtHost = new System.Windows.Forms.TextBox();
-			this.label1 = new System.Windows.Forms.Label();
+			this.lblHost = new System.Windows.Forms.Label();
 			this.label2 = new System.Windows.Forms.Label();
 			this.nudPingsPerSecond = new System.Windows.Forms.NumericUpDown();
 			this.label3 = new System.Windows.Forms.Label();
@@ -51,7 +52,12 @@
 			this.nudBadThreshold = new System.Windows.Forms.NumericUpDown();
 			this.nudWorseThreshold = new System.Windows.Forms.NumericUpDown();
 			this.cbMinMax = new System.Windows.Forms.CheckBox();
+			this.contextMenuStripHostHistory = new System.Windows.Forms.ContextMenuStrip(this.components);
+			this.label1 = new System.Windows.Forms.Label();
+			this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
+			this.txtDisplayName = new System.Windows.Forms.TextBox();
 			((System.ComponentModel.ISupportInitialize)(this.nudPingsPerSecond)).BeginInit();
+			((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
 			this.splitContainer1.Panel1.SuspendLayout();
 			this.splitContainer1.Panel2.SuspendLayout();
 			this.splitContainer1.SuspendLayout();
@@ -74,21 +80,25 @@
 			// 
 			// txtHost
 			// 
-			this.txtHost.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
 			this.txtHost.Location = new System.Drawing.Point(51, 9);
 			this.txtHost.Name = "txtHost";
-			this.txtHost.Size = new System.Drawing.Size(473, 20);
+			this.txtHost.Size = new System.Drawing.Size(184, 20);
 			this.txtHost.TabIndex = 1;
+			this.toolTip1.SetToolTip(this.txtHost, "Enter the IP address or host name of the destination you wish to monitor.\r\n\r\nYou " +
+        "may click the blue Host label to choose a previously entered value.");
 			// 
-			// label1
+			// lblHost
 			// 
-			this.label1.AutoSize = true;
-			this.label1.Location = new System.Drawing.Point(13, 12);
-			this.label1.Name = "label1";
-			this.label1.Size = new System.Drawing.Size(32, 13);
-			this.label1.TabIndex = 2;
-			this.label1.Text = "Host:";
+			this.lblHost.AutoSize = true;
+			this.lblHost.ForeColor = System.Drawing.Color.Blue;
+			this.lblHost.Location = new System.Drawing.Point(13, 12);
+			this.lblHost.Name = "lblHost";
+			this.lblHost.Size = new System.Drawing.Size(32, 13);
+			this.lblHost.TabIndex = 2;
+			this.lblHost.Text = "Host:";
+			this.toolTip1.SetToolTip(this.lblHost, "Enter the IP address or host name of the destination you wish to monitor.\r\n\r\nYou " +
+        "may click the blue Host label to choose a previously entered value.");
+			this.lblHost.Click += new System.EventHandler(this.lblHost_Click);
 			// 
 			// label2
 			// 
@@ -98,6 +108,7 @@
 			this.label2.Size = new System.Drawing.Size(33, 13);
 			this.label2.TabIndex = 4;
 			this.label2.Text = "Rate:";
+			this.toolTip1.SetToolTip(this.label2, "A rate of 1 ping per second is recommended \r\nfor all long-term monitoring.");
 			// 
 			// nudPingsPerSecond
 			// 
@@ -110,8 +121,9 @@
 			this.nudPingsPerSecond.Name = "nudPingsPerSecond";
 			this.nudPingsPerSecond.Size = new System.Drawing.Size(42, 20);
 			this.nudPingsPerSecond.TabIndex = 5;
+			this.toolTip1.SetToolTip(this.nudPingsPerSecond, "A rate of 1 ping per second is recommended \r\nfor all long-term monitoring.");
 			this.nudPingsPerSecond.Value = new decimal(new int[] {
-            3,
+            1,
             0,
             0,
             0});
@@ -125,6 +137,7 @@
 			this.label3.Size = new System.Drawing.Size(88, 13);
 			this.label3.TabIndex = 6;
 			this.label3.Text = "pings per second";
+			this.toolTip1.SetToolTip(this.label3, "A rate of 1 ping per second is recommended \r\nfor all long-term monitoring.");
 			// 
 			// btnStart
 			// 
@@ -135,6 +148,8 @@
 			this.btnStart.Size = new System.Drawing.Size(66, 49);
 			this.btnStart.TabIndex = 7;
 			this.btnStart.Text = "Idle";
+			this.toolTip1.SetToolTip(this.btnStart, "This button shows the current status of ping monitoring.\r\n\r\nClick the button to s" +
+        "tart or stop.");
 			this.btnStart.UseVisualStyleBackColor = false;
 			this.btnStart.Click += new System.EventHandler(this.btnStart_Click);
 			// 
@@ -246,11 +261,16 @@
 			this.cbTraceroute.Size = new System.Drawing.Size(232, 17);
 			this.cbTraceroute.TabIndex = 14;
 			this.cbTraceroute.Text = "Graph every node leading to the destination";
+			this.toolTip1.SetToolTip(this.cbTraceroute, "If checked, a traceroute operation will be performed \r\nand multiple destinations " +
+        "may be monitored.");
 			this.cbTraceroute.UseVisualStyleBackColor = true;
+			this.cbTraceroute.CheckedChanged += new System.EventHandler(this.cbTraceroute_CheckedChanged);
 			// 
 			// cbAlwaysShowServerNames
 			// 
 			this.cbAlwaysShowServerNames.AutoSize = true;
+			this.cbAlwaysShowServerNames.Checked = true;
+			this.cbAlwaysShowServerNames.CheckState = System.Windows.Forms.CheckState.Checked;
 			this.cbAlwaysShowServerNames.Location = new System.Drawing.Point(97, 62);
 			this.cbAlwaysShowServerNames.Name = "cbAlwaysShowServerNames";
 			this.cbAlwaysShowServerNames.Size = new System.Drawing.Size(91, 17);
@@ -276,6 +296,8 @@
 			this.label8.Size = new System.Drawing.Size(75, 13);
 			this.label8.TabIndex = 17;
 			this.label8.Text = "Bad threshold:";
+			this.toolTip1.SetToolTip(this.label8, "Pings exceeding this threshold are drawn in faded yellow color, \r\nand the backgro" +
+        "und of the ping graph will be yellow tinted \r\nabove this point.");
 			// 
 			// label9
 			// 
@@ -285,6 +307,8 @@
 			this.label9.Size = new System.Drawing.Size(87, 13);
 			this.label9.TabIndex = 18;
 			this.label9.Text = "Worse threshold:";
+			this.toolTip1.SetToolTip(this.label9, "Pings exceeding this threshold are drawn in bright yellow color, \r\nand the backgr" +
+        "ound of the ping graph will be red tinted \r\nabove this point.");
 			// 
 			// nudBadThreshold
 			// 
@@ -297,6 +321,8 @@
 			this.nudBadThreshold.Name = "nudBadThreshold";
 			this.nudBadThreshold.Size = new System.Drawing.Size(56, 20);
 			this.nudBadThreshold.TabIndex = 19;
+			this.toolTip1.SetToolTip(this.nudBadThreshold, "Pings exceeding this threshold are drawn in faded yellow color, \r\nand the backgro" +
+        "und of the ping graph will be yellow tinted \r\nabove this point.");
 			this.nudBadThreshold.Value = new decimal(new int[] {
             100,
             0,
@@ -315,6 +341,8 @@
 			this.nudWorseThreshold.Name = "nudWorseThreshold";
 			this.nudWorseThreshold.Size = new System.Drawing.Size(56, 20);
 			this.nudWorseThreshold.TabIndex = 20;
+			this.toolTip1.SetToolTip(this.nudWorseThreshold, "Pings exceeding this threshold are drawn in bright yellow color, \r\nand the backgr" +
+        "ound of the ping graph will be red tinted \r\nabove this point.");
 			this.nudWorseThreshold.Value = new decimal(new int[] {
             200,
             0,
@@ -333,11 +361,49 @@
 			this.cbMinMax.UseVisualStyleBackColor = true;
 			this.cbMinMax.CheckedChanged += new System.EventHandler(this.cbMinMax_CheckedChanged);
 			// 
+			// contextMenuStripHostHistory
+			// 
+			this.contextMenuStripHostHistory.Name = "contextMenuStripHostHistory";
+			this.contextMenuStripHostHistory.ShowImageMargin = false;
+			this.contextMenuStripHostHistory.Size = new System.Drawing.Size(36, 4);
+			// 
+			// label1
+			// 
+			this.label1.AutoSize = true;
+			this.label1.Location = new System.Drawing.Point(241, 12);
+			this.label1.Name = "label1";
+			this.label1.Size = new System.Drawing.Size(75, 13);
+			this.label1.TabIndex = 22;
+			this.label1.Text = "Display Name:";
+			this.toolTip1.SetToolTip(this.label1, "(Optional) \r\nA memorable name to show in the history \r\nwhen you click on the blue" +
+        " Host label.");
+			// 
+			// toolTip1
+			// 
+			this.toolTip1.AutomaticDelay = 250;
+			this.toolTip1.AutoPopDelay = 10000;
+			this.toolTip1.InitialDelay = 250;
+			this.toolTip1.ReshowDelay = 50;
+			// 
+			// txtDisplayName
+			// 
+			this.txtDisplayName.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+			this.txtDisplayName.Location = new System.Drawing.Point(322, 9);
+			this.txtDisplayName.Name = "txtDisplayName";
+			this.txtDisplayName.Size = new System.Drawing.Size(202, 20);
+			this.txtDisplayName.TabIndex = 23;
+			this.toolTip1.SetToolTip(this.txtDisplayName, "(Optional) \r\nA memorable name to show in the history \r\nwhen you click on the blue" +
+        " Host label.");
+			this.txtDisplayName.TextChanged += new System.EventHandler(this.txtDisplayName_TextChanged);
+			// 
 			// MainForm
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
 			this.ClientSize = new System.Drawing.Size(608, 561);
+			this.Controls.Add(this.txtDisplayName);
+			this.Controls.Add(this.label1);
 			this.Controls.Add(this.cbMinMax);
 			this.Controls.Add(this.nudWorseThreshold);
 			this.Controls.Add(this.nudBadThreshold);
@@ -356,7 +422,7 @@
 			this.Controls.Add(this.label3);
 			this.Controls.Add(this.nudPingsPerSecond);
 			this.Controls.Add(this.label2);
-			this.Controls.Add(this.label1);
+			this.Controls.Add(this.lblHost);
 			this.Controls.Add(this.txtHost);
 			this.MinimumSize = new System.Drawing.Size(300, 200);
 			this.Name = "MainForm";
@@ -367,6 +433,7 @@
 			this.splitContainer1.Panel1.ResumeLayout(false);
 			this.splitContainer1.Panel1.PerformLayout();
 			this.splitContainer1.Panel2.ResumeLayout(false);
+			((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).EndInit();
 			this.splitContainer1.ResumeLayout(false);
 			this.panel_Graphs.ResumeLayout(false);
 			((System.ComponentModel.ISupportInitialize)(this.nudBadThreshold)).EndInit();
@@ -380,7 +447,7 @@
 
 		private System.Windows.Forms.TextBox txtOut;
 		private System.Windows.Forms.TextBox txtHost;
-		private System.Windows.Forms.Label label1;
+		private System.Windows.Forms.Label lblHost;
 		private System.Windows.Forms.Label label2;
 		private System.Windows.Forms.NumericUpDown nudPingsPerSecond;
 		private System.Windows.Forms.Label label3;
@@ -401,6 +468,10 @@
 		private System.Windows.Forms.NumericUpDown nudBadThreshold;
 		private System.Windows.Forms.NumericUpDown nudWorseThreshold;
 		private System.Windows.Forms.CheckBox cbMinMax;
+		private System.Windows.Forms.ContextMenuStrip contextMenuStripHostHistory;
+		private System.Windows.Forms.Label label1;
+		private System.Windows.Forms.ToolTip toolTip1;
+		private System.Windows.Forms.TextBox txtDisplayName;
 	}
 }
 
