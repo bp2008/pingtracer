@@ -3,10 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace PingTest
+namespace PingTracer
 {
 	public class Settings : SerializableObjectBase
 	{
+		public bool logTextOutputToFile = true;
 		public List<HostSettings> hostHistory = new List<HostSettings>();
 
 		public bool Save()
@@ -27,8 +28,9 @@ namespace PingTest
 		public string displayName = "";
 		public int rate = 1;
 		public bool doTraceRoute = true;
-		public bool drawServerNames = false;
+		public bool drawServerNames = true;
 		public bool drawMinMax = false;
+		public bool drawPacketLoss = true;
 		public int badThreshold = 100;
 		public int worseThreshold = 200;
 
@@ -42,6 +44,7 @@ namespace PingTest
 					&& doTraceRoute == o.doTraceRoute
 					&& drawServerNames == o.drawServerNames
 					&& drawMinMax == o.drawMinMax
+					&& drawPacketLoss == o.drawPacketLoss
 					&& badThreshold == o.badThreshold
 					&& worseThreshold == o.worseThreshold;
 			}

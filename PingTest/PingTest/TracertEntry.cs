@@ -4,7 +4,7 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Text;
 
-namespace PingTest
+namespace PingTracer
 {
 	/// <summary>
 	/// BASED ON http://www.fluxbytes.com/csharp/tracert-implementation-in-c/

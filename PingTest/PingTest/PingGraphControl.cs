@@ -8,7 +8,7 @@ using System.Windows.Forms;
 using System.Threading;
 using System.Net.NetworkInformation;
 
-namespace PingTest
+namespace PingTracer
 {
 	public partial class PingGraphControl : UserControl
 	{
@@ -30,6 +30,13 @@ namespace PingTest
 		/// </summary>
 		private PingLog[] pings = new PingLog[10000];
 		private string MouseHintText = "";
+		private int countOffset
+		{
+			get
+			{
+				return ShowMostRecentPing ? 1 : 0;
+			}
+		}
 		/// <summary>
 		/// The start index to read from the buffer.
 		/// </summary>
@@ -40,7 +47,7 @@ namespace PingTest
 				long currentOffset = Interlocked.Read(ref _nextIndexOffset);
 				if (currentOffset == -1)
 					return 0;
-				return (int)((currentOffset - DisplayableCount) % pings.Length);
+				return (int)(((currentOffset + countOffset) - DisplayableCount) % pings.Length);
 			}
 		}
 		private int BufferedCount
@@ -51,7 +58,7 @@ namespace PingTest
 				if (currentOffset == -1)
 					return 0;
 				else
-					return (int)Math.Min(currentOffset, pings.Length);
+					return (int)Math.Min(currentOffset + countOffset, pings.Length);
 			}
 		}
 		private int DisplayableCount
@@ -110,6 +117,8 @@ namespace PingTest
 		public int Threshold_Bad = 100;
 		public int Threshold_Worse = 100;
 		public bool ShowMinMax = false;
+		public bool ShowPacketLoss = false;
+		public bool ShowMostRecentPing = false;
 		private void PingGraphControl_Paint(object sender, PaintEventArgs e)
 		{
 			e.Graphics.Clear(colorBackground);
@@ -123,17 +132,22 @@ namespace PingTest
 			max = int.MinValue;
 			min = int.MaxValue;
 			int sum = 0;
+			int successCount = 0;
 			for (int i = 0; i < count; i++)
 			{
 				int idx = (start + i) % pings.Length;
 				if (pings[idx] != null && pings[idx].result == IPStatus.Success)
 				{
+					successCount++;
 					last = pings[idx].pingTime;
 					sum += last;
 					max = Math.Max(max, last);
 					min = Math.Min(min, last);
 				}
 			}
+			decimal packetLoss = 0;
+			if(count > 0)
+				packetLoss = ((count - successCount) / (decimal)count) * 100;
 			avg = sum == 0 || count == 0 ? 0 : (int)((double)sum / (double)count);
 			if (min == int.MaxValue)
 				min = 0;
@@ -158,34 +172,42 @@ namespace PingTest
 			Point pEnd = new Point(this.Width - count, height);
 			for (int i = 0; i < count; i++)
 			{
-				int idx = (start + i) % pings.Length;
-				if (pings[idx] == null)
-					continue;
-				if (pings[idx].result == System.Net.NetworkInformation.IPStatus.Success)
+				try
 				{
-					if (pings[idx].pingTime < Threshold_Bad)
-						pen = penSuccess;
-					else if (pings[idx].pingTime < Threshold_Worse)
-						pen = penSuccessBad;
+					int idx = (start + i) % pings.Length;
+					if (pings[idx] == null)
+						continue;
+					if (pings[idx].result == System.Net.NetworkInformation.IPStatus.Success)
+					{
+						if (pings[idx].pingTime < Threshold_Bad)
+							pen = penSuccess;
+						else if (pings[idx].pingTime < Threshold_Worse)
+							pen = penSuccessBad;
+						else
+							pen = penSuccessWorse;
+						pStart.Y = (int)(height - (pings[idx].pingTime * vScale));
+					}
 					else
-						pen = penSuccessWorse;
-					pStart.Y = (int)(height - (pings[idx].pingTime * vScale));
-				}
-				else
-				{
-					pen = penFailure;
-					pStart.Y = 0;
-				}
+					{
+						pen = penFailure;
+						pStart.Y = 0;
+					}
 
-				e.Graphics.DrawLine(pen, pStart, pEnd);
-				pStart.X++;
-				pEnd.X++;
+					e.Graphics.DrawLine(pen, pStart, pEnd);
+				}
+				finally
+				{
+					pStart.X++;
+					pEnd.X++;
+				}
 			}
-			string statusStr;
+			string statusStr = "";
+			if(ShowPacketLoss)
+				statusStr += packetLoss.ToString("0.00") + "% ";
 			if (ShowMinMax)
-				statusStr = "[" + min + "," + max + "," + avg + "," + last + "]";
+				statusStr += "[" + min + "," + max + "," + avg + "," + last + "]";
 			else
-				statusStr = "[" + avg + "," + last + "]";
+				statusStr += "[" + avg + "," + last + "]";
 			if (!string.IsNullOrEmpty(MouseHintText))
 			{
 				if (!string.IsNullOrEmpty(DisplayName))

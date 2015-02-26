@@ -1,4 +1,4 @@
-﻿namespace PingTest
+﻿namespace PingTracer
 {
 	partial class PingGraphControl
 	{
