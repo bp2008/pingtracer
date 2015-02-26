@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Net.NetworkInformation;
 using System.Text;
 
-namespace PingTest
+namespace PingTracer
 {
 	public class PingLog
 	{

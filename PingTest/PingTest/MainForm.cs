@@ -10,7 +10,7 @@ using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 
-namespace PingTest
+namespace PingTracer
 {
 	public partial class MainForm : Form
 	{
@@ -21,7 +21,13 @@ namespace PingTest
 		private long successfulPings = 0;
 		private long failedPings = 0;
 
-		private const string dateFormatString = "yyyy'-'MM'-'dd HH':'mm':'ss':'fff tt";
+		private const string dateFormatString = "yyyy'-'MM'-'dd hh':'mm':'ss':'fff tt";
+		private const string fileNameFriendlyDateFormatString = "yyyy'-'MM'-'dd HH'-'mm'-'ss";
+
+		/// <summary>
+		/// This may be null if no ping tracing has begun.
+		/// </summary>
+		private string currentIPAddress = null;
 
 		/// <summary>
 		/// Maps IP addresses to their PingGraphControl instances.
@@ -40,7 +46,7 @@ namespace PingTest
 		/// </summary>
 		Form panelForm = new Form();
 
-		Settings settings = new Settings();
+		public Settings settings = new Settings();
 
 		DateTime suppressHostSettingsSaveUntil = DateTime.MinValue;
 
@@ -63,6 +69,7 @@ namespace PingTest
 
 		private void controllerLoop(object arg)
 		{
+			currentIPAddress = null;
 			object[] args = (object[])arg;
 			string host = (string)args[0];
 			bool traceRoute = (bool)args[1];
@@ -100,6 +107,7 @@ namespace PingTest
 					CreateLogEntry("Host \"" + host + "\" could not be resolved");
 					return;
 				}
+				currentIPAddress = target.ToString();
 				CreateLogEntry("(" + DateTime.Now.ToString(dateFormatString) + "): Initializing pings to " + target.ToString());
 				if (traceRoute)
 				{
@@ -118,12 +126,13 @@ namespace PingTest
 				DateTime lastPingAt = DateTime.Now.AddSeconds(-60);
 				byte[] buffer = new byte[0];
 
-				DateTime startedPingingAt = DateTime.Now;
+				long numberOfPingLoopIterations = 0;
+				DateTime tenPingsAt = DateTime.MinValue;
 				while (true)
 				{
 					try
 					{
-						if (!clearedDeadHosts && startedPingingAt.AddSeconds(10) < DateTime.Now)
+						if (!clearedDeadHosts && tenPingsAt != DateTime.MinValue && tenPingsAt.AddSeconds(10) < DateTime.Now)
 						{
 							IList<int> pingTargetIds = pingTargets.Keys;
 							foreach (int pingTargetId in pingTargetIds)
@@ -168,6 +177,9 @@ namespace PingTest
 					catch (Exception)
 					{
 					}
+					numberOfPingLoopIterations++;
+					if (numberOfPingLoopIterations == 10)
+						tenPingsAt = DateTime.Now;
 				}
 			}
 			catch (ThreadAbortException)
@@ -256,6 +268,7 @@ namespace PingTest
 					graph.Threshold_Bad = (int)nudBadThreshold.Value;
 					graph.Threshold_Worse = (int)nudWorseThreshold.Value;
 					graph.ShowMinMax = cbMinMax.Checked;
+					graph.ShowPacketLoss = cbPacketLoss.Checked;
 
 					panel_Graphs.Controls.Add(graph);
 					graph.Click += panel_Graphs_Click;
@@ -279,7 +292,8 @@ namespace PingTest
 				else
 				{
 					txtOut.AppendText(Environment.NewLine + str);
-					File.AppendAllText("PingTest_Output.txt", str + Environment.NewLine);
+					if (settings.logTextOutputToFile)
+						File.AppendAllText("PingTest_Output.txt", str + Environment.NewLine);
 				}
 			}
 			catch (Exception)
@@ -440,6 +454,23 @@ namespace PingTest
 			}
 		}
 
+		private void cbPacketLoss_CheckedChanged(object sender, EventArgs e)
+		{
+			SaveHostIfHostAlreadyExists();
+			try
+			{
+				IList<PingGraphControl> graphs = pingGraphs.Values;
+				foreach (PingGraphControl graph in graphs)
+				{
+					graph.ShowPacketLoss = cbPacketLoss.Checked;
+					graph.Invalidate();
+				}
+			}
+			catch (Exception)
+			{
+			}
+		}
+
 		private void cbTraceroute_CheckedChanged(object sender, EventArgs e)
 		{
 			SaveHostIfHostAlreadyExists();
@@ -526,6 +557,7 @@ namespace PingTest
 			cbTraceroute.Checked = hs.doTraceRoute;
 			cbAlwaysShowServerNames.Checked = hs.drawServerNames;
 			cbMinMax.Checked = hs.drawMinMax;
+			cbPacketLoss.Checked = hs.drawPacketLoss;
 			nudBadThreshold.Value = hs.badThreshold;
 			nudWorseThreshold.Value = hs.worseThreshold;
 
@@ -571,6 +603,7 @@ namespace PingTest
 			hs.doTraceRoute = cbTraceroute.Checked;
 			hs.drawServerNames = cbAlwaysShowServerNames.Checked;
 			hs.drawMinMax = cbMinMax.Checked;
+			hs.drawPacketLoss = cbPacketLoss.Checked;
 			hs.badThreshold = (int)nudBadThreshold.Value;
 			hs.worseThreshold = (int)nudWorseThreshold.Value;
 
@@ -593,6 +626,37 @@ namespace PingTest
 					settings.Save();
 				}
 			}
+		}
+
+		private void mi_Exit_Click(object sender, EventArgs e)
+		{
+			this.Close();
+		}
+
+		private void mi_snapshotGraphs_Click(object sender, EventArgs e)
+		{
+			string address = currentIPAddress;
+			if (address == null)
+			{
+				MessageBox.Show("Unable to save a snapshot of the graphs at this time.");
+				return;
+			}
+			using (Bitmap bmp = new Bitmap(panel_Graphs.Width, panel_Graphs.Height))
+			{
+				panel_Graphs.DrawToBitmap(bmp, new Rectangle(0, 0, bmp.Width, bmp.Height));
+				bmp.Save("PingTracer " + address + " " + DateTime.Now.ToString(fileNameFriendlyDateFormatString) + ".png", System.Drawing.Imaging.ImageFormat.Png);
+			}
+		}
+		OptionsForm optionsForm = null;
+		private void mi_Options_Click(object sender, EventArgs e)
+		{
+			if (optionsForm != null)
+			{
+				optionsForm.Close();
+				optionsForm.Dispose();
+			}
+			optionsForm = new OptionsForm(this);
+			optionsForm.Show();
 		}
 	}
 }

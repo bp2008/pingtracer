@@ -5,7 +5,7 @@ using System.Text;
 using System.IO;
 using System.Reflection;
 
-namespace PingTest
+namespace PingTracer
 {
 	public abstract class SerializableObjectBase
 	{

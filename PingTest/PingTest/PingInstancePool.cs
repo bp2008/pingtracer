@@ -5,7 +5,7 @@ using System.Linq;
 using System.Net.NetworkInformation;
 using System.Text;
 
-namespace PingTest
+namespace PingTracer
 {
 	public static class PingInstancePool
 	{
