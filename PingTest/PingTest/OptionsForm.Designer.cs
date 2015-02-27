@@ -28,6 +28,7 @@
 		/// </summary>
 		private void InitializeComponent()
 		{
+			System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(OptionsForm));
 			this.cbLogToFile = new System.Windows.Forms.CheckBox();
 			this.SuspendLayout();
 			// 
@@ -48,6 +49,7 @@
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
 			this.ClientSize = new System.Drawing.Size(283, 43);
 			this.Controls.Add(this.cbLogToFile);
+			this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
 			this.Name = "OptionsForm";
 			this.Text = "Ping Tracer Options";
 			this.ResumeLayout(false);
