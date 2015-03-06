@@ -58,6 +58,9 @@ namespace PingTracer
 		private void MainForm_Load(object sender, EventArgs e)
 		{
 			this.Text += " " + System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString();
+			panelForm.Text = this.Text;
+			panelForm.Icon = this.Icon;
+			panelForm.FormClosing += panelForm_FormClosing;
 			settings.Load();
 			lock (settings.hostHistory)
 			{
@@ -248,6 +251,7 @@ namespace PingTracer
 				{
 					int id = graphSortingCounter++;
 					PingGraphControl graph = new PingGraphControl();
+					graph.settings = this.settings;
 
 					pingTargets.Add(id, ipAddress);
 					pingGraphs.Add(id, graph);
@@ -293,7 +297,7 @@ namespace PingTracer
 				{
 					txtOut.AppendText(Environment.NewLine + str);
 					if (settings.logTextOutputToFile)
-						File.AppendAllText("PingTest_Output.txt", str + Environment.NewLine);
+						File.AppendAllText("PingTracer_Output.txt", str + Environment.NewLine);
 				}
 			}
 			catch (Exception)
@@ -360,6 +364,15 @@ namespace PingTracer
 				SaveHost();
 				btnStart_Click(null, null);
 			}
+		}
+
+		void panelForm_FormClosing(object sender, FormClosingEventArgs e)
+		{
+			try
+			{
+				this.Close();
+			}
+			catch (Exception) { }
 		}
 
 		private void panel_Graphs_Resize(object sender, EventArgs e)

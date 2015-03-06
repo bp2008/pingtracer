@@ -8,6 +8,7 @@ namespace PingTracer
 	public class Settings : SerializableObjectBase
 	{
 		public bool logTextOutputToFile = true;
+		public bool delayMostRecentPing = true;
 		public List<HostSettings> hostHistory = new List<HostSettings>();
 
 		public bool Save()

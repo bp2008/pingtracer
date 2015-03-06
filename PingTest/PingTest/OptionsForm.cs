@@ -23,11 +23,18 @@ namespace PingTracer
 			this.mainForm = mainForm;
 			InitializeComponent();
 			cbLogToFile.Checked = mainForm.settings.logTextOutputToFile;
+			cbDelayMostRecentPing.Checked = mainForm.settings.delayMostRecentPing;
 		}
 
 		private void cbLogToFile_CheckedChanged(object sender, EventArgs e)
 		{
 			mainForm.settings.logTextOutputToFile = cbLogToFile.Checked;
+			mainForm.settings.Save();
+		}
+
+		private void cbDelayMostRecentPing_CheckedChanged(object sender, EventArgs e)
+		{
+			mainForm.settings.delayMostRecentPing = cbDelayMostRecentPing.Checked;
 			mainForm.settings.Save();
 		}
 	}
