@@ -13,6 +13,8 @@ namespace PingTracer
 	public partial class PingGraphControl : UserControl
 	{
 		#region Fields and Properties
+		public Settings settings = new Settings();
+
 		public Pen penSuccess = new Pen(Color.FromArgb(64, 128, 64), 1);
 		public Pen penSuccessBad = new Pen(Color.FromArgb(128, 128, 0), 1);
 		public Pen penSuccessWorse = new Pen(Color.FromArgb(255, 255, 0), 1);
@@ -34,7 +36,7 @@ namespace PingTracer
 		{
 			get
 			{
-				return ShowMostRecentPing ? 1 : 0;
+				return settings.delayMostRecentPing ? 0 : 1;
 			}
 		}
 		/// <summary>
@@ -118,7 +120,7 @@ namespace PingTracer
 		public int Threshold_Worse = 100;
 		public bool ShowMinMax = false;
 		public bool ShowPacketLoss = false;
-		public bool ShowMostRecentPing = false;
+
 		private void PingGraphControl_Paint(object sender, PaintEventArgs e)
 		{
 			e.Graphics.Clear(colorBackground);
