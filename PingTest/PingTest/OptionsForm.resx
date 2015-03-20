@@ -120,6 +120,60 @@
   <metadata name="toolTip1.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
     <value>17, 17</value>
   </metadata>
+  <metadata name="toolTip1.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
+    <value>17, 17</value>
+  </metadata>
+  <data name="label1.ToolTip" xml:space="preserve">
+    <value>(Default: 10000)
+
+Ping Tracer caches ping responses in memory in 
+a circular buffer.  When the buffer is full, old data 
+is overwritten.
+
+A larger cache means you can scroll to see more data, 
+but it also uses more memory.
+
+For example, a cache size of 36000 will store 
+* 10 hours of data at 1 ping per second
+* 2 hours of data at 5 pings per second
+* 1 hour of data at 10 pings per second
+
+Takes effect when ping monitoring is restarted.</value>
+  </data>
+  <data name="nudPingResponsesToCache.ToolTip" xml:space="preserve">
+    <value>(Default: 10000)
+
+Ping Tracer caches ping responses in memory in 
+a circular buffer.  When the buffer is full, old data 
+is overwritten.
+
+A larger cache means you can scroll to see more data, 
+but it also uses more memory.
+
+For example, a cache size of 36000 will store 
+* 10 hours of data at 1 ping per second
+* 2 hours of data at 5 pings per second
+* 1 hour of data at 10 pings per second
+
+Takes effect when ping monitoring is restarted.</value>
+  </data>
+  <data name="label2.ToolTip" xml:space="preserve">
+    <value>(Default: 10000)
+
+Ping Tracer caches ping responses in memory in 
+a circular buffer.  When the buffer is full, old data 
+is overwritten.
+
+A larger cache means you can scroll to see more data, 
+but it also uses more memory.
+
+For example, a cache size of 36000 will store 
+* 10 hours of data at 1 ping per second
+* 2 hours of data at 5 pings per second
+* 1 hour of data at 10 pings per second
+
+Takes effect when ping monitoring is restarted.</value>
+  </data>
   <assembly alias="System.Drawing" name="System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" />
   <data name="$this.Icon" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
     <value>
