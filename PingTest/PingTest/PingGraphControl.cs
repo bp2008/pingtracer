@@ -13,7 +13,7 @@ namespace PingTracer
 	public partial class PingGraphControl : UserControl
 	{
 		#region Fields and Properties
-		public Settings settings = new Settings();
+		private Settings settings = new Settings();
 
 		public Pen penSuccess = new Pen(Color.FromArgb(64, 128, 64), 1);
 		public Pen penSuccessBad = new Pen(Color.FromArgb(128, 128, 0), 1);
@@ -23,6 +23,11 @@ namespace PingTracer
 		public Color colorBackground = Color.FromArgb(0, 0, 0);
 		public Brush brushBackgroundBad = new SolidBrush(Color.FromArgb(35, 35, 0));
 		public Brush brushBackgroundWorse = new SolidBrush(Color.FromArgb(40, 0, 0));
+		public Brush brushBackgroundTimestamps = new SolidBrush(Color.FromArgb(0, 0, 0));
+		public Brush brushTimestampsText = new SolidBrush(Color.FromArgb(200, 200, 200));
+		public Pen penTimestampsMark = new Pen(Color.FromArgb(128, 128, 128), 1);
+		public Pen penTimestampsBorder = new Pen(Color.FromArgb(128, 128, 128), 1);
+		public Font textFont = new Font(FontFamily.GenericSansSerif, 8.25f);
 		/// <summary>
 		/// Text that is displayed in the upper left corner of the graph.
 		/// </summary>
@@ -30,13 +35,13 @@ namespace PingTracer
 		/// <summary>
 		/// A buffer to store information for the most recent pings.
 		/// </summary>
-		private PingLog[] pings = new PingLog[10000];
+		private PingLog[] pings;
 		private string MouseHintText = "";
 		private int countOffset
 		{
 			get
 			{
-				return settings.delayMostRecentPing ? 0 : 1;
+				return (settings.delayMostRecentPing ? 0 : 1) - scrollXOffset;
 			}
 		}
 		/// <summary>
@@ -78,9 +83,29 @@ namespace PingTracer
 				return (int)((Interlocked.Increment(ref _nextIndexOffset)) % pings.Length);
 			}
 		}
-		#endregion
-		public PingGraphControl()
+		private int scrollXOffset = 0;
+		public int ScrollXOffset
 		{
+			get
+			{
+				return scrollXOffset;
+			}
+			set
+			{
+				if (value < 0)
+					scrollXOffset = 0;
+				else
+					scrollXOffset = value;
+				if (scrollXOffset == 0)
+					setLiveAtTime = Environment.TickCount;
+			}
+		}
+		private int setLiveAtTime = 0;
+		#endregion
+		public PingGraphControl(Settings settings)
+		{
+			this.settings = settings;
+			pings = new PingLog[settings.cacheSize];
 			InitializeComponent();
 		}
 		public void AddPingLog(PingLog pingLog)
@@ -113,18 +138,28 @@ namespace PingTracer
 			this.Invalidate();
 		}
 
+		int timestampsHeight = 13;
+		public int TimestampsHeight
+		{
+			get
+			{
+				return timestampsHeight;
+			}
+		}
 		double vScale = 1;
-		int min = 0, avg = 0, max = 0, last = 0;
+		int min = 0, avg = 0, max = 0, last = 0, height = short.MaxValue;
 		public bool AlwaysShowServerNames = false;
 		public int Threshold_Bad = 100;
 		public int Threshold_Worse = 100;
 		public bool ShowMinMax = false;
 		public bool ShowPacketLoss = false;
+		public bool ShowTimestamps = true;
 
 		private void PingGraphControl_Paint(object sender, PaintEventArgs e)
 		{
 			e.Graphics.Clear(colorBackground);
-			int height = Math.Min(this.Height, short.MaxValue);
+			bool showTimestampsThisTime = ShowTimestamps;
+			height = Math.Min(this.Height - (showTimestampsThisTime ? timestampsHeight : 0), short.MaxValue);
 			Pen pen = penSuccess;
 			int start = StartIndex;
 			if (start == -1)
@@ -148,30 +183,37 @@ namespace PingTracer
 				}
 			}
 			decimal packetLoss = 0;
-			if(count > 0)
+			if (count > 0)
 				packetLoss = ((count - successCount) / (decimal)count) * 100;
-			avg = sum == 0 || count == 0 ? 0 : (int)((double)sum / (double)count);
+			avg = sum == 0 || successCount == 0 ? 0 : (int)((double)sum / (double)successCount);
 			if (min == int.MaxValue)
 				min = 0;
 			if (max == int.MinValue)
 				max = 0;
-			if (max > this.Height)
+			if (max > height)
 			{
 				// max value is too high to draw in the box.
 				int maxForScaling = Math.Min((int)(max * 1.1), (int)(Threshold_Worse * 1.5));
-				maxForScaling = Math.Max(maxForScaling, this.Height);
-				vScale = (double)this.Height / (double)maxForScaling;
+				maxForScaling = Math.Max(maxForScaling, height);
+				vScale = (double)height / (double)maxForScaling;
 			}
 			else
 				vScale = 1f;
 			int scaledBadLine = (int)(vScale * Threshold_Bad);
 			int scaledWorseLine = (int)(vScale * Threshold_Worse);
-			if (scaledWorseLine < this.Height)
-				e.Graphics.FillRectangle(brushBackgroundWorse, new Rectangle(0, 0, this.Width, this.Height - scaledWorseLine));
-			if (scaledBadLine < this.Height)
-				e.Graphics.FillRectangle(brushBackgroundBad, new Rectangle(0, this.Height - scaledWorseLine, this.Width, scaledWorseLine - scaledBadLine));
-			Point pStart = new Point(this.Width - count, height);
-			Point pEnd = new Point(this.Width - count, height);
+			if (scaledWorseLine < height)
+				e.Graphics.FillRectangle(brushBackgroundWorse, new Rectangle(0, 0, this.Width, height - scaledWorseLine));
+			if (scaledBadLine < height)
+				e.Graphics.FillRectangle(brushBackgroundBad, new Rectangle(0, height - scaledWorseLine, this.Width, scaledWorseLine - scaledBadLine));
+			if (showTimestampsThisTime)
+				e.Graphics.DrawLine(penTimestampsBorder, new Point(0, height), new Point(this.Width - 1, height));
+			//	e.Graphics.FillRectangle(brushBackgroundTimestamps, new Rectangle(0, this.Height - timestampsHeight, this.Width, timestampsHeight));
+			Point pStart = new Point(this.Width - count, height - 1);
+			Point pEnd = new Point(this.Width - count, height - 1);
+			Point pTimestampMarkStart = new Point(this.Width - count, height + 1);
+			Point pTimestampMarkEnd = new Point(this.Width - count, this.Height - 1);
+			int lastStampedMinute = -1;
+			string timelineOverlayString = "";
 			for (int i = 0; i < count; i++)
 			{
 				try
@@ -196,15 +238,49 @@ namespace PingTracer
 					}
 
 					e.Graphics.DrawLine(pen, pStart, pEnd);
+
+					if (showTimestampsThisTime)
+					{
+						if (lastStampedMinute == -1
+							|| pings[idx].startTime.Minute != lastStampedMinute)
+						{
+							if(settings.showDateOnGraphTimeline && lastStampedMinute == -1)
+								timelineOverlayString += pings[idx].startTime.ToString("yyyy-M-d ");
+							if (pings[idx].startTime.Second < 2) // Only draw the line if this is close to the actual moment the minute struck.
+								e.Graphics.DrawLine(penTimestampsMark, pTimestampMarkStart, pTimestampMarkEnd);
+							string stamp = pings[idx].startTime.ToString("h:mm tt");
+							SizeF strSize = e.Graphics.MeasureString(stamp, textFont);
+							e.Graphics.FillRectangle(brushBackgroundTimestamps, new Rectangle(pTimestampMarkStart.X + 1, pTimestampMarkStart.Y, (int)strSize.Width - 1, (int)timestampsHeight - 1));
+							e.Graphics.DrawString(stamp, textFont, brushTimestampsText, pTimestampMarkStart.X, pTimestampMarkStart.Y - 1);
+
+							lastStampedMinute = pings[idx].startTime.Minute;
+						}
+					}
 				}
 				finally
 				{
 					pStart.X++;
 					pEnd.X++;
+					pTimestampMarkStart.X++;
+					pTimestampMarkEnd.X++;
 				}
 			}
+			if (count <= 0 && Interlocked.Read(ref _nextIndexOffset) != -1)
+				timelineOverlayString += "The graph begins " + -count + " lines to the right. ";
+			else if (scrollXOffset == 0 && Math.Abs(setLiveAtTime - Environment.TickCount) < 1000)
+				timelineOverlayString += "The graph is now displaying live data. ";
+
+			if (timelineOverlayString.Length > 0)
+			{
+				SizeF strSize = e.Graphics.MeasureString(timelineOverlayString, textFont);
+				e.Graphics.FillRectangle(brushBackgroundTimestamps, new Rectangle(0, pTimestampMarkStart.Y, (int)strSize.Width - 1, (int)timestampsHeight - 1));
+				e.Graphics.DrawString(timelineOverlayString, textFont, brushTimestampsText, 0, pTimestampMarkStart.Y - 1);
+			}
+
 			string statusStr = "";
-			if(ShowPacketLoss)
+			if (scrollXOffset != 0 && settings.warnGraphNotLive)
+				statusStr += "NOT LIVE -" + scrollXOffset + ": ";
+			if (ShowPacketLoss)
 				statusStr += packetLoss.ToString("0.00") + "% ";
 			if (ShowMinMax)
 				statusStr += "[" + min + "," + max + "," + avg + "," + last + "]";
@@ -219,9 +295,9 @@ namespace PingTracer
 			else if (AlwaysShowServerNames && !string.IsNullOrEmpty(DisplayName))
 				statusStr += " " + DisplayName;
 
-			e.Graphics.DrawString(statusStr, this.Font, brushText, 1, 1);
-			//SizeF measuredSize = e.Graphics.MeasureString(statusStr, this.Font);
-			//e.Graphics.DrawString(statusStr, this.Font, brushText, (this.Width - measuredSize.Width) - 15, 1);
+			e.Graphics.DrawString(statusStr, textFont, brushText, 1, 1);
+			//SizeF measuredSize = e.Graphics.MeasureString(statusStr, textFont);
+			//e.Graphics.DrawString(statusStr, textFont, brushText, (this.Width - measuredSize.Width) - 15, 1);
 		}
 
 		private void PingGraphControl_Resize(object sender, EventArgs e)
@@ -255,17 +331,17 @@ namespace PingTracer
 				int start = StartIndex + DisplayableCount;
 				int i = (start + offset) % pings.Length;
 				if (i < 0)
-					return "No Data Yet, Mouse ms: " + GetScaledHeightValue(this.Height - y);
+					return "No Data Yet, Mouse ms: " + GetScaledHeightValue(height - y);
 				PingLog pingLog = pings[i];
 				if (pingLog == null)
-					return "Waiting for response, Mouse ms: " + GetScaledHeightValue(this.Height - y);
+					return "Waiting for response, Mouse ms: " + GetScaledHeightValue(height - y);
 				if (pingLog.result != System.Net.NetworkInformation.IPStatus.Success)
-					return GetTimestamp(pingLog.startTime) + ": " + pingLog.result.ToString() + ", Mouse ms: " + GetScaledHeightValue(this.Height - y);
-				return GetTimestamp(pingLog.startTime) + ": " + pingLog.pingTime + " ms, Mouse ms: " + GetScaledHeightValue(this.Height - y);
+					return GetTimestamp(pingLog.startTime) + ": " + pingLog.result.ToString() + ", Mouse ms: " + GetScaledHeightValue(height - y);
+				return GetTimestamp(pingLog.startTime) + ": " + pingLog.pingTime + " ms, Mouse ms: " + GetScaledHeightValue(height - y);
 			}
 			catch (Exception)
 			{
-				return "Error, Mouse ms: " + (this.Height - y);
+				return "Error, Mouse ms: " + (height - y);
 			}
 		}
 		private int GetScaledHeightValue(int height)
@@ -275,6 +351,5 @@ namespace PingTracer
 			return (int)(height / vScale);
 		}
 		#endregion
-
 	}
 }

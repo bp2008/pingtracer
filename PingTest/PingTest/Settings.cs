@@ -9,7 +9,12 @@ namespace PingTracer
 	{
 		public bool logTextOutputToFile = true;
 		public bool delayMostRecentPing = true;
+		public bool warnGraphNotLive = true;
 		public List<HostSettings> hostHistory = new List<HostSettings>();
+		public int cacheSize = 10000;
+		public bool fastRefreshScrollingGraphs = true;
+		public int graphScrollMultiplier = 1;
+		public bool showDateOnGraphTimeline = true;
 
 		public bool Save()
 		{

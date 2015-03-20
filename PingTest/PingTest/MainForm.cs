@@ -78,7 +78,13 @@ namespace PingTracer
 			bool traceRoute = (bool)args[1];
 
 			foreach (PingGraphControl graph in pingGraphs.Values)
+			{
 				graph.ClearAll();
+				graph.MouseDown -= panel_Graphs_MouseDown;
+				graph.MouseMove -= panel_Graphs_MouseMove;
+				graph.MouseLeave -= panel_Graphs_MouseLeave;
+				graph.MouseUp -= panel_Graphs_MouseUp;
+			}
 			pingGraphs.Clear();
 			pingTargets.Clear();
 			pingTargetHasAtLeastOneSuccess.Clear();
@@ -137,24 +143,39 @@ namespace PingTracer
 					{
 						if (!clearedDeadHosts && tenPingsAt != DateTime.MinValue && tenPingsAt.AddSeconds(10) < DateTime.Now)
 						{
-							IList<int> pingTargetIds = pingTargets.Keys;
-							foreach (int pingTargetId in pingTargetIds)
+							if (pingTargets.Count > 1)
 							{
-								if (!pingTargetHasAtLeastOneSuccess[pingTargetId])
+								IList<int> pingTargetIds = pingTargets.Keys;
+								foreach (int pingTargetId in pingTargetIds)
 								{
-									// This ping target has not yet had a successful response. Assume it never will, and delete it.
-									panel_Graphs.Invoke((Action)(() =>
+									if (!pingTargetHasAtLeastOneSuccess[pingTargetId])
 									{
-										pingTargets.Remove(pingTargetId);
-										panel_Graphs.Controls.Remove(pingGraphs[pingTargetId]);
-										pingGraphs.Remove(pingTargetId);
-									}));
+										// This ping target has not yet had a successful response. Assume it never will, and delete it.
+										panel_Graphs.Invoke((Action)(() =>
+										{
+											pingTargets.Remove(pingTargetId);
+											panel_Graphs.Controls.Remove(pingGraphs[pingTargetId]);
+											pingGraphs[pingTargetId].MouseDown -= panel_Graphs_MouseDown;
+											pingGraphs[pingTargetId].MouseMove -= panel_Graphs_MouseMove;
+											pingGraphs[pingTargetId].MouseLeave -= panel_Graphs_MouseLeave;
+											pingGraphs[pingTargetId].MouseUp -= panel_Graphs_MouseUp;
+											pingGraphs.Remove(pingTargetId);
+											if (pingGraphs.Count == 0)
+											{
+												Label lblNoGraphsRemain = new Label();
+												lblNoGraphsRemain.Text = "All graphs were removed because" + Environment.NewLine + "none of the hosts responded to pings.";
+												panel_Graphs.Controls.Add(lblNoGraphsRemain);
+											}
+											else
+												pingGraphs[pingGraphs.Count - 1].ShowTimestamps = true; // In case the graph we just removed was the last graph, which is supposed to show the timestamps along its bottom, this will make sure the new (or old) bottom is showing timestamps.
+										}));
+									}
 								}
+								panel_Graphs.Invoke((Action)(() =>
+								{
+									panel_Graphs_Resize(null, null);
+								}));
 							}
-							panel_Graphs.Invoke((Action)(() =>
-							{
-								panel_Graphs_Resize(null, null);
-							}));
 							clearedDeadHosts = true;
 						}
 						while (pingDelay < 0)
@@ -249,9 +270,12 @@ namespace PingTracer
 					panel_Graphs.Invoke((Action<IPAddress, string>)AddPingTarget, ipAddress, name);
 				else
 				{
+					if (pingGraphs.Count > 0) // We are adding a new graph that will be at the bottom, so disable timestamp display on the previous graph.
+						pingGraphs.Values[pingGraphs.Count - 1].ShowTimestamps = false;
+
 					int id = graphSortingCounter++;
-					PingGraphControl graph = new PingGraphControl();
-					graph.settings = this.settings;
+					PingGraphControl graph = new PingGraphControl(this.settings);
+					graph.ShowTimestamps = true;
 
 					pingTargets.Add(id, ipAddress);
 					pingGraphs.Add(id, graph);
@@ -275,7 +299,10 @@ namespace PingTracer
 					graph.ShowPacketLoss = cbPacketLoss.Checked;
 
 					panel_Graphs.Controls.Add(graph);
-					graph.Click += panel_Graphs_Click;
+					graph.MouseDown += panel_Graphs_MouseDown;
+					graph.MouseMove += panel_Graphs_MouseMove;
+					graph.MouseLeave += panel_Graphs_MouseLeave;
+					graph.MouseUp += panel_Graphs_MouseUp;
 					panel_Graphs_Resize(null, null);
 				}
 			}
@@ -303,41 +330,6 @@ namespace PingTracer
 			catch (Exception)
 			{
 			}
-		}
-
-		private void btnStart_Click(object sender, EventArgs e)
-		{
-			SaveHost();
-			btnStart.Enabled = false;
-			if (isRunning)
-			{
-				isRunning = false;
-				btnStart.Text = "Idle";
-				btnStart.BackColor = Color.FromArgb(255, 128, 128);
-				controllerThread.Abort();
-				txtHost.Enabled = true;
-				cbTraceroute.Enabled = true;
-			}
-			else
-			{
-				isRunning = true;
-				btnStart.Text = "Active";
-				btnStart.BackColor = Color.FromArgb(128, 255, 128);
-				controllerThread = new Thread(controllerLoop);
-				controllerThread.Start(new object[] { txtHost.Text, cbTraceroute.Checked });
-				txtHost.Enabled = false;
-				cbTraceroute.Enabled = false;
-			}
-			btnStart.Enabled = true;
-		}
-
-		private void nudPingsPerSecond_ValueChanged(object sender, EventArgs e)
-		{
-			SaveHostIfHostAlreadyExists();
-			if (nudPingsPerSecond.Value == 0)
-				pingDelay = -1;
-			else
-				pingDelay = (int)(1000 / nudPingsPerSecond.Value);
 		}
 
 		private void UpdatePingCounts(long successful, long failed)
@@ -379,20 +371,93 @@ namespace PingTracer
 		{
 			if (pingGraphs.Count == 0)
 				return;
-			int width = panel_Graphs.Width;
-			int outerHeight = panel_Graphs.Height / pingGraphs.Count;
-			int innerHeight = outerHeight - 1;
 			IList<int> keys = pingGraphs.Keys;
+			int width = panel_Graphs.Width;
+			int timestampsHeight = pingGraphs[keys[0]].TimestampsHeight;
+			int height = panel_Graphs.Height - timestampsHeight;
+			int outerHeight = height / pingGraphs.Count;
+			int innerHeight = outerHeight - 1;
 			for (int i = 0; i < keys.Count; i++)
 			{
 				PingGraphControl graph = pingGraphs[keys[i]];
 				if (i == keys.Count - 1)
 				{
-					int leftoverSpace = panel_Graphs.Height - (outerHeight * keys.Count);
+					int leftoverSpace = (height - (outerHeight * keys.Count)) + timestampsHeight;
 					innerHeight += leftoverSpace + 1;
 				}
 				graph.SetBounds(0, i * outerHeight, width, innerHeight);
 			}
+		}
+
+		#region Form input changed/clicked events
+
+		private void lblHost_Click(object sender, EventArgs e)
+		{
+			ShowHostHistory();
+			contextMenuStripHostHistory.Show(Cursor.Position);
+		}
+
+		private void rsitem_Click(object sender, EventArgs e)
+		{
+			if (isRunning)
+			{
+				MessageBox.Show("Cannot load a stored host while pings are running." + Environment.NewLine + "Please stop the pings first.");
+				return;
+			}
+
+			ToolStripItem tsi = (ToolStripItem)sender;
+			HostSettings hs = (HostSettings)tsi.Tag;
+			LoadHostSettings(hs);
+		}
+
+		private void mi_snapshotGraphs_Click(object sender, EventArgs e)
+		{
+			string address = currentIPAddress;
+			if (address == null)
+			{
+				MessageBox.Show("Unable to save a snapshot of the graphs at this time.");
+				return;
+			}
+			using (Bitmap bmp = new Bitmap(panel_Graphs.Width, panel_Graphs.Height))
+			{
+				panel_Graphs.DrawToBitmap(bmp, new Rectangle(0, 0, bmp.Width, bmp.Height));
+				bmp.Save("PingTracer " + address + " " + DateTime.Now.ToString(fileNameFriendlyDateFormatString) + ".png", System.Drawing.Imaging.ImageFormat.Png);
+			}
+		}
+
+		private void btnStart_Click(object sender, EventArgs e)
+		{
+			SaveHost();
+			btnStart.Enabled = false;
+			if (isRunning)
+			{
+				isRunning = false;
+				btnStart.Text = "Click to Start";
+				btnStart.BackColor = Color.FromArgb(255, 128, 128);
+				controllerThread.Abort();
+				txtHost.Enabled = true;
+				cbTraceroute.Enabled = true;
+			}
+			else
+			{
+				isRunning = true;
+				btnStart.Text = "Click to Stop";
+				btnStart.BackColor = Color.FromArgb(128, 255, 128);
+				controllerThread = new Thread(controllerLoop);
+				controllerThread.Start(new object[] { txtHost.Text, cbTraceroute.Checked });
+				txtHost.Enabled = false;
+				cbTraceroute.Enabled = false;
+			}
+			btnStart.Enabled = true;
+		}
+
+		private void nudPingsPerSecond_ValueChanged(object sender, EventArgs e)
+		{
+			SaveHostIfHostAlreadyExists();
+			if (nudPingsPerSecond.Value == 0)
+				pingDelay = -1;
+			else
+				pingDelay = (int)(1000 / nudPingsPerSecond.Value);
 		}
 
 		private void cbAlwaysShowServerNames_CheckedChanged(object sender, EventArgs e)
@@ -493,7 +558,61 @@ namespace PingTracer
 		{
 			SaveHostIfHostAlreadyExists();
 		}
+		#endregion
 
+		#region Mouse graph events
+
+		Point pGraphMouseDownAt = new Point();
+		Point pGraphMouseLastSeenAt = new Point();
+		bool mouseIsDownOnGraph = false;
+		bool mouseMayBeClickingGraph = false;
+		private void panel_Graphs_MouseDown(object sender, MouseEventArgs e)
+		{
+			mouseIsDownOnGraph = true;
+			mouseMayBeClickingGraph = true;
+			pGraphMouseLastSeenAt = pGraphMouseDownAt = e.Location;
+		}
+		private void panel_Graphs_MouseMove(object sender, MouseEventArgs e)
+		{
+			if (mouseIsDownOnGraph)
+			{
+				if (Math.Abs(pGraphMouseDownAt.X - e.Location.X) >= 5
+					|| Math.Abs(pGraphMouseDownAt.Y - e.Location.Y) >= 5)
+				{
+					mouseMayBeClickingGraph = false;
+				}
+
+				if (!mouseMayBeClickingGraph)
+				{
+					int dx = e.Location.X - pGraphMouseLastSeenAt.X;
+
+					if (settings.graphScrollMultiplier != 0)
+						foreach (PingGraphControl graph in pingGraphs.Values)
+						{
+							graph.ScrollXOffset += dx * settings.graphScrollMultiplier;
+							if (settings.fastRefreshScrollingGraphs)
+								graph.Invalidate();
+						}
+				}
+			}
+			pGraphMouseLastSeenAt = e.Location;
+		}
+		private void panel_Graphs_MouseLeave(object sender, EventArgs e)
+		{
+			mouseMayBeClickingGraph = mouseIsDownOnGraph = false;
+		}
+		private void panel_Graphs_MouseUp(object sender, MouseEventArgs e)
+		{
+			if (mouseIsDownOnGraph
+				&& mouseMayBeClickingGraph
+				&& (Math.Abs(pGraphMouseDownAt.X - e.Location.X) < 5
+					&& Math.Abs(pGraphMouseDownAt.Y - e.Location.Y) < 5))
+			{
+				panel_Graphs_Click(sender, e);
+			}
+			pGraphMouseLastSeenAt = e.Location;
+			mouseMayBeClickingGraph = mouseIsDownOnGraph = false;
+		}
 		private void panel_Graphs_Click(object sender, EventArgs e)
 		{
 			if (panel_Graphs.Parent == splitContainer1.Panel2)
@@ -513,12 +632,10 @@ namespace PingTracer
 				panelForm.Hide();
 			}
 		}
+		#endregion
 
-		private void lblHost_Click(object sender, EventArgs e)
-		{
-			ShowHostHistory();
-			contextMenuStripHostHistory.Show(Cursor.Position);
-		}
+		#region Host History
+
 		private void ShowHostHistory()
 		{
 			contextMenuStripHostHistory.Items.Clear();
@@ -546,18 +663,6 @@ namespace PingTracer
 					contextMenuStripHostHistory.Items.Add(item);
 				}
 			}
-		}
-		private void rsitem_Click(object sender, EventArgs e)
-		{
-			if (isRunning)
-			{
-				MessageBox.Show("Cannot load a stored host while pings are running." + Environment.NewLine + "Please stop the pings first.");
-				return;
-			}
-
-			ToolStripItem tsi = (ToolStripItem)sender;
-			HostSettings hs = (HostSettings)tsi.Tag;
-			LoadHostSettings(hs);
 		}
 
 		private void LoadHostSettings(HostSettings hs)
@@ -641,25 +746,13 @@ namespace PingTracer
 			}
 		}
 
+		#endregion
+
 		private void mi_Exit_Click(object sender, EventArgs e)
 		{
 			this.Close();
 		}
 
-		private void mi_snapshotGraphs_Click(object sender, EventArgs e)
-		{
-			string address = currentIPAddress;
-			if (address == null)
-			{
-				MessageBox.Show("Unable to save a snapshot of the graphs at this time.");
-				return;
-			}
-			using (Bitmap bmp = new Bitmap(panel_Graphs.Width, panel_Graphs.Height))
-			{
-				panel_Graphs.DrawToBitmap(bmp, new Rectangle(0, 0, bmp.Width, bmp.Height));
-				bmp.Save("PingTracer " + address + " " + DateTime.Now.ToString(fileNameFriendlyDateFormatString) + ".png", System.Drawing.Imaging.ImageFormat.Png);
-			}
-		}
 		OptionsForm optionsForm = null;
 		private void mi_Options_Click(object sender, EventArgs e)
 		{

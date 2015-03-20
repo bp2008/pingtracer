@@ -158,7 +158,7 @@
 			this.btnStart.Name = "btnStart";
 			this.btnStart.Size = new System.Drawing.Size(66, 46);
 			this.btnStart.TabIndex = 3;
-			this.btnStart.Text = "Idle";
+			this.btnStart.Text = "Click to Start";
 			this.toolTip1.SetToolTip(this.btnStart, "This button shows the current status of ping monitoring.\r\n\r\nClick the button to s" +
         "tart or stop.");
 			this.btnStart.UseVisualStyleBackColor = false;
@@ -233,7 +233,7 @@
 			this.panel_Graphs.Controls.Add(this.label5);
 			this.panel_Graphs.Location = new System.Drawing.Point(0, 0);
 			this.panel_Graphs.Name = "panel_Graphs";
-			this.panel_Graphs.Size = new System.Drawing.Size(608, 349);
+			this.panel_Graphs.Size = new System.Drawing.Size(608, 348);
 			this.panel_Graphs.TabIndex = 16;
 			this.panel_Graphs.Click += new System.EventHandler(this.panel_Graphs_Click);
 			this.panel_Graphs.Resize += new System.EventHandler(this.panel_Graphs_Resize);
