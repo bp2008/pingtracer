@@ -566,6 +566,7 @@ namespace PingTracer
 		Point pGraphMouseLastSeenAt = new Point();
 		bool mouseIsDownOnGraph = false;
 		bool mouseMayBeClickingGraph = false;
+		DateTime lastAllGraphsRedrawTime = DateTime.MinValue;
 		private void panel_Graphs_MouseDown(object sender, MouseEventArgs e)
 		{
 			mouseIsDownOnGraph = true;
@@ -585,14 +586,31 @@ namespace PingTracer
 				if (!mouseMayBeClickingGraph)
 				{
 					int dx = e.Location.X - pGraphMouseLastSeenAt.X;
+					if (dx != 0 && settings.graphScrollMultiplier != 0 && pingGraphs.Count > 0)
+					{
+						int newScrollXOffset = pingGraphs.Values[0].ScrollXOffset + (dx * settings.graphScrollMultiplier);
 
-					if (settings.graphScrollMultiplier != 0)
 						foreach (PingGraphControl graph in pingGraphs.Values)
+							graph.ScrollXOffset = newScrollXOffset;
+
+						if (settings.fastRefreshScrollingGraphs || DateTime.Now > lastAllGraphsRedrawTime.AddSeconds(1))
 						{
-							graph.ScrollXOffset += dx * settings.graphScrollMultiplier;
-							if (settings.fastRefreshScrollingGraphs)
-								graph.Invalidate();
+							bool aGraphIsInvalidated = false;
+							foreach (PingGraphControl graph in pingGraphs.Values)
+								if (graph.IsInvalidatedSync)
+								{
+									aGraphIsInvalidated = true;
+									break;
+								}
+							if (!aGraphIsInvalidated)
+							{
+								Console.WriteLine("Invalidating All");
+								foreach (PingGraphControl graph in pingGraphs.Values)
+									graph.InvalidateSync();
+								lastAllGraphsRedrawTime = DateTime.Now;
+							}
 						}
+					}
 				}
 			}
 			pGraphMouseLastSeenAt = e.Location;
