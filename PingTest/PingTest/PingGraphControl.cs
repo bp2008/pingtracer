@@ -146,6 +146,17 @@ namespace PingTracer
 				return timestampsHeight;
 			}
 		}
+		private bool isInvalidatedSync = false;
+		/// <summary>
+		/// True if the InvalidateSync method has been called and the Paint operation has not yet been performed.
+		/// </summary>
+		public bool IsInvalidatedSync
+		{
+			get
+			{
+				return isInvalidatedSync;
+			}
+		}
 		double vScale = 1;
 		int min = 0, avg = 0, max = 0, last = 0, height = short.MaxValue;
 		public bool AlwaysShowServerNames = false;
@@ -157,6 +168,7 @@ namespace PingTracer
 
 		private void PingGraphControl_Paint(object sender, PaintEventArgs e)
 		{
+			isInvalidatedSync = false;
 			e.Graphics.Clear(colorBackground);
 			bool showTimestampsThisTime = ShowTimestamps;
 			height = Math.Min(this.Height - (showTimestampsThisTime ? timestampsHeight : 0), short.MaxValue);
@@ -309,7 +321,14 @@ namespace PingTracer
 		{
 			return time.ToString("h:mm:ss tt");
 		}
-
+		/// <summary>
+		/// Invalidates the control, causing a redraw, and marking the IsInvalidatedSync flag = true
+		/// </summary>
+		public void InvalidateSync()
+		{
+			isInvalidatedSync = true;
+			base.Invalidate();
+		}
 		#region Mouseover Hint
 		private void PingGraphControl_MouseMove(object sender, MouseEventArgs e)
 		{
