@@ -69,7 +69,7 @@ namespace PingTracer
 				pingOptions.Ttl++;
 				pingReplyTime.Reset();
 			}
-			while (reply.Status != IPStatus.Success && pingOptions.Ttl <= maxHops && consecutiveTimeouts < 3);
+			while (reply.Status != IPStatus.Success && pingOptions.Ttl <= maxHops && consecutiveTimeouts < 5);
 		}
 
 		///// <summary>
