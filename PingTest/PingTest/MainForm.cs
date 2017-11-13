@@ -70,6 +70,45 @@ namespace PingTracer
 			nudPingsPerSecond_ValueChanged(null, null);
 		}
 
+		private IPAddress StringToIp(string address)
+		{
+			// Validate IP
+			try
+			{
+				return IPAddress.Parse(address);
+			}
+			catch (FormatException)
+			{
+			}
+
+			// Try as address
+			try
+			{
+				IPHostEntry iphe = Dns.GetHostEntry(address);
+				if (iphe.AddressList.Length > 0)
+					return iphe.AddressList[0];
+			}
+			catch (Exception e)
+			{
+				throw new Exception("Unable to resolve '" + address + "'", e);
+			}
+
+			// Fail
+			throw new Exception("Unable to parse '" + address + "'");
+		}
+
+		private string GetIpHostname(IPAddress ip)
+		{
+			try
+			{
+				return Dns.GetHostByAddress(ip).HostName;
+			}
+			catch (Exception)
+			{
+			}
+			return string.Empty;
+		}
+
 		private void controllerLoop(object arg)
 		{
 			currentIPAddress = null;
@@ -97,28 +136,24 @@ namespace PingTracer
 			IPAddress target = null;
 			try
 			{
-				// Find the IP address of the host entered by the user
-				try
-				{
-					target = IPAddress.Parse(host);
-				}
-				catch (Exception)
-				{
-				}
-				if (target == null)
-				{
-					IPHostEntry iphe = Dns.GetHostEntry(host);
-					if (iphe.AddressList.Length > 0)
-						target = iphe.AddressList[0];
-				}
-				if (target == null)
-				{
-					CreateLogEntry("Host \"" + host + "\" could not be resolved");
-					return;
-				}
+				string[] addresses = host.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+				target = StringToIp(addresses[0]);
 				currentIPAddress = target.ToString();
-				CreateLogEntry("(" + DateTime.Now.ToString(dateFormatString) + "): Initializing pings to " + target.ToString());
-				if (traceRoute)
+				CreateLogEntry("(" + DateTime.Now.ToString(dateFormatString) + "): Initializing pings to " + host);
+
+				// Multiple addresses
+				if (addresses.Length > 1)
+				{
+					// Don't clear dead hosts from a predefined list
+					clearedDeadHosts = true;
+					foreach (var address in addresses)
+					{
+						IPAddress ip = StringToIp(address.Trim());
+						AddPingTarget(ip, GetIpHostname(ip));
+					}
+				}
+				// Route
+				else if (traceRoute)
 				{
 					CreateLogEntry("Tracing route ...");
 					foreach (var entry in Tracert.Trace(target, 64, 5000))
@@ -127,10 +162,12 @@ namespace PingTracer
 						AddPingTarget(entry.Address, entry.Hostname);
 					}
 				}
+				// Single address
 				else
 				{
 					AddPingTarget(target, host);
 				}
+
 				CreateLogEntry("Now beginning pings");
 				DateTime lastPingAt = DateTime.Now.AddSeconds(-60);
 				byte[] buffer = new byte[0];
@@ -216,7 +253,7 @@ namespace PingTracer
 			}
 			finally
 			{
-				CreateLogEntry("(" + DateTime.Now.ToString(dateFormatString) + "): Shutting down pings to " + (target == null ? "null" : target.ToString()));
+				CreateLogEntry("(" + DateTime.Now.ToString(dateFormatString) + "): Shutting down pings to " + host);
 			}
 		}
 		void pinger_PingCompleted(object sender, PingCompletedEventArgs e)
