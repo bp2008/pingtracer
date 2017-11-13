@@ -101,7 +101,7 @@ namespace PingTracer
 		{
 			try
 			{
-				return Dns.GetHostByAddress(ip).HostName;
+				return Dns.GetHostEntry(ip).HostName;
 			}
 			catch (Exception)
 			{
@@ -115,6 +115,7 @@ namespace PingTracer
 			object[] args = (object[])arg;
 			string host = (string)args[0];
 			bool traceRoute = (bool)args[1];
+			bool reverseDnsLookup = (bool)args[2];
 
 			foreach (PingGraphControl graph in pingGraphs.Values)
 			{
@@ -146,17 +147,18 @@ namespace PingTracer
 				{
 					// Don't clear dead hosts from a predefined list
 					clearedDeadHosts = true;
-					foreach (var address in addresses)
+					foreach (string address in addresses)
 					{
 						IPAddress ip = StringToIp(address.Trim());
-						AddPingTarget(ip, GetIpHostname(ip));
+						string hostName = reverseDnsLookup ? GetIpHostname(ip) : "";
+						AddPingTarget(ip, hostName);
 					}
 				}
 				// Route
 				else if (traceRoute)
 				{
 					CreateLogEntry("Tracing route ...");
-					foreach (var entry in Tracert.Trace(target, 64, 5000))
+					foreach (TracertEntry entry in Tracert.Trace(target, 64, 5000, reverseDnsLookup))
 					{
 						CreateLogEntry(entry.ToString());
 						AddPingTarget(entry.Address, entry.Hostname);
@@ -474,6 +476,7 @@ namespace PingTracer
 				controllerThread.Abort();
 				txtHost.Enabled = true;
 				cbTraceroute.Enabled = true;
+				cbReverseDNS.Enabled = true;
 			}
 			else
 			{
@@ -481,9 +484,10 @@ namespace PingTracer
 				btnStart.Text = "Click to Stop";
 				btnStart.BackColor = Color.FromArgb(128, 255, 128);
 				controllerThread = new Thread(controllerLoop);
-				controllerThread.Start(new object[] { txtHost.Text, cbTraceroute.Checked });
+				controllerThread.Start(new object[] { txtHost.Text, cbTraceroute.Checked, cbReverseDNS.Checked });
 				txtHost.Enabled = false;
 				cbTraceroute.Enabled = false;
+				cbReverseDNS.Enabled = false;
 			}
 			btnStart.Enabled = true;
 		}
@@ -587,6 +591,11 @@ namespace PingTracer
 		}
 
 		private void cbTraceroute_CheckedChanged(object sender, EventArgs e)
+		{
+			SaveHostIfHostAlreadyExists();
+		}
+
+		private void cbReverseDNS_CheckedChanged(object sender, EventArgs e)
 		{
 			SaveHostIfHostAlreadyExists();
 		}
@@ -728,6 +737,7 @@ namespace PingTracer
 			txtDisplayName.Text = hs.displayName;
 			nudPingsPerSecond.Value = hs.rate;
 			cbTraceroute.Checked = hs.doTraceRoute;
+			cbReverseDNS.Checked = hs.reverseDnsLookup;
 			cbAlwaysShowServerNames.Checked = hs.drawServerNames;
 			cbMinMax.Checked = hs.drawMinMax;
 			cbPacketLoss.Checked = hs.drawPacketLoss;
@@ -774,6 +784,7 @@ namespace PingTracer
 			hs.displayName = txtDisplayName.Text;
 			hs.rate = (int)nudPingsPerSecond.Value;
 			hs.doTraceRoute = cbTraceroute.Checked;
+			hs.reverseDnsLookup = cbReverseDNS.Checked;
 			hs.drawServerNames = cbAlwaysShowServerNames.Checked;
 			hs.drawMinMax = cbMinMax.Checked;
 			hs.drawPacketLoss = cbPacketLoss.Checked;
@@ -819,5 +830,6 @@ namespace PingTracer
 			optionsForm = new OptionsForm(this);
 			optionsForm.Show();
 		}
+
 	}
 }

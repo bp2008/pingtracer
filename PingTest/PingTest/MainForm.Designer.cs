@@ -66,6 +66,7 @@
 			this.mi_snapshotGraphs = new System.Windows.Forms.MenuItem();
 			this.menuItem4 = new System.Windows.Forms.MenuItem();
 			this.mi_Options = new System.Windows.Forms.MenuItem();
+			this.cbReverseDNS = new System.Windows.Forms.CheckBox();
 			((System.ComponentModel.ISupportInitialize)(this.nudPingsPerSecond)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
 			this.splitContainer1.Panel1.SuspendLayout();
@@ -268,11 +269,11 @@
 			this.cbTraceroute.AutoSize = true;
 			this.cbTraceroute.Checked = true;
 			this.cbTraceroute.CheckState = System.Windows.Forms.CheckState.Checked;
-			this.cbTraceroute.Location = new System.Drawing.Point(243, 33);
+			this.cbTraceroute.Location = new System.Drawing.Point(221, 33);
 			this.cbTraceroute.Name = "cbTraceroute";
-			this.cbTraceroute.Size = new System.Drawing.Size(232, 17);
+			this.cbTraceroute.Size = new System.Drawing.Size(86, 17);
 			this.cbTraceroute.TabIndex = 5;
-			this.cbTraceroute.Text = "Graph every node leading to the destination";
+			this.cbTraceroute.Text = "Trace Route";
 			this.toolTip1.SetToolTip(this.cbTraceroute, "If checked, a traceroute operation will be performed \r\nand multiple destinations " +
         "may be monitored.");
 			this.cbTraceroute.UseVisualStyleBackColor = true;
@@ -492,11 +493,27 @@
 			this.mi_Options.Text = "&Options";
 			this.mi_Options.Click += new System.EventHandler(this.mi_Options_Click);
 			// 
+			// cbReverseDNS
+			// 
+			this.cbReverseDNS.AutoSize = true;
+			this.cbReverseDNS.Checked = true;
+			this.cbReverseDNS.CheckState = System.Windows.Forms.CheckState.Checked;
+			this.cbReverseDNS.Location = new System.Drawing.Point(352, 33);
+			this.cbReverseDNS.Name = "cbReverseDNS";
+			this.cbReverseDNS.Size = new System.Drawing.Size(161, 17);
+			this.cbReverseDNS.TabIndex = 23;
+			this.cbReverseDNS.Text = "Reverse DNS Lookup (slow)";
+			this.toolTip1.SetToolTip(this.cbReverseDNS, "If checked, reverse DNS lookups are performed on each IP address to find the host" +
+        " name.");
+			this.cbReverseDNS.UseVisualStyleBackColor = true;
+			this.cbReverseDNS.CheckedChanged += new System.EventHandler(this.cbReverseDNS_CheckedChanged);
+			// 
 			// MainForm
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
 			this.ClientSize = new System.Drawing.Size(608, 561);
+			this.Controls.Add(this.cbReverseDNS);
 			this.Controls.Add(this.groupBox1);
 			this.Controls.Add(this.txtDisplayName);
 			this.Controls.Add(this.label1);
@@ -575,6 +592,7 @@
 		private System.Windows.Forms.MenuItem mi_Options;
 		private System.Windows.Forms.MenuItem menuItem6;
 		private System.Windows.Forms.MenuItem mi_Exit;
+		private System.Windows.Forms.CheckBox cbReverseDNS;
 	}
 }
 

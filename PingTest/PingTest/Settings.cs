@@ -20,12 +20,12 @@ namespace PingTracer
 		{
 			lock (hostHistory)
 			{
-				return Save(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData).TrimEnd('/','\\') + "/PingTracer/settings.cfg");
+				return Save(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData).TrimEnd('/', '\\') + "/PingTracer/settings.cfg");
 			}
 		}
 		public bool Load()
 		{
-			return Load(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData).TrimEnd('/','\\') + "/PingTracer/settings.cfg");
+			return Load(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData).TrimEnd('/', '\\') + "/PingTracer/settings.cfg");
 		}
 	}
 	public class HostSettings
@@ -34,6 +34,7 @@ namespace PingTracer
 		public string displayName = "";
 		public int rate = 1;
 		public bool doTraceRoute = true;
+		public bool reverseDnsLookup = true;
 		public bool drawServerNames = true;
 		public bool drawMinMax = false;
 		public bool drawPacketLoss = true;
@@ -48,6 +49,7 @@ namespace PingTracer
 				return host == o.host
 					&& rate == o.rate
 					&& doTraceRoute == o.doTraceRoute
+					&& reverseDnsLookup == o.reverseDnsLookup
 					&& drawServerNames == o.drawServerNames
 					&& drawMinMax == o.drawMinMax
 					&& drawPacketLoss == o.drawPacketLoss
@@ -55,6 +57,10 @@ namespace PingTracer
 					&& worseThreshold == o.worseThreshold;
 			}
 			return false;
+		}
+		public override int GetHashCode()
+		{
+			return host.GetHashCode() ^ rate.GetHashCode() ^ badThreshold.GetHashCode() ^ worseThreshold.GetHashCode();
 		}
 	}
 }
