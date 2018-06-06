@@ -125,6 +125,8 @@ namespace PingTracer
 				graph.MouseLeave -= panel_Graphs_MouseLeave;
 				graph.MouseUp -= panel_Graphs_MouseUp;
 			}
+			Interlocked.Exchange(ref successfulPings, 0);
+			Interlocked.Exchange(ref failedPings, 0);
 			pingGraphs.Clear();
 			pingTargets.Clear();
 			pingTargetHasAtLeastOneSuccess.Clear();
