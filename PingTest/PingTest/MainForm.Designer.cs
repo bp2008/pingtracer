@@ -121,10 +121,11 @@
 			this.label2.TabIndex = 4;
 			this.label2.Text = "Rate:";
 			this.toolTip1.SetToolTip(this.label2, "A rate of 1 ping per second is recommended \r\nfor all long-term monitoring.");
-			// 
-			// nudPingsPerSecond
-			// 
-			this.nudPingsPerSecond.Location = new System.Drawing.Point(50, 32);
+            // 
+            // nudPingsPerSecond
+            // 
+            this.nudPingsPerSecond.DecimalPlaces = 1;
+            this.nudPingsPerSecond.Location = new System.Drawing.Point(50, 32);
 			this.nudPingsPerSecond.Maximum = new decimal(new int[] {
             10,
             0,
