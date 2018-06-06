@@ -15,6 +15,7 @@ namespace PingTracer
 		public bool fastRefreshScrollingGraphs = true;
 		public int graphScrollMultiplier = 1;
 		public bool showDateOnGraphTimeline = true;
+        public bool overlapTimeText = true;
 
 		public bool Save()
 		{
@@ -32,7 +33,7 @@ namespace PingTracer
 	{
 		public string host;
 		public string displayName = "";
-		public int rate = 1;
+		public decimal rate = 1.0M;
 		public bool doTraceRoute = true;
 		public bool reverseDnsLookup = true;
 		public bool drawServerNames = true;

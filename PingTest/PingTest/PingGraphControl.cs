@@ -259,7 +259,7 @@ namespace PingTracer
 						{
 							if(settings.showDateOnGraphTimeline && lastStampedMinute == -1)
 								timelineOverlayString += pings[idx].startTime.ToString("yyyy-M-d ");
-                            if (pTimestampMarkStart.X > lastStampedX) // Only draw if it won't overlap the previous mark
+                            if (pTimestampMarkStart.X > lastStampedX || settings.overlapTimeText)
                             {
                                 if (pings[idx].startTime.Second < 2) // Only draw the line if this is close to the actual moment the minute struck.
                                     e.Graphics.DrawLine(penTimestampsMark, pTimestampMarkStart, pTimestampMarkEnd);

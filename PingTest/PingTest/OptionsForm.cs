@@ -72,5 +72,11 @@ namespace PingTracer
 			mainForm.settings.showDateOnGraphTimeline = cbShowDateInCorner.Checked;
 			mainForm.settings.Save();
 		}
-	}
+
+        private void cbOverlapTimestamps_CheckedChanged(object sender, EventArgs e)
+        {
+            mainForm.settings.overlapTimeText = cbOverlapTimestamps.Checked;
+            mainForm.settings.Save();
+        }
+    }
 }
