@@ -35,7 +35,6 @@
 			this.lblHost = new System.Windows.Forms.Label();
 			this.label2 = new System.Windows.Forms.Label();
 			this.nudPingsPerSecond = new System.Windows.Forms.NumericUpDown();
-			this.label3 = new System.Windows.Forms.Label();
 			this.btnStart = new System.Windows.Forms.Button();
 			this.label4 = new System.Windows.Forms.Label();
 			this.lblSuccessful = new System.Windows.Forms.Label();
@@ -58,6 +57,7 @@
 			this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
 			this.txtDisplayName = new System.Windows.Forms.TextBox();
 			this.cbPacketLoss = new System.Windows.Forms.CheckBox();
+			this.cbReverseDNS = new System.Windows.Forms.CheckBox();
 			this.groupBox1 = new System.Windows.Forms.GroupBox();
 			this.mainMenu1 = new System.Windows.Forms.MainMenu(this.components);
 			this.menuItem6 = new System.Windows.Forms.MenuItem();
@@ -66,7 +66,7 @@
 			this.mi_snapshotGraphs = new System.Windows.Forms.MenuItem();
 			this.menuItem4 = new System.Windows.Forms.MenuItem();
 			this.mi_Options = new System.Windows.Forms.MenuItem();
-			this.cbReverseDNS = new System.Windows.Forms.CheckBox();
+			this.selectPingsPerSecond = new System.Windows.Forms.ComboBox();
 			((System.ComponentModel.ISupportInitialize)(this.nudPingsPerSecond)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
 			this.splitContainer1.Panel1.SuspendLayout();
@@ -131,7 +131,7 @@
             0,
             0});
 			this.nudPingsPerSecond.Name = "nudPingsPerSecond";
-			this.nudPingsPerSecond.Size = new System.Drawing.Size(42, 20);
+			this.nudPingsPerSecond.Size = new System.Drawing.Size(46, 20);
 			this.nudPingsPerSecond.TabIndex = 4;
 			this.toolTip1.SetToolTip(this.nudPingsPerSecond, "A rate of 1 ping per second is recommended \r\nfor all long-term monitoring.");
 			this.nudPingsPerSecond.Value = new decimal(new int[] {
@@ -141,16 +141,6 @@
             0});
 			this.nudPingsPerSecond.ValueChanged += new System.EventHandler(this.nudPingsPerSecond_ValueChanged);
 			// 
-			// label3
-			// 
-			this.label3.AutoSize = true;
-			this.label3.Location = new System.Drawing.Point(98, 34);
-			this.label3.Name = "label3";
-			this.label3.Size = new System.Drawing.Size(88, 13);
-			this.label3.TabIndex = 6;
-			this.label3.Text = "pings per second";
-			this.toolTip1.SetToolTip(this.label3, "A rate of 1 ping per second is recommended \r\nfor all long-term monitoring.");
-			// 
 			// btnStart
 			// 
 			this.btnStart.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
@@ -158,7 +148,7 @@
 			this.btnStart.Location = new System.Drawing.Point(529, 6);
 			this.btnStart.Name = "btnStart";
 			this.btnStart.Size = new System.Drawing.Size(66, 46);
-			this.btnStart.TabIndex = 3;
+			this.btnStart.TabIndex = 8;
 			this.btnStart.Text = "Click to Start";
 			this.toolTip1.SetToolTip(this.btnStart, "This button shows the current status of ping monitoring.\r\n\r\nClick the button to s" +
         "tart or stop.");
@@ -269,10 +259,10 @@
 			this.cbTraceroute.AutoSize = true;
 			this.cbTraceroute.Checked = true;
 			this.cbTraceroute.CheckState = System.Windows.Forms.CheckState.Checked;
-			this.cbTraceroute.Location = new System.Drawing.Point(221, 33);
+			this.cbTraceroute.Location = new System.Drawing.Point(253, 33);
 			this.cbTraceroute.Name = "cbTraceroute";
 			this.cbTraceroute.Size = new System.Drawing.Size(86, 17);
-			this.cbTraceroute.TabIndex = 5;
+			this.cbTraceroute.TabIndex = 6;
 			this.cbTraceroute.Text = "Trace Route";
 			this.toolTip1.SetToolTip(this.cbTraceroute, "If checked, a traceroute operation will be performed \r\nand multiple destinations " +
         "may be monitored.");
@@ -430,6 +420,21 @@
 			this.cbPacketLoss.UseVisualStyleBackColor = true;
 			this.cbPacketLoss.CheckedChanged += new System.EventHandler(this.cbPacketLoss_CheckedChanged);
 			// 
+			// cbReverseDNS
+			// 
+			this.cbReverseDNS.AutoSize = true;
+			this.cbReverseDNS.Checked = true;
+			this.cbReverseDNS.CheckState = System.Windows.Forms.CheckState.Checked;
+			this.cbReverseDNS.Location = new System.Drawing.Point(362, 33);
+			this.cbReverseDNS.Name = "cbReverseDNS";
+			this.cbReverseDNS.Size = new System.Drawing.Size(161, 17);
+			this.cbReverseDNS.TabIndex = 7;
+			this.cbReverseDNS.Text = "Reverse DNS Lookup (slow)";
+			this.toolTip1.SetToolTip(this.cbReverseDNS, "If checked, reverse DNS lookups are performed on each IP address to find the host" +
+        " name.");
+			this.cbReverseDNS.UseVisualStyleBackColor = true;
+			this.cbReverseDNS.CheckedChanged += new System.EventHandler(this.cbReverseDNS_CheckedChanged);
+			// 
 			// groupBox1
 			// 
 			this.groupBox1.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
@@ -493,26 +498,25 @@
 			this.mi_Options.Text = "&Options";
 			this.mi_Options.Click += new System.EventHandler(this.mi_Options_Click);
 			// 
-			// cbReverseDNS
+			// selectPingsPerSecond
 			// 
-			this.cbReverseDNS.AutoSize = true;
-			this.cbReverseDNS.Checked = true;
-			this.cbReverseDNS.CheckState = System.Windows.Forms.CheckState.Checked;
-			this.cbReverseDNS.Location = new System.Drawing.Point(352, 33);
-			this.cbReverseDNS.Name = "cbReverseDNS";
-			this.cbReverseDNS.Size = new System.Drawing.Size(161, 17);
-			this.cbReverseDNS.TabIndex = 23;
-			this.cbReverseDNS.Text = "Reverse DNS Lookup (slow)";
-			this.toolTip1.SetToolTip(this.cbReverseDNS, "If checked, reverse DNS lookups are performed on each IP address to find the host" +
-        " name.");
-			this.cbReverseDNS.UseVisualStyleBackColor = true;
-			this.cbReverseDNS.CheckedChanged += new System.EventHandler(this.cbReverseDNS_CheckedChanged);
+			this.selectPingsPerSecond.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+			this.selectPingsPerSecond.FormattingEnabled = true;
+			this.selectPingsPerSecond.Items.AddRange(new object[] {
+            "pings per second",
+            "seconds per ping"});
+			this.selectPingsPerSecond.Location = new System.Drawing.Point(102, 31);
+			this.selectPingsPerSecond.Name = "selectPingsPerSecond";
+			this.selectPingsPerSecond.Size = new System.Drawing.Size(132, 21);
+			this.selectPingsPerSecond.TabIndex = 5;
+			this.selectPingsPerSecond.SelectedIndexChanged += new System.EventHandler(this.selectPingsPerSecond_SelectedIndexChanged);
 			// 
 			// MainForm
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
 			this.ClientSize = new System.Drawing.Size(608, 561);
+			this.Controls.Add(this.selectPingsPerSecond);
 			this.Controls.Add(this.cbReverseDNS);
 			this.Controls.Add(this.groupBox1);
 			this.Controls.Add(this.txtDisplayName);
@@ -526,7 +530,6 @@
 			this.Controls.Add(this.lblSuccessful);
 			this.Controls.Add(this.label4);
 			this.Controls.Add(this.btnStart);
-			this.Controls.Add(this.label3);
 			this.Controls.Add(this.nudPingsPerSecond);
 			this.Controls.Add(this.label2);
 			this.Controls.Add(this.lblHost);
@@ -561,7 +564,6 @@
 		private System.Windows.Forms.Label lblHost;
 		private System.Windows.Forms.Label label2;
 		private System.Windows.Forms.NumericUpDown nudPingsPerSecond;
-		private System.Windows.Forms.Label label3;
 		private System.Windows.Forms.Button btnStart;
 		private System.Windows.Forms.Label label4;
 		private System.Windows.Forms.Label lblSuccessful;
@@ -593,6 +595,7 @@
 		private System.Windows.Forms.MenuItem menuItem6;
 		private System.Windows.Forms.MenuItem mi_Exit;
 		private System.Windows.Forms.CheckBox cbReverseDNS;
+		private System.Windows.Forms.ComboBox selectPingsPerSecond;
 	}
 }
 

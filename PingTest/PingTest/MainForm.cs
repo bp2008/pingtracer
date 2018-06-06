@@ -67,7 +67,7 @@ namespace PingTracer
 				if (settings.hostHistory.Count > 0)
 					LoadHostSettings(settings.hostHistory[0]);
 			}
-			nudPingsPerSecond_ValueChanged(null, null);
+			selectPingsPerSecond_SelectedIndexChanged(null, null);
 		}
 
 		private IPAddress StringToIp(string address)
@@ -217,11 +217,14 @@ namespace PingTracer
 							}
 							clearedDeadHosts = true;
 						}
-						while (pingDelay < 0)
+						while (pingDelay <= 0)
 							Thread.Sleep(100);
 						int msToWait = (int)(lastPingAt.AddMilliseconds(pingDelay) - DateTime.Now).TotalMilliseconds;
-						if (msToWait > 0)
-							Thread.Sleep(msToWait);
+						while (msToWait > 0)
+						{
+							Thread.Sleep(Math.Min(msToWait, 1000));
+							msToWait = (int)(lastPingAt.AddMilliseconds(pingDelay) - DateTime.Now).TotalMilliseconds;
+						}
 						lastPingAt = DateTime.Now;
 						// We can't re-use the same Ping instance because it is only capable of one ping at a time.
 						foreach (var targetMapping in pingTargets)
@@ -496,9 +499,20 @@ namespace PingTracer
 		{
 			SaveHostIfHostAlreadyExists();
 			if (nudPingsPerSecond.Value == 0)
-				pingDelay = -1;
+				pingDelay = 0;
+			else if (selectPingsPerSecond.SelectedIndex == 0)
+				pingDelay = Math.Max(100, (int)(1000 / nudPingsPerSecond.Value));
 			else
-				pingDelay = (int)(1000 / nudPingsPerSecond.Value);
+				pingDelay = Math.Max(100, (int)(1000 * nudPingsPerSecond.Value));
+		}
+
+		private void selectPingsPerSecond_SelectedIndexChanged(object sender, EventArgs e)
+		{
+			if (selectPingsPerSecond.SelectedIndex == 0)
+				nudPingsPerSecond.Maximum = 10;
+			else
+				nudPingsPerSecond.Maximum = 600;
+			nudPingsPerSecond_ValueChanged(sender, e);
 		}
 
 		private void cbAlwaysShowServerNames_CheckedChanged(object sender, EventArgs e)
@@ -736,6 +750,7 @@ namespace PingTracer
 			txtHost.Text = hs.host;
 			txtDisplayName.Text = hs.displayName;
 			nudPingsPerSecond.Value = hs.rate;
+			selectPingsPerSecond.SelectedIndex = hs.pingsPerSecond ? 0 : 1;
 			cbTraceroute.Checked = hs.doTraceRoute;
 			cbReverseDNS.Checked = hs.reverseDnsLookup;
 			cbAlwaysShowServerNames.Checked = hs.drawServerNames;
@@ -757,6 +772,7 @@ namespace PingTracer
 					}
 			}
 		}
+
 		private void SaveHostIfHostAlreadyExists()
 		{
 			lock (settings.hostHistory)
@@ -783,6 +799,7 @@ namespace PingTracer
 			hs.host = txtHost.Text;
 			hs.displayName = txtDisplayName.Text;
 			hs.rate = (int)nudPingsPerSecond.Value;
+			hs.pingsPerSecond = selectPingsPerSecond.SelectedIndex == 0;
 			hs.doTraceRoute = cbTraceroute.Checked;
 			hs.reverseDnsLookup = cbReverseDNS.Checked;
 			hs.drawServerNames = cbAlwaysShowServerNames.Checked;
@@ -830,6 +847,5 @@ namespace PingTracer
 			optionsForm = new OptionsForm(this);
 			optionsForm.Show();
 		}
-
 	}
 }

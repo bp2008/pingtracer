@@ -33,6 +33,7 @@ namespace PingTracer
 		public string host;
 		public string displayName = "";
 		public int rate = 1;
+		public bool pingsPerSecond = true;
 		public bool doTraceRoute = true;
 		public bool reverseDnsLookup = true;
 		public bool drawServerNames = true;
@@ -48,6 +49,7 @@ namespace PingTracer
 				HostSettings o = (HostSettings)other;
 				return host == o.host
 					&& rate == o.rate
+					&& pingsPerSecond == o.pingsPerSecond
 					&& doTraceRoute == o.doTraceRoute
 					&& reverseDnsLookup == o.reverseDnsLookup
 					&& drawServerNames == o.drawServerNames
