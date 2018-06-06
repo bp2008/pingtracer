@@ -15,7 +15,7 @@ namespace PingTracer
 		public bool fastRefreshScrollingGraphs = true;
 		public int graphScrollMultiplier = 1;
 		public bool showDateOnGraphTimeline = true;
-        public bool overlapTimeText = true;
+		public bool overlapTimeText = true;
 
 		public bool Save()
 		{

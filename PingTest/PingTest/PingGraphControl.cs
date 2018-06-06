@@ -225,7 +225,7 @@ namespace PingTracer
 			Point pTimestampMarkStart = new Point(this.Width - count, height + 1);
 			Point pTimestampMarkEnd = new Point(this.Width - count, this.Height - 1);
 			int lastStampedMinute = -1;
-            int lastStampedX = -1;
+			int lastStampedX = -1;
 			string timelineOverlayString = "";
 			for (int i = 0; i < count; i++)
 			{
@@ -259,16 +259,16 @@ namespace PingTracer
 						{
 							if(settings.showDateOnGraphTimeline && lastStampedMinute == -1)
 								timelineOverlayString += pings[idx].startTime.ToString("yyyy-M-d ");
-                            if (pTimestampMarkStart.X > lastStampedX || settings.overlapTimeText)
-                            {
-                                if (pings[idx].startTime.Second < 2) // Only draw the line if this is close to the actual moment the minute struck.
-                                    e.Graphics.DrawLine(penTimestampsMark, pTimestampMarkStart, pTimestampMarkEnd);
-                                string stamp = pings[idx].startTime.ToString("h:mm tt");
-                                SizeF strSize = e.Graphics.MeasureString(stamp, textFont);
-                                e.Graphics.FillRectangle(brushBackgroundTimestamps, new Rectangle(pTimestampMarkStart.X + 1, pTimestampMarkStart.Y, (int)strSize.Width - 1, (int)timestampsHeight - 1));
-                                e.Graphics.DrawString(stamp, textFont, brushTimestampsText, pTimestampMarkStart.X, pTimestampMarkStart.Y - 1);
-                                lastStampedX = pTimestampMarkStart.X + (int)strSize.Width;
-                            }
+							if (pTimestampMarkStart.X > lastStampedX || settings.overlapTimeText)
+							{
+								if (pings[idx].startTime.Second < 2) // Only draw the line if this is close to the actual moment the minute struck.
+									e.Graphics.DrawLine(penTimestampsMark, pTimestampMarkStart, pTimestampMarkEnd);
+								string stamp = pings[idx].startTime.ToString("h:mm tt");
+								SizeF strSize = e.Graphics.MeasureString(stamp, textFont);
+								e.Graphics.FillRectangle(brushBackgroundTimestamps, new Rectangle(pTimestampMarkStart.X + 1, pTimestampMarkStart.Y, (int)strSize.Width - 1, (int)timestampsHeight - 1));
+								e.Graphics.DrawString(stamp, textFont, brushTimestampsText, pTimestampMarkStart.X, pTimestampMarkStart.Y - 1);
+								lastStampedX = pTimestampMarkStart.X + (int)strSize.Width;
+							}
 
 							lastStampedMinute = pings[idx].startTime.Minute;
 						}
