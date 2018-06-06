@@ -184,9 +184,9 @@ namespace PingTracer
 						{
 							if (pingTargets.Count > 1)
 							{
-								IList<int> pingTargetIds = pingTargets.Keys;
-								foreach (int pingTargetId in pingTargetIds)
-								{
+                                IList<int> pingTargetIds = pingTargets.Keys;
+                                foreach (int pingTargetId in pingTargetIds)
+                                {
 									if (!pingTargetHasAtLeastOneSuccess[pingTargetId])
 									{
 										// This ping target has not yet had a successful response. Assume it never will, and delete it.
@@ -199,14 +199,14 @@ namespace PingTracer
 											pingGraphs[pingTargetId].MouseLeave -= panel_Graphs_MouseLeave;
 											pingGraphs[pingTargetId].MouseUp -= panel_Graphs_MouseUp;
 											pingGraphs.Remove(pingTargetId);
-											if (pingGraphs.Count == 0)
-											{
-												Label lblNoGraphsRemain = new Label();
-												lblNoGraphsRemain.Text = "All graphs were removed because" + Environment.NewLine + "none of the hosts responded to pings.";
-												panel_Graphs.Controls.Add(lblNoGraphsRemain);
-											}
-											else
-												pingGraphs[pingGraphs.Count - 1].ShowTimestamps = true; // In case the graph we just removed was the last graph, which is supposed to show the timestamps along its bottom, this will make sure the new (or old) bottom is showing timestamps.
+                                            if (pingGraphs.Count == 0)
+                                            {
+                                                Label lblNoGraphsRemain = new Label();
+                                                lblNoGraphsRemain.Text = "All graphs were removed because" + Environment.NewLine + "none of the hosts responded to pings.";
+                                                panel_Graphs.Controls.Add(lblNoGraphsRemain);
+                                            }
+                                            else
+                                                pingGraphs.Values[pingGraphs.Values.Count - 1].ShowTimestamps = true; // In case the graph we just removed was the last graph, which is supposed to show the timestamps along its bottom, this will make sure the new (or old) bottom is showing timestamps.
 										}));
 									}
 								}
