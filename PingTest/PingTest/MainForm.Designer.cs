@@ -67,6 +67,7 @@
 			this.menuItem4 = new System.Windows.Forms.MenuItem();
 			this.mi_Options = new System.Windows.Forms.MenuItem();
 			this.selectPingsPerSecond = new System.Windows.Forms.ComboBox();
+			this.mi_deleteHost = new System.Windows.Forms.MenuItem();
 			((System.ComponentModel.ISupportInitialize)(this.nudPingsPerSecond)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
 			this.splitContainer1.Panel1.SuspendLayout();
@@ -489,7 +490,8 @@
 			// 
 			this.menuItem4.Index = 2;
 			this.menuItem4.MenuItems.AddRange(new System.Windows.Forms.MenuItem[] {
-            this.mi_Options});
+            this.mi_Options,
+            this.mi_deleteHost});
 			this.menuItem4.Text = "&Tools";
 			// 
 			// mi_Options
@@ -510,6 +512,12 @@
 			this.selectPingsPerSecond.Size = new System.Drawing.Size(132, 21);
 			this.selectPingsPerSecond.TabIndex = 5;
 			this.selectPingsPerSecond.SelectedIndexChanged += new System.EventHandler(this.selectPingsPerSecond_SelectedIndexChanged);
+			// 
+			// mi_deleteHost
+			// 
+			this.mi_deleteHost.Index = 1;
+			this.mi_deleteHost.Text = "Delete Current Host";
+			this.mi_deleteHost.Click += new System.EventHandler(this.mi_deleteHost_Click);
 			// 
 			// MainForm
 			// 
@@ -596,6 +604,7 @@
 		private System.Windows.Forms.MenuItem mi_Exit;
 		private System.Windows.Forms.CheckBox cbReverseDNS;
 		private System.Windows.Forms.ComboBox selectPingsPerSecond;
+		private System.Windows.Forms.MenuItem mi_deleteHost;
 	}
 }
 

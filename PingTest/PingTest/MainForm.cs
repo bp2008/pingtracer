@@ -73,6 +73,8 @@ namespace PingTracer
 		private IPAddress StringToIp(string address)
 		{
 			// Validate IP
+			if (address.Contains(":"))
+				address = address.Remove(address.IndexOf(':'));
 			try
 			{
 				return IPAddress.Parse(address);
@@ -261,6 +263,8 @@ namespace PingTracer
 			finally
 			{
 				CreateLogEntry("(" + DateTime.Now.ToString(dateFormatString) + "): Shutting down pings to " + host);
+				if (isRunning)
+					btnStart_Click(btnStart, new EventArgs());
 			}
 		}
 		void pinger_PingCompleted(object sender, PingCompletedEventArgs e)
@@ -398,7 +402,7 @@ namespace PingTracer
 			if (isRunning)
 			{
 				SaveHost();
-				btnStart_Click(null, null);
+				btnStart_Click(btnStart, new EventArgs());
 			}
 		}
 
@@ -437,7 +441,7 @@ namespace PingTracer
 
 		private void lblHost_Click(object sender, EventArgs e)
 		{
-			ShowHostHistory();
+			LoadHostHistory();
 			contextMenuStripHostHistory.Show(Cursor.Position);
 		}
 
@@ -471,6 +475,11 @@ namespace PingTracer
 
 		private void btnStart_Click(object sender, EventArgs e)
 		{
+			if (btnStart.InvokeRequired)
+			{
+				btnStart.BeginInvoke((Action<object, EventArgs>)btnStart_Click, sender, e);
+				return;
+			}
 			SaveHost();
 			btnStart.Enabled = false;
 			if (isRunning)
@@ -716,7 +725,7 @@ namespace PingTracer
 
 		#region Host History
 
-		private void ShowHostHistory()
+		private void LoadHostHistory()
 		{
 			contextMenuStripHostHistory.Items.Clear();
 			bool first = true;
@@ -784,10 +793,30 @@ namespace PingTracer
 					if (hs.host == txtHost.Text)
 					{
 						hostExists = true;
-						continue;
+						break;
 					}
 				if (hostExists)
 					SaveHost();
+			}
+		}
+		private void DeleteCurrentHost()
+		{
+			lock (settings.hostHistory)
+			{
+				bool hostExisted = false;
+				for (int i = 0; i < settings.hostHistory.Count; i++)
+					if (settings.hostHistory[i].host == txtHost.Text)
+					{
+						hostExisted = true;
+						settings.hostHistory.RemoveAt(i);
+						settings.Save();
+						break;
+					}
+				if (hostExisted)
+				{
+					if (settings.hostHistory.Count > 0)
+						LoadHostSettings(settings.hostHistory[0]);
+				}
 			}
 		}
 		/// <summary>
@@ -848,6 +877,11 @@ namespace PingTracer
 			}
 			optionsForm = new OptionsForm(this);
 			optionsForm.Show();
+		}
+
+		private void mi_deleteHost_Click(object sender, EventArgs e)
+		{
+			DeleteCurrentHost();
 		}
 	}
 }
