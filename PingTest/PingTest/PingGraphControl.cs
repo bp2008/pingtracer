@@ -260,7 +260,7 @@ namespace PingTracer
 								timelineOverlayString += pings[idx].startTime.ToString("yyyy-M-d ");
 							if (pings[idx].startTime.Second < 2) // Only draw the line if this is close to the actual moment the minute struck.
 								e.Graphics.DrawLine(penTimestampsMark, pTimestampMarkStart, pTimestampMarkEnd);
-							string stamp = pings[idx].startTime.ToString("h:mm tt");
+							string stamp = pings[idx].startTime.ToString("t");
 							SizeF strSize = e.Graphics.MeasureString(stamp, textFont);
 							e.Graphics.FillRectangle(brushBackgroundTimestamps, new Rectangle(pTimestampMarkStart.X + 1, pTimestampMarkStart.Y, (int)strSize.Width - 1, (int)timestampsHeight - 1));
 							e.Graphics.DrawString(stamp, textFont, brushTimestampsText, pTimestampMarkStart.X, pTimestampMarkStart.Y - 1);
