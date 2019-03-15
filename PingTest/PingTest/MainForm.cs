@@ -486,8 +486,8 @@ namespace PingTracer
 			{
 				isRunning = false;
 				btnStart.Text = "Click to Start";
-				btnStart.BackColor = Color.FromArgb(255, 128, 128);
-				controllerThread.Abort();
+				btnStart.BackColor = Color.FromArgb(128, 255, 128);
+                controllerThread.Abort();
 				txtHost.Enabled = true;
 				cbTraceroute.Enabled = true;
 				cbReverseDNS.Enabled = true;
@@ -496,8 +496,8 @@ namespace PingTracer
 			{
 				isRunning = true;
 				btnStart.Text = "Click to Stop";
-				btnStart.BackColor = Color.FromArgb(128, 255, 128);
-				controllerThread = new Thread(controllerLoop);
+				btnStart.BackColor = Color.FromArgb(255, 128, 128);
+                controllerThread = new Thread(controllerLoop);
 				controllerThread.Start(new object[] { txtHost.Text, cbTraceroute.Checked, cbReverseDNS.Checked });
 				txtHost.Enabled = false;
 				cbTraceroute.Enabled = false;
