@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
+using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Text;
@@ -29,6 +30,7 @@ namespace PingTracer
 			cbFastRefreshScrollingGraphs.Checked = mainForm.settings.fastRefreshScrollingGraphs;
 			nudGraphScrollMultiplier.Value = mainForm.settings.graphScrollMultiplier;
 			cbShowDateInCorner.Checked = mainForm.settings.showDateOnGraphTimeline;
+			txtCustomTimeString.Text = mainForm.settings.customTimeStr;
 		}
 
 		private void cbLogToFile_CheckedChanged(object sender, EventArgs e)
@@ -70,6 +72,18 @@ namespace PingTracer
 		private void cbShowDateInCorner_CheckedChanged(object sender, EventArgs e)
 		{
 			mainForm.settings.showDateOnGraphTimeline = cbShowDateInCorner.Checked;
+			mainForm.settings.Save();
+		}
+
+		private void customTimeStringHelp_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+		{
+			Process.Start("https://docs.microsoft.com/en-us/dotnet/standard/base-types/standard-date-and-time-format-strings");
+		}
+
+		private void txtCustomTimeStringGraphs_TextChanged(object sender, EventArgs e)
+		{
+			
+			mainForm.settings.customTimeStr = txtCustomTimeString.Text;
 			mainForm.settings.Save();
 		}
 	}

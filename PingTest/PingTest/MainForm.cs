@@ -21,7 +21,7 @@ namespace PingTracer
 		private long successfulPings = 0;
 		private long failedPings = 0;
 
-		private const string dateFormatString = "yyyy'-'MM'-'dd hh':'mm':'ss':'fff tt";
+		//private const string dateFormatString = "yyyy'-'MM'-'dd hh':'mm':'ss':'fff tt";
 		private const string fileNameFriendlyDateFormatString = "yyyy'-'MM'-'dd HH'-'mm'-'ss";
 
 		/// <summary>
@@ -61,6 +61,7 @@ namespace PingTracer
 			panelForm.Text = this.Text;
 			panelForm.Icon = this.Icon;
 			panelForm.FormClosing += panelForm_FormClosing;
+			selectPingsPerSecond.SelectedIndex = 0;
 			settings.Load();
 			lock (settings.hostHistory)
 			{
@@ -144,7 +145,7 @@ namespace PingTracer
 				string[] addresses = host.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
 				target = StringToIp(addresses[0]);
 				currentIPAddress = target.ToString();
-				CreateLogEntry("(" + DateTime.Now.ToString(dateFormatString) + "): Initializing pings to " + host);
+				CreateLogEntry("(" + GetTimestamp(DateTime.Now) + "): Initializing pings to " + host);
 
 				// Multiple addresses
 				if (addresses.Length > 1)
@@ -262,7 +263,7 @@ namespace PingTracer
 			}
 			finally
 			{
-				CreateLogEntry("(" + DateTime.Now.ToString(dateFormatString) + "): Shutting down pings to " + host);
+				CreateLogEntry("(" + GetTimestamp(DateTime.Now) + "): Shutting down pings to " + host);
 				if (isRunning)
 					btnStart_Click(btnStart, new EventArgs());
 			}
@@ -292,7 +293,7 @@ namespace PingTracer
 				{
 					Interlocked.Increment(ref failedPings);
 					if (clearedDeadHosts && pingTargets.ContainsKey(pingTargetId))
-						CreateLogEntry("" + time.ToString(dateFormatString) + ", " + remoteHost.ToString() + ": " + e.Reply.Status.ToString());
+						CreateLogEntry("" + GetTimestamp(time) + ", " + remoteHost.ToString() + ": " + e.Reply.Status.ToString());
 				}
 				else
 				{
@@ -343,6 +344,9 @@ namespace PingTracer
 					graph.AlwaysShowServerNames = cbAlwaysShowServerNames.Checked;
 					graph.Threshold_Bad = (int)nudBadThreshold.Value;
 					graph.Threshold_Worse = (int)nudWorseThreshold.Value;
+					graph.ShowLastPing = cbLastPing.Checked;
+					graph.ShowAverage = cbAverage.Checked;
+					graph.ShowJitter = cbJitter.Checked;
 					graph.ShowMinMax = cbMinMax.Checked;
 					graph.ShowPacketLoss = cbPacketLoss.Checked;
 
@@ -580,7 +584,57 @@ namespace PingTracer
 			{
 			}
 		}
+		
 
+		private void cbLastPing_CheckedChanged(object sender, EventArgs e)
+		{
+			SaveHostIfHostAlreadyExists();
+			try
+			{
+				IList<PingGraphControl> graphs = pingGraphs.Values;
+				foreach (PingGraphControl graph in graphs)
+				{
+					graph.ShowLastPing = cbLastPing.Checked;
+					graph.Invalidate();
+				}
+			}
+			catch (Exception)
+			{
+			}
+		}
+
+		private void cbAverage_CheckedChanged(object sender, EventArgs e)
+		{
+			SaveHostIfHostAlreadyExists();
+			try
+			{
+				IList<PingGraphControl> graphs = pingGraphs.Values;
+				foreach (PingGraphControl graph in graphs)
+				{
+					graph.ShowAverage = cbAverage.Checked;
+					graph.Invalidate();
+				}
+			}
+			catch (Exception)
+			{
+			}
+		}
+		private void cbJitter_CheckedChanged(object sender, EventArgs e)
+		{
+			SaveHostIfHostAlreadyExists();
+			try
+			{
+				IList<PingGraphControl> graphs = pingGraphs.Values;
+				foreach (PingGraphControl graph in graphs)
+				{
+					graph.ShowJitter = cbJitter.Checked;
+					graph.Invalidate();
+				}
+			}
+			catch (Exception)
+			{
+			}
+		}
 		private void cbMinMax_CheckedChanged(object sender, EventArgs e)
 		{
 			SaveHostIfHostAlreadyExists();
@@ -765,6 +819,9 @@ namespace PingTracer
 			cbTraceroute.Checked = hs.doTraceRoute;
 			cbReverseDNS.Checked = hs.reverseDnsLookup;
 			cbAlwaysShowServerNames.Checked = hs.drawServerNames;
+			cbLastPing.Checked = hs.drawLastPing;
+			cbAverage.Checked = hs.drawAverage;
+			cbJitter.Checked = hs.drawJitter;
 			cbMinMax.Checked = hs.drawMinMax;
 			cbPacketLoss.Checked = hs.drawPacketLoss;
 			nudBadThreshold.Value = hs.badThreshold;
@@ -834,6 +891,9 @@ namespace PingTracer
 			hs.doTraceRoute = cbTraceroute.Checked;
 			hs.reverseDnsLookup = cbReverseDNS.Checked;
 			hs.drawServerNames = cbAlwaysShowServerNames.Checked;
+			hs.drawLastPing = cbLastPing.Checked;
+			hs.drawAverage = cbAverage.Checked;
+			hs.drawJitter = cbJitter.Checked;
 			hs.drawMinMax = cbMinMax.Checked;
 			hs.drawPacketLoss = cbPacketLoss.Checked;
 			hs.badThreshold = (int)nudBadThreshold.Value;
@@ -882,6 +942,18 @@ namespace PingTracer
 		private void mi_deleteHost_Click(object sender, EventArgs e)
 		{
 			DeleteCurrentHost();
+		}
+		private string GetTimestamp(DateTime time)
+		{
+			if (!string.IsNullOrWhiteSpace(settings.customTimeStr))
+			{
+				try
+				{
+					return time.ToString(settings.customTimeStr);
+				}
+				catch { }
+			}
+			return time.ToString();
 		}
 	}
 }

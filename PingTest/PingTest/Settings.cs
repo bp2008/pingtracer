@@ -15,6 +15,7 @@ namespace PingTracer
 		public bool fastRefreshScrollingGraphs = true;
 		public int graphScrollMultiplier = 1;
 		public bool showDateOnGraphTimeline = true;
+		public string customTimeStr;
 
 		public bool Save()
 		{
@@ -37,6 +38,9 @@ namespace PingTracer
 		public bool doTraceRoute = true;
 		public bool reverseDnsLookup = true;
 		public bool drawServerNames = true;
+		public bool drawLastPing = true;
+		public bool drawAverage = true;
+		public bool drawJitter = false;
 		public bool drawMinMax = false;
 		public bool drawPacketLoss = true;
 		public int badThreshold = 100;

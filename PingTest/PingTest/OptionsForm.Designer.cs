@@ -41,6 +41,9 @@
 			this.label3 = new System.Windows.Forms.Label();
 			this.nudGraphScrollMultiplier = new System.Windows.Forms.NumericUpDown();
 			this.cbShowDateInCorner = new System.Windows.Forms.CheckBox();
+			this.label4 = new System.Windows.Forms.Label();
+			this.txtCustomTimeString = new System.Windows.Forms.TextBox();
+			this.customTimeStringHelp = new System.Windows.Forms.LinkLabel();
 			((System.ComponentModel.ISupportInitialize)(this.nudPingResponsesToCache)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.nudGraphScrollMultiplier)).BeginInit();
 			this.SuspendLayout();
@@ -203,11 +206,42 @@
 			this.cbShowDateInCorner.UseVisualStyleBackColor = true;
 			this.cbShowDateInCorner.CheckedChanged += new System.EventHandler(this.cbShowDateInCorner_CheckedChanged);
 			// 
+			// label4
+			// 
+			this.label4.AutoSize = true;
+			this.label4.Location = new System.Drawing.Point(12, 235);
+			this.label4.Name = "label4";
+			this.label4.Size = new System.Drawing.Size(142, 13);
+			this.label4.TabIndex = 16;
+			this.label4.Text = "Custom Time String for Logs:";
+			// 
+			// txtCustomTimeString
+			// 
+			this.txtCustomTimeString.Location = new System.Drawing.Point(160, 232);
+			this.txtCustomTimeString.Name = "txtCustomTimeString";
+			this.txtCustomTimeString.Size = new System.Drawing.Size(147, 20);
+			this.txtCustomTimeString.TabIndex = 17;
+			this.txtCustomTimeString.TextChanged += new System.EventHandler(this.txtCustomTimeStringGraphs_TextChanged);
+			// 
+			// customTimeStringHelp
+			// 
+			this.customTimeStringHelp.AutoSize = true;
+			this.customTimeStringHelp.Location = new System.Drawing.Point(313, 235);
+			this.customTimeStringHelp.Name = "customTimeStringHelp";
+			this.customTimeStringHelp.Size = new System.Drawing.Size(33, 13);
+			this.customTimeStringHelp.TabIndex = 18;
+			this.customTimeStringHelp.TabStop = true;
+			this.customTimeStringHelp.Text = "(help)";
+			this.customTimeStringHelp.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.customTimeStringHelp_LinkClicked);
+			// 
 			// OptionsForm
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-			this.ClientSize = new System.Drawing.Size(358, 240);
+			this.ClientSize = new System.Drawing.Size(358, 281);
+			this.Controls.Add(this.customTimeStringHelp);
+			this.Controls.Add(this.txtCustomTimeString);
+			this.Controls.Add(this.label4);
 			this.Controls.Add(this.cbShowDateInCorner);
 			this.Controls.Add(this.nudGraphScrollMultiplier);
 			this.Controls.Add(this.label3);
@@ -241,5 +275,8 @@
 		private System.Windows.Forms.Label label3;
 		private System.Windows.Forms.NumericUpDown nudGraphScrollMultiplier;
 		private System.Windows.Forms.CheckBox cbShowDateInCorner;
+		private System.Windows.Forms.Label label4;
+		private System.Windows.Forms.TextBox txtCustomTimeString;
+		private System.Windows.Forms.LinkLabel customTimeStringHelp;
 	}
 }

@@ -162,6 +162,9 @@ namespace PingTracer
 		public bool AlwaysShowServerNames = false;
 		public int Threshold_Bad = 100;
 		public int Threshold_Worse = 100;
+		public bool ShowLastPing = false;
+		public bool ShowAverage = false;
+		public bool ShowJitter = false;
 		public bool ShowMinMax = false;
 		public bool ShowPacketLoss = false;
 		public bool ShowTimestamps = true;
@@ -256,7 +259,7 @@ namespace PingTracer
 						if (lastStampedMinute == -1
 							|| pings[idx].startTime.Minute != lastStampedMinute)
 						{
-							if(settings.showDateOnGraphTimeline && lastStampedMinute == -1)
+							if (settings.showDateOnGraphTimeline && lastStampedMinute == -1)
 								timelineOverlayString += pings[idx].startTime.ToString("yyyy-M-d ");
 							if (pings[idx].startTime.Second < 2) // Only draw the line if this is close to the actual moment the minute struck.
 								e.Graphics.DrawLine(penTimestampsMark, pTimestampMarkStart, pTimestampMarkEnd);
@@ -294,18 +297,28 @@ namespace PingTracer
 				statusStr += "NOT LIVE -" + scrollXOffset + ": ";
 			if (ShowPacketLoss)
 				statusStr += packetLoss.ToString("0.00") + "% ";
+			List<int> intVals = new List<int>();
+			if (ShowLastPing)
+				intVals.Add(last);
+			if (ShowAverage)
+				intVals.Add(avg);
+			if (ShowJitter)
+				intVals.Add(Math.Abs(max - min));
 			if (ShowMinMax)
-				statusStr += "[" + min + "," + max + "," + avg + "," + last + "]";
-			else
-				statusStr += "[" + avg + "," + last + "]";
+			{
+				intVals.Add(min);
+				intVals.Add(max);
+			}
+			if (intVals.Count > 0)
+				statusStr += "[" + string.Join(",", intVals) + "] ";
 			if (!string.IsNullOrEmpty(MouseHintText))
 			{
 				if (!string.IsNullOrEmpty(DisplayName))
-					statusStr += " " + DisplayName;
-				statusStr += " " + MouseHintText;
+					statusStr += DisplayName + " ";
+				statusStr += MouseHintText + " ";
 			}
 			else if (AlwaysShowServerNames && !string.IsNullOrEmpty(DisplayName))
-				statusStr += " " + DisplayName;
+				statusStr += DisplayName + " ";
 
 			e.Graphics.DrawString(statusStr, textFont, brushText, 1, 1);
 			//SizeF measuredSize = e.Graphics.MeasureString(statusStr, textFont);
@@ -319,6 +332,14 @@ namespace PingTracer
 
 		private string GetTimestamp(DateTime time)
 		{
+			if (!string.IsNullOrWhiteSpace(settings.customTimeStr))
+			{
+				try
+				{
+					return time.ToString(settings.customTimeStr);
+				}
+				catch { }
+			}
 			return time.ToString("h:mm:ss tt");
 		}
 		/// <summary>

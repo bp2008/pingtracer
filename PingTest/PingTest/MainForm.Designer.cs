@@ -66,8 +66,11 @@
 			this.mi_snapshotGraphs = new System.Windows.Forms.MenuItem();
 			this.menuItem4 = new System.Windows.Forms.MenuItem();
 			this.mi_Options = new System.Windows.Forms.MenuItem();
-			this.selectPingsPerSecond = new System.Windows.Forms.ComboBox();
 			this.mi_deleteHost = new System.Windows.Forms.MenuItem();
+			this.selectPingsPerSecond = new System.Windows.Forms.ComboBox();
+			this.cbAverage = new System.Windows.Forms.CheckBox();
+			this.cbJitter = new System.Windows.Forms.CheckBox();
+			this.cbLastPing = new System.Windows.Forms.CheckBox();
 			((System.ComponentModel.ISupportInitialize)(this.nudPingsPerSecond)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
 			this.splitContainer1.Panel1.SuspendLayout();
@@ -88,7 +91,7 @@
 			this.txtOut.Name = "txtOut";
 			this.txtOut.ReadOnly = true;
 			this.txtOut.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-			this.txtOut.Size = new System.Drawing.Size(608, 73);
+			this.txtOut.Size = new System.Drawing.Size(608, 69);
 			this.txtOut.TabIndex = 15;
 			// 
 			// txtHost
@@ -201,7 +204,7 @@
 			this.splitContainer1.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-			this.splitContainer1.Location = new System.Drawing.Point(0, 112);
+			this.splitContainer1.Location = new System.Drawing.Point(0, 135);
 			this.splitContainer1.Name = "splitContainer1";
 			this.splitContainer1.Orientation = System.Windows.Forms.Orientation.Horizontal;
 			// 
@@ -212,8 +215,8 @@
 			// splitContainer1.Panel2
 			// 
 			this.splitContainer1.Panel2.Controls.Add(this.panel_Graphs);
-			this.splitContainer1.Size = new System.Drawing.Size(608, 426);
-			this.splitContainer1.SplitterDistance = 73;
+			this.splitContainer1.Size = new System.Drawing.Size(608, 403);
+			this.splitContainer1.SplitterDistance = 69;
 			this.splitContainer1.TabIndex = 12;
 			// 
 			// panel_Graphs
@@ -225,7 +228,7 @@
 			this.panel_Graphs.Controls.Add(this.label5);
 			this.panel_Graphs.Location = new System.Drawing.Point(0, 0);
 			this.panel_Graphs.Name = "panel_Graphs";
-			this.panel_Graphs.Size = new System.Drawing.Size(608, 348);
+			this.panel_Graphs.Size = new System.Drawing.Size(608, 329);
 			this.panel_Graphs.TabIndex = 16;
 			this.panel_Graphs.Click += new System.EventHandler(this.panel_Graphs_Click);
 			this.panel_Graphs.Resize += new System.EventHandler(this.panel_Graphs_Resize);
@@ -296,7 +299,7 @@
 			// 
 			this.label8.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
 			this.label8.AutoSize = true;
-			this.label8.Location = new System.Drawing.Point(286, 20);
+			this.label8.Location = new System.Drawing.Point(438, 21);
 			this.label8.Name = "label8";
 			this.label8.Size = new System.Drawing.Size(75, 13);
 			this.label8.TabIndex = 17;
@@ -308,7 +311,7 @@
 			// 
 			this.label9.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
 			this.label9.AutoSize = true;
-			this.label9.Location = new System.Drawing.Point(429, 20);
+			this.label9.Location = new System.Drawing.Point(426, 46);
 			this.label9.Name = "label9";
 			this.label9.Size = new System.Drawing.Size(87, 13);
 			this.label9.TabIndex = 18;
@@ -319,7 +322,7 @@
 			// nudBadThreshold
 			// 
 			this.nudBadThreshold.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-			this.nudBadThreshold.Location = new System.Drawing.Point(367, 17);
+			this.nudBadThreshold.Location = new System.Drawing.Point(519, 18);
 			this.nudBadThreshold.Maximum = new decimal(new int[] {
             9999,
             0,
@@ -327,7 +330,7 @@
             0});
 			this.nudBadThreshold.Name = "nudBadThreshold";
 			this.nudBadThreshold.Size = new System.Drawing.Size(56, 20);
-			this.nudBadThreshold.TabIndex = 13;
+			this.nudBadThreshold.TabIndex = 17;
 			this.toolTip1.SetToolTip(this.nudBadThreshold, "Pings exceeding this threshold are drawn in faded yellow color, \r\nand the backgro" +
         "und of the ping graph will be yellow tinted \r\nabove this point.");
 			this.nudBadThreshold.Value = new decimal(new int[] {
@@ -340,7 +343,7 @@
 			// nudWorseThreshold
 			// 
 			this.nudWorseThreshold.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-			this.nudWorseThreshold.Location = new System.Drawing.Point(522, 18);
+			this.nudWorseThreshold.Location = new System.Drawing.Point(519, 44);
 			this.nudWorseThreshold.Maximum = new decimal(new int[] {
             9999,
             0,
@@ -348,7 +351,7 @@
             0});
 			this.nudWorseThreshold.Name = "nudWorseThreshold";
 			this.nudWorseThreshold.Size = new System.Drawing.Size(56, 20);
-			this.nudWorseThreshold.TabIndex = 14;
+			this.nudWorseThreshold.TabIndex = 18;
 			this.toolTip1.SetToolTip(this.nudWorseThreshold, "Pings exceeding this threshold are drawn in bright yellow color, \r\nand the backgr" +
         "ound of the ping graph will be red tinted \r\nabove this point.");
 			this.nudWorseThreshold.Value = new decimal(new int[] {
@@ -361,10 +364,10 @@
 			// cbMinMax
 			// 
 			this.cbMinMax.AutoSize = true;
-			this.cbMinMax.Location = new System.Drawing.Point(105, 19);
+			this.cbMinMax.Location = new System.Drawing.Point(223, 45);
 			this.cbMinMax.Name = "cbMinMax";
 			this.cbMinMax.Size = new System.Drawing.Size(74, 17);
-			this.cbMinMax.TabIndex = 11;
+			this.cbMinMax.TabIndex = 16;
 			this.cbMinMax.Text = "Min / Max";
 			this.toolTip1.SetToolTip(this.cbMinMax, "If checked, the shortest and longest visible ping times are overlaid in text form" +
         ".");
@@ -412,11 +415,11 @@
 			this.cbPacketLoss.AutoSize = true;
 			this.cbPacketLoss.Checked = true;
 			this.cbPacketLoss.CheckState = System.Windows.Forms.CheckState.Checked;
-			this.cbPacketLoss.Location = new System.Drawing.Point(185, 19);
+			this.cbPacketLoss.Location = new System.Drawing.Point(110, 19);
 			this.cbPacketLoss.Name = "cbPacketLoss";
-			this.cbPacketLoss.Size = new System.Drawing.Size(85, 17);
+			this.cbPacketLoss.Size = new System.Drawing.Size(96, 17);
 			this.cbPacketLoss.TabIndex = 12;
-			this.cbPacketLoss.Text = "Packet Loss";
+			this.cbPacketLoss.Text = "Packet Loss %";
 			this.toolTip1.SetToolTip(this.cbPacketLoss, "If checked, each graph\'s visible packet loss is overlaid as a percentage.");
 			this.cbPacketLoss.UseVisualStyleBackColor = true;
 			this.cbPacketLoss.CheckedChanged += new System.EventHandler(this.cbPacketLoss_CheckedChanged);
@@ -438,7 +441,9 @@
 			// 
 			// groupBox1
 			// 
-			this.groupBox1.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+			this.groupBox1.Controls.Add(this.cbLastPing);
+			this.groupBox1.Controls.Add(this.cbJitter);
+			this.groupBox1.Controls.Add(this.cbAverage);
 			this.groupBox1.Controls.Add(this.cbAlwaysShowServerNames);
 			this.groupBox1.Controls.Add(this.cbMinMax);
 			this.groupBox1.Controls.Add(this.cbPacketLoss);
@@ -446,10 +451,10 @@
 			this.groupBox1.Controls.Add(this.nudWorseThreshold);
 			this.groupBox1.Controls.Add(this.label8);
 			this.groupBox1.Controls.Add(this.label9);
-			this.groupBox1.Location = new System.Drawing.Point(12, 58);
+			this.groupBox1.Location = new System.Drawing.Point(15, 58);
 			this.groupBox1.Name = "groupBox1";
-			this.groupBox1.Size = new System.Drawing.Size(584, 48);
-			this.groupBox1.TabIndex = 7;
+			this.groupBox1.Size = new System.Drawing.Size(581, 71);
+			this.groupBox1.TabIndex = 9;
 			this.groupBox1.TabStop = false;
 			this.groupBox1.Text = "Graph Options:";
 			// 
@@ -500,6 +505,12 @@
 			this.mi_Options.Text = "&Options";
 			this.mi_Options.Click += new System.EventHandler(this.mi_Options_Click);
 			// 
+			// mi_deleteHost
+			// 
+			this.mi_deleteHost.Index = 1;
+			this.mi_deleteHost.Text = "Delete Current Host";
+			this.mi_deleteHost.Click += new System.EventHandler(this.mi_deleteHost_Click);
+			// 
 			// selectPingsPerSecond
 			// 
 			this.selectPingsPerSecond.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
@@ -513,11 +524,42 @@
 			this.selectPingsPerSecond.TabIndex = 5;
 			this.selectPingsPerSecond.SelectedIndexChanged += new System.EventHandler(this.selectPingsPerSecond_SelectedIndexChanged);
 			// 
-			// mi_deleteHost
+			// cbAverage
 			// 
-			this.mi_deleteHost.Index = 1;
-			this.mi_deleteHost.Text = "Delete Current Host";
-			this.mi_deleteHost.Click += new System.EventHandler(this.mi_deleteHost_Click);
+			this.cbAverage.AutoSize = true;
+			this.cbAverage.Location = new System.Drawing.Point(87, 45);
+			this.cbAverage.Name = "cbAverage";
+			this.cbAverage.Size = new System.Drawing.Size(66, 17);
+			this.cbAverage.TabIndex = 14;
+			this.cbAverage.Text = "Average";
+			this.toolTip1.SetToolTip(this.cbAverage, "If checked, the average response time (of visible ping times) is overlaid in text" +
+        " form.");
+			this.cbAverage.UseVisualStyleBackColor = true;
+			this.cbAverage.CheckedChanged += new System.EventHandler(this.cbAverage_CheckedChanged);
+			// 
+			// cbJitter
+			// 
+			this.cbJitter.AutoSize = true;
+			this.cbJitter.Location = new System.Drawing.Point(164, 45);
+			this.cbJitter.Name = "cbJitter";
+			this.cbJitter.Size = new System.Drawing.Size(48, 17);
+			this.cbJitter.TabIndex = 15;
+			this.cbJitter.Text = "Jitter";
+			this.toolTip1.SetToolTip(this.cbJitter, "If checked, the jitter (across visible ping times) is overlaid in text form.");
+			this.cbJitter.UseVisualStyleBackColor = true;
+			this.cbJitter.CheckedChanged += new System.EventHandler(this.cbJitter_CheckedChanged);
+			// 
+			// cbLastPing
+			// 
+			this.cbLastPing.AutoSize = true;
+			this.cbLastPing.Location = new System.Drawing.Point(6, 45);
+			this.cbLastPing.Name = "cbLastPing";
+			this.cbLastPing.Size = new System.Drawing.Size(70, 17);
+			this.cbLastPing.TabIndex = 13;
+			this.cbLastPing.Text = "Last Ping";
+			this.toolTip1.SetToolTip(this.cbLastPing, "If checked, the most recent ping response time is overlaid in text form.");
+			this.cbLastPing.UseVisualStyleBackColor = true;
+			this.cbLastPing.CheckedChanged += new System.EventHandler(this.cbLastPing_CheckedChanged);
 			// 
 			// MainForm
 			// 
@@ -605,6 +647,9 @@
 		private System.Windows.Forms.CheckBox cbReverseDNS;
 		private System.Windows.Forms.ComboBox selectPingsPerSecond;
 		private System.Windows.Forms.MenuItem mi_deleteHost;
+		private System.Windows.Forms.CheckBox cbJitter;
+		private System.Windows.Forms.CheckBox cbAverage;
+		private System.Windows.Forms.CheckBox cbLastPing;
 	}
 }
 
