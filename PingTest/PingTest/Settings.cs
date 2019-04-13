@@ -1,4 +1,5 @@
-﻿using System;
+﻿using PingTracer.Tracer;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -10,7 +11,7 @@ namespace PingTracer
 		public bool logTextOutputToFile = true;
 		public bool delayMostRecentPing = true;
 		public bool warnGraphNotLive = true;
-		public List<HostSettings> hostHistory = new List<HostSettings>();
+		public List<Profile> hostHistory = new List<Profile>();
 		public int cacheSize = 10000;
 		public bool fastRefreshScrollingGraphs = true;
 		public int graphScrollMultiplier = 1;
@@ -21,52 +22,22 @@ namespace PingTracer
 		{
 			lock (hostHistory)
 			{
-				return Save(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData).TrimEnd('/', '\\') + "/PingTracer/settings.cfg");
+				return Save(settingsFilePath);
 			}
 		}
 		public bool Load()
 		{
-			return Load(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData).TrimEnd('/', '\\') + "/PingTracer/settings.cfg");
+			return Load(settingsFilePath);
 		}
-	}
-	public class HostSettings
-	{
-		public string host;
-		public string displayName = "";
-		public int rate = 1;
-		public bool pingsPerSecond = true;
-		public bool doTraceRoute = true;
-		public bool reverseDnsLookup = true;
-		public bool drawServerNames = true;
-		public bool drawLastPing = true;
-		public bool drawAverage = true;
-		public bool drawJitter = false;
-		public bool drawMinMax = false;
-		public bool drawPacketLoss = true;
-		public int badThreshold = 100;
-		public int worseThreshold = 200;
-
-		public override bool Equals(object other)
+		/// <summary>
+		/// Gets the absolute path to the settings file.
+		/// </summary>
+		private static string settingsFilePath
 		{
-			if (other is HostSettings)
+			get
 			{
-				HostSettings o = (HostSettings)other;
-				return host == o.host
-					&& rate == o.rate
-					&& pingsPerSecond == o.pingsPerSecond
-					&& doTraceRoute == o.doTraceRoute
-					&& reverseDnsLookup == o.reverseDnsLookup
-					&& drawServerNames == o.drawServerNames
-					&& drawMinMax == o.drawMinMax
-					&& drawPacketLoss == o.drawPacketLoss
-					&& badThreshold == o.badThreshold
-					&& worseThreshold == o.worseThreshold;
+				return Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData).TrimEnd('/', '\\') + "/PingTracer/settings.cfg";
 			}
-			return false;
-		}
-		public override int GetHashCode()
-		{
-			return host.GetHashCode() ^ rate.GetHashCode() ^ badThreshold.GetHashCode() ^ worseThreshold.GetHashCode();
 		}
 	}
 }

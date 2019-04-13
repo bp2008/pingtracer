@@ -1,4 +1,5 @@
-﻿using SmartPing;
+﻿using PingTracer.Tracer;
+using SmartPing;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -66,7 +67,7 @@ namespace PingTracer
 			lock (settings.hostHistory)
 			{
 				if (settings.hostHistory.Count > 0)
-					LoadHostSettings(settings.hostHistory[0]);
+					LoadProfileIntoUI(settings.hostHistory[0]);
 			}
 			selectPingsPerSecond_SelectedIndexChanged(null, null);
 		}
@@ -405,7 +406,7 @@ namespace PingTracer
 		{
 			if (isRunning)
 			{
-				SaveHost();
+				SaveProfileFromUI();
 				btnStart_Click(btnStart, new EventArgs());
 			}
 		}
@@ -458,8 +459,8 @@ namespace PingTracer
 			}
 
 			ToolStripItem tsi = (ToolStripItem)sender;
-			HostSettings hs = (HostSettings)tsi.Tag;
-			LoadHostSettings(hs);
+			Profile p = (Profile)tsi.Tag;
+			LoadProfileIntoUI(p);
 		}
 
 		private void mi_snapshotGraphs_Click(object sender, EventArgs e)
@@ -484,7 +485,7 @@ namespace PingTracer
 				btnStart.BeginInvoke((Action<object, EventArgs>)btnStart_Click, sender, e);
 				return;
 			}
-			SaveHost();
+			SaveProfileFromUI();
 			btnStart.Enabled = false;
 			if (isRunning)
 			{
@@ -512,7 +513,7 @@ namespace PingTracer
 
 		private void nudPingsPerSecond_ValueChanged(object sender, EventArgs e)
 		{
-			SaveHostIfHostAlreadyExists();
+			SaveProfileIfProfileAlreadyExists();
 			if (nudPingsPerSecond.Value == 0)
 				pingDelay = 0;
 			else if (selectPingsPerSecond.SelectedIndex == 0)
@@ -532,7 +533,7 @@ namespace PingTracer
 
 		private void cbAlwaysShowServerNames_CheckedChanged(object sender, EventArgs e)
 		{
-			SaveHostIfHostAlreadyExists();
+			SaveProfileIfProfileAlreadyExists();
 			try
 			{
 				IList<PingGraphControl> graphs = pingGraphs.Values;
@@ -549,7 +550,7 @@ namespace PingTracer
 
 		private void nudBadThreshold_ValueChanged(object sender, EventArgs e)
 		{
-			SaveHostIfHostAlreadyExists();
+			SaveProfileIfProfileAlreadyExists();
 			if (nudWorseThreshold.Value < nudBadThreshold.Value)
 				nudWorseThreshold.Value = nudBadThreshold.Value;
 			try
@@ -568,7 +569,7 @@ namespace PingTracer
 
 		private void nudWorseThreshold_ValueChanged(object sender, EventArgs e)
 		{
-			SaveHostIfHostAlreadyExists();
+			SaveProfileIfProfileAlreadyExists();
 			if (nudBadThreshold.Value > nudWorseThreshold.Value)
 				nudBadThreshold.Value = nudWorseThreshold.Value;
 			try
@@ -588,7 +589,7 @@ namespace PingTracer
 
 		private void cbLastPing_CheckedChanged(object sender, EventArgs e)
 		{
-			SaveHostIfHostAlreadyExists();
+			SaveProfileIfProfileAlreadyExists();
 			try
 			{
 				IList<PingGraphControl> graphs = pingGraphs.Values;
@@ -605,7 +606,7 @@ namespace PingTracer
 
 		private void cbAverage_CheckedChanged(object sender, EventArgs e)
 		{
-			SaveHostIfHostAlreadyExists();
+			SaveProfileIfProfileAlreadyExists();
 			try
 			{
 				IList<PingGraphControl> graphs = pingGraphs.Values;
@@ -621,7 +622,7 @@ namespace PingTracer
 		}
 		private void cbJitter_CheckedChanged(object sender, EventArgs e)
 		{
-			SaveHostIfHostAlreadyExists();
+			SaveProfileIfProfileAlreadyExists();
 			try
 			{
 				IList<PingGraphControl> graphs = pingGraphs.Values;
@@ -637,7 +638,7 @@ namespace PingTracer
 		}
 		private void cbMinMax_CheckedChanged(object sender, EventArgs e)
 		{
-			SaveHostIfHostAlreadyExists();
+			SaveProfileIfProfileAlreadyExists();
 			try
 			{
 				IList<PingGraphControl> graphs = pingGraphs.Values;
@@ -654,7 +655,7 @@ namespace PingTracer
 
 		private void cbPacketLoss_CheckedChanged(object sender, EventArgs e)
 		{
-			SaveHostIfHostAlreadyExists();
+			SaveProfileIfProfileAlreadyExists();
 			try
 			{
 				IList<PingGraphControl> graphs = pingGraphs.Values;
@@ -671,17 +672,17 @@ namespace PingTracer
 
 		private void cbTraceroute_CheckedChanged(object sender, EventArgs e)
 		{
-			SaveHostIfHostAlreadyExists();
+			SaveProfileIfProfileAlreadyExists();
 		}
 
 		private void cbReverseDNS_CheckedChanged(object sender, EventArgs e)
 		{
-			SaveHostIfHostAlreadyExists();
+			SaveProfileIfProfileAlreadyExists();
 		}
 
 		private void txtDisplayName_TextChanged(object sender, EventArgs e)
 		{
-			SaveHostIfHostAlreadyExists();
+			SaveProfileIfProfileAlreadyExists();
 		}
 		#endregion
 
@@ -785,16 +786,16 @@ namespace PingTracer
 			bool first = true;
 			lock (settings.hostHistory)
 			{
-				foreach (HostSettings hs in settings.hostHistory)
+				foreach (Profile p in settings.hostHistory)
 				{
 					ToolStripItem item = new ToolStripMenuItem();
 					//Name that will appear on the menu
-					if (string.IsNullOrWhiteSpace(hs.displayName))
-						item.Text = hs.host;
+					if (string.IsNullOrWhiteSpace(p.displayName))
+						item.Text = p.host;
 					else
-						item.Text = hs.displayName + " [" + hs.host + "]";
+						item.Text = p.displayName + " [" + p.host + "]";
 					//Put in the Name property whatever neccessery to retrive your data on click event
-					item.Tag = hs;
+					item.Tag = p;
 					//On-Click event
 					item.Click += new EventHandler(rsitem_Click);
 
@@ -808,7 +809,7 @@ namespace PingTracer
 			}
 		}
 
-		private void LoadHostSettings(HostSettings hs)
+		private void LoadProfileIntoUI(Profile hs)
 		{
 			suppressHostSettingsSaveUntil = DateTime.Now.AddMilliseconds(100);
 
@@ -833,7 +834,7 @@ namespace PingTracer
 				for (int i = 1; i < settings.hostHistory.Count; i++)
 					if (settings.hostHistory[i].host == hs.host)
 					{
-						HostSettings justLoaded = settings.hostHistory[i];
+						Profile justLoaded = settings.hostHistory[i];
 						settings.hostHistory.RemoveAt(i);
 						settings.hostHistory.Insert(0, justLoaded);
 						break;
@@ -841,22 +842,22 @@ namespace PingTracer
 			}
 		}
 
-		private void SaveHostIfHostAlreadyExists()
+		private void SaveProfileIfProfileAlreadyExists()
 		{
 			lock (settings.hostHistory)
 			{
 				bool hostExists = false;
-				foreach (HostSettings hs in settings.hostHistory)
-					if (hs.host == txtHost.Text)
+				foreach (Profile p in settings.hostHistory)
+					if (p.host == txtHost.Text)
 					{
 						hostExists = true;
 						break;
 					}
 				if (hostExists)
-					SaveHost();
+					SaveProfileFromUI();
 			}
 		}
-		private void DeleteCurrentHost()
+		private void DeleteCurrentProfile()
 		{
 			lock (settings.hostHistory)
 			{
@@ -872,48 +873,48 @@ namespace PingTracer
 				if (hostExisted)
 				{
 					if (settings.hostHistory.Count > 0)
-						LoadHostSettings(settings.hostHistory[0]);
+						LoadProfileIntoUI(settings.hostHistory[0]);
 				}
 			}
 		}
 		/// <summary>
-		/// Adds the current host and settings to the recent hosts history and saves the history if necessary.
+		/// Adds the current profile to the profile list and saves it to disk. Only if the host field is defined.
 		/// </summary>
-		private void SaveHost()
+		private void SaveProfileFromUI()
 		{
 			if (DateTime.Now < suppressHostSettingsSaveUntil)
 				return;
-			HostSettings hs = new HostSettings();
-			hs.host = txtHost.Text;
-			hs.displayName = txtDisplayName.Text;
-			hs.rate = (int)nudPingsPerSecond.Value;
-			hs.pingsPerSecond = selectPingsPerSecond.SelectedIndex == 0;
-			hs.doTraceRoute = cbTraceroute.Checked;
-			hs.reverseDnsLookup = cbReverseDNS.Checked;
-			hs.drawServerNames = cbAlwaysShowServerNames.Checked;
-			hs.drawLastPing = cbLastPing.Checked;
-			hs.drawAverage = cbAverage.Checked;
-			hs.drawJitter = cbJitter.Checked;
-			hs.drawMinMax = cbMinMax.Checked;
-			hs.drawPacketLoss = cbPacketLoss.Checked;
-			hs.badThreshold = (int)nudBadThreshold.Value;
-			hs.worseThreshold = (int)nudWorseThreshold.Value;
+			Profile p = new Profile();
+			p.host = txtHost.Text;
+			p.displayName = txtDisplayName.Text;
+			p.rate = (int)nudPingsPerSecond.Value;
+			p.pingsPerSecond = selectPingsPerSecond.SelectedIndex == 0;
+			p.doTraceRoute = cbTraceroute.Checked;
+			p.reverseDnsLookup = cbReverseDNS.Checked;
+			p.drawServerNames = cbAlwaysShowServerNames.Checked;
+			p.drawLastPing = cbLastPing.Checked;
+			p.drawAverage = cbAverage.Checked;
+			p.drawJitter = cbJitter.Checked;
+			p.drawMinMax = cbMinMax.Checked;
+			p.drawPacketLoss = cbPacketLoss.Checked;
+			p.badThreshold = (int)nudBadThreshold.Value;
+			p.worseThreshold = (int)nudWorseThreshold.Value;
 
-			if (!string.IsNullOrWhiteSpace(hs.host))
+			if (!string.IsNullOrWhiteSpace(p.host))
 			{
 				lock (settings.hostHistory)
 				{
 					if (settings.hostHistory.Count == 0)
-						settings.hostHistory.Add(hs);
+						settings.hostHistory.Add(p);
 					else
 					{
 						for (int i = 0; i < settings.hostHistory.Count; i++)
-							if (settings.hostHistory[i].host == hs.host)
+							if (settings.hostHistory[i].host == p.host)
 							{
 								settings.hostHistory.RemoveAt(i);
 								break;
 							}
-						settings.hostHistory.Insert(0, hs);
+						settings.hostHistory.Insert(0, p);
 					}
 					settings.Save();
 				}
@@ -941,7 +942,7 @@ namespace PingTracer
 
 		private void mi_deleteHost_Click(object sender, EventArgs e)
 		{
-			DeleteCurrentHost();
+			DeleteCurrentProfile();
 		}
 		private string GetTimestamp(DateTime time)
 		{
