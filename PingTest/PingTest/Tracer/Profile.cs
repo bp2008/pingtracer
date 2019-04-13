@@ -6,6 +6,9 @@ using System.Threading.Tasks;
 
 namespace PingTracer.Tracer
 {
+	/// <summary>
+	/// Defines host(s) to ping, along with various related options.
+	/// </summary>
 	public class Profile
 	{
 		public string host;
