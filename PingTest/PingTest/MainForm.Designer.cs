@@ -58,6 +58,9 @@
 			this.txtDisplayName = new System.Windows.Forms.TextBox();
 			this.cbPacketLoss = new System.Windows.Forms.CheckBox();
 			this.cbReverseDNS = new System.Windows.Forms.CheckBox();
+			this.cbAverage = new System.Windows.Forms.CheckBox();
+			this.cbJitter = new System.Windows.Forms.CheckBox();
+			this.cbLastPing = new System.Windows.Forms.CheckBox();
 			this.groupBox1 = new System.Windows.Forms.GroupBox();
 			this.mainMenu1 = new System.Windows.Forms.MainMenu(this.components);
 			this.menuItem6 = new System.Windows.Forms.MenuItem();
@@ -68,9 +71,6 @@
 			this.mi_Options = new System.Windows.Forms.MenuItem();
 			this.mi_deleteHost = new System.Windows.Forms.MenuItem();
 			this.selectPingsPerSecond = new System.Windows.Forms.ComboBox();
-			this.cbAverage = new System.Windows.Forms.CheckBox();
-			this.cbJitter = new System.Windows.Forms.CheckBox();
-			this.cbLastPing = new System.Windows.Forms.CheckBox();
 			((System.ComponentModel.ISupportInitialize)(this.nudPingsPerSecond)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
 			this.splitContainer1.Panel1.SuspendLayout();
@@ -439,6 +439,43 @@
 			this.cbReverseDNS.UseVisualStyleBackColor = true;
 			this.cbReverseDNS.CheckedChanged += new System.EventHandler(this.cbReverseDNS_CheckedChanged);
 			// 
+			// cbAverage
+			// 
+			this.cbAverage.AutoSize = true;
+			this.cbAverage.Location = new System.Drawing.Point(87, 45);
+			this.cbAverage.Name = "cbAverage";
+			this.cbAverage.Size = new System.Drawing.Size(66, 17);
+			this.cbAverage.TabIndex = 14;
+			this.cbAverage.Text = "Average";
+			this.toolTip1.SetToolTip(this.cbAverage, "If checked, the average response time (of visible ping times) is overlaid in text" +
+        " form.");
+			this.cbAverage.UseVisualStyleBackColor = true;
+			this.cbAverage.CheckedChanged += new System.EventHandler(this.cbAverage_CheckedChanged);
+			// 
+			// cbJitter
+			// 
+			this.cbJitter.AutoSize = true;
+			this.cbJitter.Location = new System.Drawing.Point(164, 45);
+			this.cbJitter.Name = "cbJitter";
+			this.cbJitter.Size = new System.Drawing.Size(48, 17);
+			this.cbJitter.TabIndex = 15;
+			this.cbJitter.Text = "Jitter";
+			this.toolTip1.SetToolTip(this.cbJitter, "If checked, the jitter (across visible ping times) is overlaid in text form.");
+			this.cbJitter.UseVisualStyleBackColor = true;
+			this.cbJitter.CheckedChanged += new System.EventHandler(this.cbJitter_CheckedChanged);
+			// 
+			// cbLastPing
+			// 
+			this.cbLastPing.AutoSize = true;
+			this.cbLastPing.Location = new System.Drawing.Point(6, 45);
+			this.cbLastPing.Name = "cbLastPing";
+			this.cbLastPing.Size = new System.Drawing.Size(70, 17);
+			this.cbLastPing.TabIndex = 13;
+			this.cbLastPing.Text = "Last Ping";
+			this.toolTip1.SetToolTip(this.cbLastPing, "If checked, the most recent ping response time is overlaid in text form.");
+			this.cbLastPing.UseVisualStyleBackColor = true;
+			this.cbLastPing.CheckedChanged += new System.EventHandler(this.cbLastPing_CheckedChanged);
+			// 
 			// groupBox1
 			// 
 			this.groupBox1.Controls.Add(this.cbLastPing);
@@ -523,43 +560,6 @@
 			this.selectPingsPerSecond.Size = new System.Drawing.Size(132, 21);
 			this.selectPingsPerSecond.TabIndex = 5;
 			this.selectPingsPerSecond.SelectedIndexChanged += new System.EventHandler(this.selectPingsPerSecond_SelectedIndexChanged);
-			// 
-			// cbAverage
-			// 
-			this.cbAverage.AutoSize = true;
-			this.cbAverage.Location = new System.Drawing.Point(87, 45);
-			this.cbAverage.Name = "cbAverage";
-			this.cbAverage.Size = new System.Drawing.Size(66, 17);
-			this.cbAverage.TabIndex = 14;
-			this.cbAverage.Text = "Average";
-			this.toolTip1.SetToolTip(this.cbAverage, "If checked, the average response time (of visible ping times) is overlaid in text" +
-        " form.");
-			this.cbAverage.UseVisualStyleBackColor = true;
-			this.cbAverage.CheckedChanged += new System.EventHandler(this.cbAverage_CheckedChanged);
-			// 
-			// cbJitter
-			// 
-			this.cbJitter.AutoSize = true;
-			this.cbJitter.Location = new System.Drawing.Point(164, 45);
-			this.cbJitter.Name = "cbJitter";
-			this.cbJitter.Size = new System.Drawing.Size(48, 17);
-			this.cbJitter.TabIndex = 15;
-			this.cbJitter.Text = "Jitter";
-			this.toolTip1.SetToolTip(this.cbJitter, "If checked, the jitter (across visible ping times) is overlaid in text form.");
-			this.cbJitter.UseVisualStyleBackColor = true;
-			this.cbJitter.CheckedChanged += new System.EventHandler(this.cbJitter_CheckedChanged);
-			// 
-			// cbLastPing
-			// 
-			this.cbLastPing.AutoSize = true;
-			this.cbLastPing.Location = new System.Drawing.Point(6, 45);
-			this.cbLastPing.Name = "cbLastPing";
-			this.cbLastPing.Size = new System.Drawing.Size(70, 17);
-			this.cbLastPing.TabIndex = 13;
-			this.cbLastPing.Text = "Last Ping";
-			this.toolTip1.SetToolTip(this.cbLastPing, "If checked, the most recent ping response time is overlaid in text form.");
-			this.cbLastPing.UseVisualStyleBackColor = true;
-			this.cbLastPing.CheckedChanged += new System.EventHandler(this.cbLastPing_CheckedChanged);
 			// 
 			// MainForm
 			// 
