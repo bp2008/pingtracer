@@ -17,8 +17,11 @@ Something you should be aware of is that when you attempt to "Graph every node l
 * The trace route operation is ended if 5 consecutive hosts fail to respond.  This usually indicates that the destination host was already passed by and did not respond to the trace ping.
 * Some hosts respond to the traceroute but do not respond to direct pings.  Technically it would still be possible to monitor these hosts by repeating their part of the traceroute, but I assume this would be against the wishes of the owner of the host.  If the owner wanted their router to be pingable, they would have enabled pinging, no?
 * I let you increase the ping rate as high as 10 pings per second (per host!) which can add up to dozens or even hundreds of pings per second.  This is kind of, sort of, maybe a little bit excessive.  I don't recommend actually running it that high.  In fact 1 ping per second is probably all you need.
+* Some routers implement [ICMP rate limiting](https://docs.paloaltonetworks.com/pan-os/10-0/pan-os-admin/networking/session-settings-and-timeouts/icmp/icmpv6-rate-limiting.html) in such a way that penalizes rapid pinging.
 
+## Installation
 
+Just download the latest release from [the releases tab](https://github.com/bp2008/pingtracer/releases) and extract it wherever you like.
 
 
 
