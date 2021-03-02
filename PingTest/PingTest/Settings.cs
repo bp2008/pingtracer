@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Xml;
+using System.Xml.Serialization;
 
 namespace PingTracer
 {
@@ -11,7 +13,7 @@ namespace PingTracer
 		public bool logTextOutputToFile = true;
 		public bool delayMostRecentPing = true;
 		public bool warnGraphNotLive = true;
-		public List<Profile> hostHistory = new List<Profile>();
+		public List<HostSettings> hostHistory = new List<HostSettings>();
 		public int cacheSize = 10000;
 		public bool fastRefreshScrollingGraphs = true;
 		public int graphScrollMultiplier = 1;

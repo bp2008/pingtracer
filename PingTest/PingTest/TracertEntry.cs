@@ -39,15 +39,12 @@ namespace PingTracer
 		public override string ToString()
 		{
 			string host;
-			if (Address == null && string.IsNullOrEmpty(Hostname))
+			if (Address == null)
 				host = "N/A";
-			else if (Address == null)
-				host = Hostname;
 			else if (string.IsNullOrEmpty(Hostname))
 				host = Address.ToString();
 			else
 				host = Hostname + "[" + Address.ToString() + "]";
-
 			string status;
 			if (ReplyStatus == IPStatus.TimedOut)
 				status = "Request Timed Out";

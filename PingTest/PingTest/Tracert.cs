@@ -3,6 +3,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -42,13 +43,15 @@ namespace PingTracer
 				pingReplyTime.Start();
 				reply = ping.Send(address, timeout, buffer, pingOptions);
 				pingReplyTime.Stop();
-
+				IPAddress replyAddress = reply.Address;
+				if (replyAddress != null && replyAddress.GetAddressBytes().All(b => b == 0))
+					replyAddress = null;
 				string hostname = string.Empty;
-				if (reverseDnsLookup && reply.Address != null)
+				if (reverseDnsLookup && replyAddress != null)
 				{
 					try
 					{
-						hostname = Dns.GetHostEntry(reply.Address).HostName;    // Retrieve the hostname for the replied address.
+						hostname = Dns.GetHostEntry(replyAddress).HostName;    // Retrieve the hostname for the replied address.
 					}
 					catch (SocketException) { /* No host available for that address. */ }
 				}
@@ -60,7 +63,7 @@ namespace PingTracer
 				yield return new TracertEntry()
 				{
 					HopID = pingOptions.Ttl,
-					Address = reply.Address,
+					Address = replyAddress,
 					Hostname = hostname,
 					ReplyTime = pingReplyTime.ElapsedMilliseconds,
 					ReplyStatus = reply.Status

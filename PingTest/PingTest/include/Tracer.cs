@@ -13,7 +13,7 @@ namespace PingTracer.include
 {
 	public partial class Tracer : Form
 	{
-		public Tracer(Profile p)
+		public Tracer(HostSettings p)
 		{
 			InitializeComponent();
 		}

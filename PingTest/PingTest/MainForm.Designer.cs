@@ -61,6 +61,7 @@
 			this.cbAverage = new System.Windows.Forms.CheckBox();
 			this.cbJitter = new System.Windows.Forms.CheckBox();
 			this.cbLastPing = new System.Windows.Forms.CheckBox();
+			this.cbPreferIpv4 = new System.Windows.Forms.CheckBox();
 			this.groupBox1 = new System.Windows.Forms.GroupBox();
 			this.mainMenu1 = new System.Windows.Forms.MainMenu(this.components);
 			this.menuItem6 = new System.Windows.Forms.MenuItem();
@@ -476,8 +477,24 @@
 			this.cbLastPing.UseVisualStyleBackColor = true;
 			this.cbLastPing.CheckedChanged += new System.EventHandler(this.cbLastPing_CheckedChanged);
 			// 
+			// cbPreferIpv4
+			// 
+			this.cbPreferIpv4.AutoSize = true;
+			this.cbPreferIpv4.Checked = true;
+			this.cbPreferIpv4.CheckState = System.Windows.Forms.CheckState.Checked;
+			this.cbPreferIpv4.Location = new System.Drawing.Point(347, 0);
+			this.cbPreferIpv4.Name = "cbPreferIpv4";
+			this.cbPreferIpv4.Size = new System.Drawing.Size(79, 17);
+			this.cbPreferIpv4.TabIndex = 23;
+			this.cbPreferIpv4.Text = "Prefer IPv4";
+			this.toolTip1.SetToolTip(this.cbPreferIpv4, "If checked, a traceroute operation will be performed \r\nand multiple destinations " +
+        "may be monitored.");
+			this.cbPreferIpv4.UseVisualStyleBackColor = true;
+			this.cbPreferIpv4.CheckedChanged += new System.EventHandler(this.cbPreferIpv4_CheckedChanged);
+			// 
 			// groupBox1
 			// 
+			this.groupBox1.Controls.Add(this.cbPreferIpv4);
 			this.groupBox1.Controls.Add(this.cbLastPing);
 			this.groupBox1.Controls.Add(this.cbJitter);
 			this.groupBox1.Controls.Add(this.cbAverage);
@@ -650,6 +667,7 @@
 		private System.Windows.Forms.CheckBox cbJitter;
 		private System.Windows.Forms.CheckBox cbAverage;
 		private System.Windows.Forms.CheckBox cbLastPing;
+		private System.Windows.Forms.CheckBox cbPreferIpv4;
 	}
 }
 

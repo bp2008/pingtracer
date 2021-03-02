@@ -6,6 +6,7 @@ using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading;
@@ -72,7 +73,7 @@ namespace PingTracer
 			selectPingsPerSecond_SelectedIndexChanged(null, null);
 		}
 
-		private IPAddress StringToIp(string address)
+		private IPAddress StringToIp(string address, bool preferIpv4)
 		{
 			// Validate IP
 			if (address.Contains(":"))
@@ -89,6 +90,18 @@ namespace PingTracer
 			try
 			{
 				IPHostEntry iphe = Dns.GetHostEntry(address);
+				if (preferIpv4)
+				{
+					IPAddress addr = iphe.AddressList.FirstOrDefault(ip => ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
+					if (addr != null)
+						return addr;
+				}
+				else
+				{
+					IPAddress addr = iphe.AddressList.FirstOrDefault(ip => ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6);
+					if (addr != null)
+						return addr;
+				}
 				if (iphe.AddressList.Length > 0)
 					return iphe.AddressList[0];
 			}
@@ -98,7 +111,7 @@ namespace PingTracer
 			}
 
 			// Fail
-			throw new Exception("Unable to parse '" + address + "'");
+			throw new Exception("Unable to resolve '" + address + "'");
 		}
 
 		private string GetIpHostname(IPAddress ip)
@@ -120,6 +133,7 @@ namespace PingTracer
 			string host = (string)args[0];
 			bool traceRoute = (bool)args[1];
 			bool reverseDnsLookup = (bool)args[2];
+			bool preferIpv4 = (bool)args[3];
 
 			foreach (PingGraphControl graph in pingGraphs.Values)
 			{
@@ -144,7 +158,7 @@ namespace PingTracer
 			try
 			{
 				string[] addresses = host.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
-				target = StringToIp(addresses[0]);
+				target = StringToIp(addresses[0], preferIpv4);
 				currentIPAddress = target.ToString();
 				CreateLogEntry("(" + GetTimestamp(DateTime.Now) + "): Initializing pings to " + host);
 
@@ -155,7 +169,7 @@ namespace PingTracer
 					clearedDeadHosts = true;
 					foreach (string address in addresses)
 					{
-						IPAddress ip = StringToIp(address.Trim());
+						IPAddress ip = StringToIp(address.Trim(), preferIpv4);
 						string hostName = reverseDnsLookup ? GetIpHostname(ip) : "";
 						AddPingTarget(ip, hostName);
 					}
@@ -233,7 +247,7 @@ namespace PingTracer
 						}
 						lastPingAt = DateTime.Now;
 						// We can't re-use the same Ping instance because it is only capable of one ping at a time.
-						foreach (var targetMapping in pingTargets)
+						foreach (KeyValuePair<int, IPAddress> targetMapping in pingTargets)
 						{
 							PingGraphControl graph = pingGraphs[targetMapping.Key];
 							long offset = graph.ClearNextOffset();
@@ -459,7 +473,7 @@ namespace PingTracer
 			}
 
 			ToolStripItem tsi = (ToolStripItem)sender;
-			Profile p = (Profile)tsi.Tag;
+			HostSettings p = (HostSettings)tsi.Tag;
 			LoadProfileIntoUI(p);
 		}
 
@@ -503,7 +517,7 @@ namespace PingTracer
 				btnStart.Text = "Click to Stop";
 				btnStart.BackColor = Color.FromArgb(128, 255, 128);
 				controllerThread = new Thread(controllerLoop);
-				controllerThread.Start(new object[] { txtHost.Text, cbTraceroute.Checked, cbReverseDNS.Checked });
+				controllerThread.Start(new object[] { txtHost.Text, cbTraceroute.Checked, cbReverseDNS.Checked, cbPreferIpv4.Checked });
 				txtHost.Enabled = false;
 				cbTraceroute.Enabled = false;
 				cbReverseDNS.Enabled = false;
@@ -585,7 +599,7 @@ namespace PingTracer
 			{
 			}
 		}
-		
+
 
 		private void cbLastPing_CheckedChanged(object sender, EventArgs e)
 		{
@@ -681,6 +695,11 @@ namespace PingTracer
 		}
 
 		private void txtDisplayName_TextChanged(object sender, EventArgs e)
+		{
+			SaveProfileIfProfileAlreadyExists();
+		}
+
+		private void cbPreferIpv4_CheckedChanged(object sender, EventArgs e)
 		{
 			SaveProfileIfProfileAlreadyExists();
 		}
@@ -786,17 +805,15 @@ namespace PingTracer
 			bool first = true;
 			lock (settings.hostHistory)
 			{
-				foreach (Profile p in settings.hostHistory)
+				foreach (HostSettings p in settings.hostHistory)
 				{
 					ToolStripItem item = new ToolStripMenuItem();
 					//Name that will appear on the menu
 					if (string.IsNullOrWhiteSpace(p.displayName))
-						item.Text = p.host;
+						item.Text = (p.preferIpv4 ? "" : "[ipv6] ") + p.host;
 					else
-						item.Text = p.displayName + " [" + p.host + "]";
-					//Put in the Name property whatever neccessery to retrive your data on click event
+						item.Text = (p.preferIpv4 ? "" : "[ipv6] ") + p.displayName + " [" + p.host + "]";
 					item.Tag = p;
-					//On-Click event
 					item.Click += new EventHandler(rsitem_Click);
 
 					if (first)
@@ -809,7 +826,7 @@ namespace PingTracer
 			}
 		}
 
-		private void LoadProfileIntoUI(Profile hs)
+		private void LoadProfileIntoUI(HostSettings hs)
 		{
 			suppressHostSettingsSaveUntil = DateTime.Now.AddMilliseconds(100);
 
@@ -827,6 +844,7 @@ namespace PingTracer
 			cbPacketLoss.Checked = hs.drawPacketLoss;
 			nudBadThreshold.Value = hs.badThreshold;
 			nudWorseThreshold.Value = hs.worseThreshold;
+			cbPreferIpv4.Checked = hs.preferIpv4;
 
 
 			lock (settings.hostHistory)
@@ -834,7 +852,7 @@ namespace PingTracer
 				for (int i = 1; i < settings.hostHistory.Count; i++)
 					if (settings.hostHistory[i].host == hs.host)
 					{
-						Profile justLoaded = settings.hostHistory[i];
+						HostSettings justLoaded = settings.hostHistory[i];
 						settings.hostHistory.RemoveAt(i);
 						settings.hostHistory.Insert(0, justLoaded);
 						break;
@@ -847,8 +865,8 @@ namespace PingTracer
 			lock (settings.hostHistory)
 			{
 				bool hostExists = false;
-				foreach (Profile p in settings.hostHistory)
-					if (p.host == txtHost.Text)
+				foreach (HostSettings p in settings.hostHistory)
+					if (p.host == txtHost.Text && p.preferIpv4 == cbPreferIpv4.Checked)
 					{
 						hostExists = true;
 						break;
@@ -863,7 +881,7 @@ namespace PingTracer
 			{
 				bool hostExisted = false;
 				for (int i = 0; i < settings.hostHistory.Count; i++)
-					if (settings.hostHistory[i].host == txtHost.Text)
+					if (settings.hostHistory[i].host == txtHost.Text && settings.hostHistory[i].preferIpv4 == cbPreferIpv4.Checked)
 					{
 						hostExisted = true;
 						settings.hostHistory.RemoveAt(i);
@@ -884,7 +902,7 @@ namespace PingTracer
 		{
 			if (DateTime.Now < suppressHostSettingsSaveUntil)
 				return;
-			Profile p = new Profile();
+			HostSettings p = new HostSettings();
 			p.host = txtHost.Text;
 			p.displayName = txtDisplayName.Text;
 			p.rate = (int)nudPingsPerSecond.Value;
@@ -899,6 +917,7 @@ namespace PingTracer
 			p.drawPacketLoss = cbPacketLoss.Checked;
 			p.badThreshold = (int)nudBadThreshold.Value;
 			p.worseThreshold = (int)nudWorseThreshold.Value;
+			p.preferIpv4 = cbPreferIpv4.Checked;
 
 			if (!string.IsNullOrWhiteSpace(p.host))
 			{
@@ -909,7 +928,7 @@ namespace PingTracer
 					else
 					{
 						for (int i = 0; i < settings.hostHistory.Count; i++)
-							if (settings.hostHistory[i].host == p.host)
+							if (settings.hostHistory[i].host == p.host && settings.hostHistory[i].preferIpv4 == p.preferIpv4)
 							{
 								settings.hostHistory.RemoveAt(i);
 								break;

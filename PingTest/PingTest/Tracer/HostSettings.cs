@@ -3,13 +3,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml;
+using System.Xml.Serialization;
 
 namespace PingTracer.Tracer
 {
 	/// <summary>
 	/// Defines host(s) to ping, along with various related options.
 	/// </summary>
-	public class Profile
+	public class HostSettings
 	{
 		public string host;
 		public string displayName = "";
@@ -25,12 +27,13 @@ namespace PingTracer.Tracer
 		public bool drawPacketLoss = true;
 		public int badThreshold = 100;
 		public int worseThreshold = 200;
+		public bool preferIpv4 = true;
 
 		public override bool Equals(object other)
 		{
-			if (other is Profile)
+			if (other is HostSettings)
 			{
-				Profile o = (Profile)other;
+				HostSettings o = (HostSettings)other;
 				return host == o.host
 					&& rate == o.rate
 					&& pingsPerSecond == o.pingsPerSecond
@@ -40,7 +43,8 @@ namespace PingTracer.Tracer
 					&& drawMinMax == o.drawMinMax
 					&& drawPacketLoss == o.drawPacketLoss
 					&& badThreshold == o.badThreshold
-					&& worseThreshold == o.worseThreshold;
+					&& worseThreshold == o.worseThreshold
+					&& preferIpv4 == o.preferIpv4;
 			}
 			return false;
 		}

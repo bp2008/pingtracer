@@ -84,7 +84,7 @@
       <DependentUpon>PingGraphControl.cs</DependentUpon>
     </Compile>
     <Compile Include="Tracer\PingController.cs" />
-    <Compile Include="Tracer\Profile.cs" />
+    <Compile Include="Tracer\HostSettings.cs" />
     <Compile Include="Util\PingInstancePool.cs" />
     <Compile Include="PingLog.cs" />
     <Compile Include="Program.cs" />

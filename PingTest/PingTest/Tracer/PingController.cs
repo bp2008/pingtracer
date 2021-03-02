@@ -14,8 +14,8 @@ namespace PingTracer.Tracer
 		/// <summary>
 		/// Gets the Profile bound to this PingController.
 		/// </summary>
-		public readonly Profile p;
-		public PingController(Profile p)
+		public readonly HostSettings p;
+		public PingController(HostSettings p)
 		{
 			this.p = p;
 		}
