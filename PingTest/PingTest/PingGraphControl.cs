@@ -6,7 +6,7 @@ using System.Data;
 using System.Text;
 using System.Windows.Forms;
 using System.Threading;
-using SmartPing;
+using System.Net.NetworkInformation;
 
 namespace PingTracer
 {
@@ -236,7 +236,7 @@ namespace PingTracer
 					int idx = (start + i) % pings.Length;
 					if (pings[idx] == null)
 						continue;
-					if (pings[idx].result == SmartPing.IPStatus.Success)
+					if (pings[idx].result == IPStatus.Success)
 					{
 						if (pings[idx].pingTime < Threshold_Bad)
 							pen = penSuccess;
@@ -375,7 +375,7 @@ namespace PingTracer
 				PingLog pingLog = pings[i];
 				if (pingLog == null)
 					return "Waiting for response, Mouse ms: " + GetScaledHeightValue(height - y);
-				if (pingLog.result != SmartPing.IPStatus.Success)
+				if (pingLog.result != IPStatus.Success)
 					return GetTimestamp(pingLog.startTime) + ": " + pingLog.result.ToString() + ", Mouse ms: " + GetScaledHeightValue(height - y);
 				return GetTimestamp(pingLog.startTime) + ": " + pingLog.pingTime + " ms, Mouse ms: " + GetScaledHeightValue(height - y);
 			}

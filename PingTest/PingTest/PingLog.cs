@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
-using SmartPing;
+using System.Net.NetworkInformation;
 
 namespace PingTracer
 {
