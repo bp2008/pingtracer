@@ -53,7 +53,7 @@ namespace PingTracer.TraceRoute
 			Ping ping = PingInstancePool.Get();
 			Stopwatch sw = new Stopwatch();
 			sw.Start();
-			PingReply reply = await ping.SendPingAsync(Target, PingTimeoutMs, buffer, opt);
+			PingReply reply = await ping.SendPingAsync(Target, PingTimeoutMs, buffer, opt).ConfigureAwait(false);
 			sw.Stop();
 
 			bool Success = reply.Status == IPStatus.Success || reply.Status == IPStatus.TtlExpired;

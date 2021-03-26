@@ -76,8 +76,6 @@ namespace PingTracer
 		private IPAddress StringToIp(string address, bool preferIpv4)
 		{
 			// Validate IP
-			if (address.Contains(":"))
-				address = address.Remove(address.IndexOf(':'));
 			try
 			{
 				return IPAddress.Parse(address);
@@ -86,7 +84,7 @@ namespace PingTracer
 			{
 			}
 
-			// Try as address
+			// Try to resolve host name
 			try
 			{
 				IPHostEntry iphe = Dns.GetHostEntry(address);
