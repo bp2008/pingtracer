@@ -718,6 +718,7 @@ namespace PingTracer
 		}
 		private void panel_Graphs_MouseMove(object sender, MouseEventArgs e)
 		{
+			bool mouseWasTeleported = false;
 			if (mouseIsDownOnGraph)
 			{
 				if (Math.Abs(pGraphMouseDownAt.X - e.Location.X) >= 5
@@ -753,10 +754,28 @@ namespace PingTracer
 								lastAllGraphsRedrawTime = DateTime.Now;
 							}
 						}
+
+						#region while scrolling graph: teleport mouse when reaching end of graph to enable scrolling infinitely without having to click again
+						this.Cursor = new Cursor(Cursor.Current.Handle);
+						int offset = 9; //won't work with maximized window otherwise
+						if (Cursor.Position.X >= Bounds.Right - offset) //mouse moving to the right
+						{
+							//teleport mouse to the left
+							Cursor.Position = new Point(Bounds.Left + offset, Cursor.Position.Y);
+							mouseWasTeleported = true;
+						}
+						else if (Cursor.Position.X <= Bounds.Left + offset //cursor moving to the left
+							&& pingGraphs.Values[0].ScrollXOffset != 0) //usability: only teleport mouse if graphs have data to the right
+						{
+							//teleport mouse to the right
+							Cursor.Position = new Point(Bounds.Right - offset, Cursor.Position.Y);
+							mouseWasTeleported = true;
+						}
+						#endregion
 					}
 				}
 			}
-			pGraphMouseLastSeenAt = e.Location;
+			pGraphMouseLastSeenAt = mouseWasTeleported ? PointToClient(Cursor.Position) : e.Location;
 		}
 		private void panel_Graphs_MouseLeave(object sender, EventArgs e)
 		{
