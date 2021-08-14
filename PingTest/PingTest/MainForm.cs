@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -223,8 +224,7 @@ namespace PingTracer
 												lblNoGraphsRemain.Text = "All graphs were removed because" + Environment.NewLine + "none of the hosts responded to pings.";
 												panel_Graphs.Controls.Add(lblNoGraphsRemain);
 											}
-											else
-												pingGraphs[pingGraphs.Count - 1].ShowTimestamps = true; // In case the graph we just removed was the last graph, which is supposed to show the timestamps along its bottom, this will make sure the new (or old) bottom is showing timestamps.
+											ResetGraphTimestamps();
 										}));
 									}
 								}
@@ -332,15 +332,12 @@ namespace PingTracer
 					panel_Graphs.Invoke((Action<IPAddress, string>)AddPingTarget, ipAddress, name);
 				else
 				{
-					if (pingGraphs.Count > 0) // We are adding a new graph that will be at the bottom, so disable timestamp display on the previous graph.
-						pingGraphs.Values[pingGraphs.Count - 1].ShowTimestamps = false;
-
 					int id = graphSortingCounter++;
 					PingGraphControl graph = new PingGraphControl(this.settings);
-					graph.ShowTimestamps = true;
 
 					pingTargets.Add(id, ipAddress);
 					pingGraphs.Add(id, graph);
+					ResetGraphTimestamps();
 					pingTargetHasAtLeastOneSuccess.Add(id, false);
 
 					string ipString = ipAddress.ToString();
@@ -378,6 +375,16 @@ namespace PingTracer
 			}
 		}
 
+		private void ResetGraphTimestamps()
+		{
+			IList<PingGraphControl> all = pingGraphs.Values;
+			foreach (PingGraphControl g in all)
+				g.ShowTimestamps = false;
+
+			PingGraphControl last = all.LastOrDefault();
+			if (last != null)
+				last.ShowTimestamps = true;
+		}
 
 		private void CreateLogEntry(string str)
 		{
@@ -991,6 +998,11 @@ namespace PingTracer
 				catch { }
 			}
 			return time.ToString();
+		}
+
+		private void menuItem_OpenSettingsFolder_Click(object sender, EventArgs e)
+		{
+			settings.OpenSettingsFolder();
 		}
 	}
 }

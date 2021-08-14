@@ -1,6 +1,7 @@
 ﻿using PingTracer.Tracer;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Xml;
@@ -38,8 +39,25 @@ namespace PingTracer
 		{
 			get
 			{
-				return Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData).TrimEnd('/', '\\') + "/PingTracer/settings.cfg";
+				return settingsFolderPath + "settings.cfg";
 			}
+		}
+		/// <summary>
+		/// Gets the absolute path to the settings folder.
+		/// </summary>
+		private static string settingsFolderPath
+		{
+			get
+			{
+				return Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData).TrimEnd('/', '\\') + "/PingTracer/";
+			}
+		}
+		/// <summary>
+		/// In Explorer, opens the folder containing the settings file.
+		/// </summary>
+		public void OpenSettingsFolder()
+		{
+			Process.Start(settingsFolderPath);
 		}
 	}
 }
