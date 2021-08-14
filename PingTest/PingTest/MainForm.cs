@@ -830,8 +830,8 @@ namespace PingTracer
 
 			txtHost.Text = hs.host;
 			txtDisplayName.Text = hs.displayName;
-			nudPingsPerSecond.Value = hs.rate;
 			selectPingsPerSecond.SelectedIndex = hs.pingsPerSecond ? 0 : 1;
+			nudPingsPerSecond.Value = hs.rate;
 			cbTraceroute.Checked = hs.doTraceRoute;
 			cbReverseDNS.Checked = hs.reverseDnsLookup;
 			cbAlwaysShowServerNames.Checked = hs.drawServerNames;
