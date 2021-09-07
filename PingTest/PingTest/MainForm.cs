@@ -72,6 +72,44 @@ namespace PingTracer
 					LoadProfileIntoUI(settings.hostHistory[0]);
 			}
 			selectPingsPerSecond_SelectedIndexChanged(null, null);
+			AddKeyDownHandler(this);
+			AddClickHandler(this);
+		}
+
+		/// <summary>
+		/// Adds the <see cref="HandleKeyDown"/> handler to the KeyDown event of this control and most child controls.
+		/// </summary>
+		/// <param name="parent"></param>
+		private void AddKeyDownHandler(Control parent)
+		{
+			if (parent.GetType() == typeof(NumericUpDown)
+				|| (parent.GetType() == typeof(TextBox) && !((TextBox)parent).ReadOnly)
+				)
+			{
+				return;
+			}
+			parent.KeyDown += new KeyEventHandler(HandleKeyDown);
+			foreach (Control c in parent.Controls)
+				AddKeyDownHandler(c);
+		}
+		/// <summary>
+		/// Adds a basic "click to focus" handler to this control and most child controls. Non-input control types (such as Form or GroupBox) normally lack this functionality, so calling this makes it possible to unfocus input controls by clicking outside of them.
+		/// </summary>
+		/// <param name="parent"></param>
+		private void AddClickHandler(Control parent)
+		{
+			if (parent.GetType() == typeof(NumericUpDown)
+				|| (parent.GetType() == typeof(TextBox) && !((TextBox)parent).ReadOnly)
+				)
+			{
+				return;
+			}
+			parent.Click += (sender, e) =>
+			{
+				((Control)sender).Focus();
+			};
+			foreach (Control c in parent.Controls)
+				AddClickHandler(c);
 		}
 
 		private IPAddress StringToIp(string address, bool preferIpv4)
@@ -137,10 +175,7 @@ namespace PingTracer
 			foreach (PingGraphControl graph in pingGraphs.Values)
 			{
 				graph.ClearAll();
-				graph.MouseDown -= panel_Graphs_MouseDown;
-				graph.MouseMove -= panel_Graphs_MouseMove;
-				graph.MouseLeave -= panel_Graphs_MouseLeave;
-				graph.MouseUp -= panel_Graphs_MouseUp;
+				RemoveEventHandlers(graph);
 			}
 			Interlocked.Exchange(ref successfulPings, 0);
 			Interlocked.Exchange(ref failedPings, 0);
@@ -213,10 +248,7 @@ namespace PingTracer
 										{
 											pingTargets.Remove(pingTargetId);
 											panel_Graphs.Controls.Remove(pingGraphs[pingTargetId]);
-											pingGraphs[pingTargetId].MouseDown -= panel_Graphs_MouseDown;
-											pingGraphs[pingTargetId].MouseMove -= panel_Graphs_MouseMove;
-											pingGraphs[pingTargetId].MouseLeave -= panel_Graphs_MouseLeave;
-											pingGraphs[pingTargetId].MouseUp -= panel_Graphs_MouseUp;
+											RemoveEventHandlers(pingGraphs[pingTargetId]);
 											pingGraphs.Remove(pingTargetId);
 											if (pingGraphs.Count == 0)
 											{
@@ -281,6 +313,7 @@ namespace PingTracer
 					btnStart_Click(btnStart, new EventArgs());
 			}
 		}
+
 		void pinger_PingCompleted(object sender, PingCompletedEventArgs e)
 		{
 			try
@@ -361,11 +394,7 @@ namespace PingTracer
 					graph.ShowPacketLoss = cbPacketLoss.Checked;
 
 					panel_Graphs.Controls.Add(graph);
-					graph.MouseDown += panel_Graphs_MouseDown;
-					graph.MouseMove += panel_Graphs_MouseMove;
-					graph.MouseLeave += panel_Graphs_MouseLeave;
-					graph.MouseUp += panel_Graphs_MouseUp;
-					graph.KeyDown += panel_Graphs_KeyDown;
+					AddEventHandlers(graph);
 					panel_Graphs_Resize(null, null);
 				}
 			}
@@ -374,6 +403,22 @@ namespace PingTracer
 				if (!(ex.InnerException is ThreadAbortException))
 					CreateLogEntry(ex.ToString());
 			}
+		}
+		private void AddEventHandlers(PingGraphControl graph)
+		{
+			graph.MouseDown += panel_Graphs_MouseDown;
+			graph.MouseMove += panel_Graphs_MouseMove;
+			graph.MouseLeave += panel_Graphs_MouseLeave;
+			graph.MouseUp += panel_Graphs_MouseUp;
+			graph.KeyDown += HandleKeyDown;
+		}
+		private void RemoveEventHandlers(PingGraphControl graph)
+		{
+			graph.MouseDown -= panel_Graphs_MouseDown;
+			graph.MouseMove -= panel_Graphs_MouseMove;
+			graph.MouseLeave -= panel_Graphs_MouseLeave;
+			graph.MouseUp -= panel_Graphs_MouseUp;
+			graph.KeyDown -= HandleKeyDown;
 		}
 
 		private void ResetGraphTimestamps()
@@ -805,25 +850,33 @@ namespace PingTracer
 			pGraphMouseLastSeenAt = e.Location;
 			mouseMayBeClickingGraph = mouseIsDownOnGraph = false;
 		}
-		private void panel_Graphs_KeyDown(object sender, KeyEventArgs e)
+		private void HandleKeyDown(object sender, KeyEventArgs e)
 		{
-			switch(e.KeyData)
+			switch (e.KeyData)
 			{
 				case Keys.Home: //Pos1
+				case Keys.D9:
 					foreach (PingGraphControl graph in pingGraphs.Values)
 						graph.ScrollXOffset = graph.cachedPings - graph.Width - (settings.delayMostRecentPing ? 1 : 0);
+					e.Handled = true;
 					break;
 				case Keys.End:
+				case Keys.D0:
 					foreach (PingGraphControl graph in pingGraphs.Values)
 						graph.ScrollXOffset = 0;
+					e.Handled = true;
 					break;
 				case Keys.PageUp:
+				case Keys.OemMinus:
 					foreach (PingGraphControl graph in pingGraphs.Values)
 						graph.ScrollXOffset += graph.Width;
+					e.Handled = true;
 					break;
 				case Keys.PageDown:
+				case Keys.Oemplus:
 					foreach (PingGraphControl graph in pingGraphs.Values)
 						graph.ScrollXOffset -= graph.Width;
+					e.Handled = true;
 					break;
 				default:
 					return;
@@ -1033,6 +1086,11 @@ namespace PingTracer
 		private void menuItem_OpenSettingsFolder_Click(object sender, EventArgs e)
 		{
 			settings.OpenSettingsFolder();
+		}
+
+		private void MainForm_Click(object sender, EventArgs e)
+		{
+			//this.Focus();
 		}
 	}
 }

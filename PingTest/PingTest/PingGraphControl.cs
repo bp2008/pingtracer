@@ -38,11 +38,14 @@ namespace PingTracer
 		/// </summary>
 		private PingLog[] pings;
 		private string MouseHintText = "";
+		/// <summary>
+		/// Gets the number of pings currently cached within the graph control.
+		/// </summary>
 		public int cachedPings
 		{
 			get
 			{
-				return pings.Where(x => x != null).Count();
+				return pings.Count(x => x != null);
 			}
 		}
 		private int countOffset
