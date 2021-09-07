@@ -365,6 +365,7 @@ namespace PingTracer
 					graph.MouseMove += panel_Graphs_MouseMove;
 					graph.MouseLeave += panel_Graphs_MouseLeave;
 					graph.MouseUp += panel_Graphs_MouseUp;
+					graph.KeyDown += panel_Graphs_KeyDown;
 					panel_Graphs_Resize(null, null);
 				}
 			}
@@ -723,6 +724,26 @@ namespace PingTracer
 			mouseMayBeClickingGraph = true;
 			pGraphMouseLastSeenAt = pGraphMouseDownAt = e.Location;
 		}
+		private void refreshGraphs()
+		{
+			if (settings.fastRefreshScrollingGraphs || DateTime.Now > lastAllGraphsRedrawTime.AddSeconds(1))
+			{
+				bool aGraphIsInvalidated = false;
+				foreach (PingGraphControl graph in pingGraphs.Values)
+					if (graph.IsInvalidatedSync)
+					{
+						aGraphIsInvalidated = true;
+						break;
+					}
+				if (!aGraphIsInvalidated)
+				{
+					Console.WriteLine("Invalidating All");
+					foreach (PingGraphControl graph in pingGraphs.Values)
+						graph.InvalidateSync();
+					lastAllGraphsRedrawTime = DateTime.Now;
+				}
+			}
+		}
 		private void panel_Graphs_MouseMove(object sender, MouseEventArgs e)
 		{
 			bool mouseWasTeleported = false;
@@ -744,23 +765,7 @@ namespace PingTracer
 						foreach (PingGraphControl graph in pingGraphs.Values)
 							graph.ScrollXOffset = newScrollXOffset;
 
-						if (settings.fastRefreshScrollingGraphs || DateTime.Now > lastAllGraphsRedrawTime.AddSeconds(1))
-						{
-							bool aGraphIsInvalidated = false;
-							foreach (PingGraphControl graph in pingGraphs.Values)
-								if (graph.IsInvalidatedSync)
-								{
-									aGraphIsInvalidated = true;
-									break;
-								}
-							if (!aGraphIsInvalidated)
-							{
-								Console.WriteLine("Invalidating All");
-								foreach (PingGraphControl graph in pingGraphs.Values)
-									graph.InvalidateSync();
-								lastAllGraphsRedrawTime = DateTime.Now;
-							}
-						}
+						refreshGraphs();
 
 						#region while scrolling graph: teleport mouse when reaching end of graph to enable scrolling infinitely without having to click again
 						this.Cursor = new Cursor(Cursor.Current.Handle);
@@ -799,6 +804,31 @@ namespace PingTracer
 			}
 			pGraphMouseLastSeenAt = e.Location;
 			mouseMayBeClickingGraph = mouseIsDownOnGraph = false;
+		}
+		private void panel_Graphs_KeyDown(object sender, KeyEventArgs e)
+		{
+			switch(e.KeyData)
+			{
+				case Keys.Home: //Pos1
+					foreach (PingGraphControl graph in pingGraphs.Values)
+						graph.ScrollXOffset = graph.cachedPings - graph.Width - (settings.delayMostRecentPing ? 1 : 0);
+					break;
+				case Keys.End:
+					foreach (PingGraphControl graph in pingGraphs.Values)
+						graph.ScrollXOffset = 0;
+					break;
+				case Keys.PageUp:
+					foreach (PingGraphControl graph in pingGraphs.Values)
+						graph.ScrollXOffset += graph.Width;
+					break;
+				case Keys.PageDown:
+					foreach (PingGraphControl graph in pingGraphs.Values)
+						graph.ScrollXOffset -= graph.Width;
+					break;
+				default:
+					return;
+			}
+			refreshGraphs();
 		}
 		private void panel_Graphs_Click(object sender, EventArgs e)
 		{
