@@ -7,6 +7,7 @@ using System.Text;
 using System.Windows.Forms;
 using System.Threading;
 using System.Net.NetworkInformation;
+using System.Linq;
 
 namespace PingTracer
 {
@@ -37,6 +38,13 @@ namespace PingTracer
 		/// </summary>
 		private PingLog[] pings;
 		private string MouseHintText = "";
+		public int cachedPings
+		{
+			get
+			{
+				return pings.Where(x => x != null).Count();
+			}
+		}
 		private int countOffset
 		{
 			get
