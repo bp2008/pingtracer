@@ -26,7 +26,7 @@ Just download the latest release from [the releases tab](https://github.com/bp20
 ## Keyboard shortcuts for the graphs
 Key | action
 -:|-
-Pos1 | jump to beginning (first ping)
+Home | jump to beginning (first ping)
 End | jump to end (last ping)
 Page Up/Down | move one page width to the left/right
 
