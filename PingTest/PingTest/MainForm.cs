@@ -171,6 +171,7 @@ namespace PingTracer
 			bool traceRoute = (bool)args[1];
 			bool reverseDnsLookup = (bool)args[2];
 			bool preferIpv4 = (bool)args[3];
+			string displayNames = (string)args[4];
 
 			foreach (PingGraphControl graph in pingGraphs.Values)
 			{
@@ -192,6 +193,7 @@ namespace PingTracer
 			try
 			{
 				string[] addresses = host.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+				string[] displaynames = displayNames.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
 				target = StringToIp(addresses[0], preferIpv4);
 				currentIPAddress = target.ToString();
 				CreateLogEntry("(" + GetTimestamp(DateTime.Now) + "): Initializing pings to " + host);
@@ -201,11 +203,19 @@ namespace PingTracer
 				{
 					// Don't clear dead hosts from a predefined list
 					clearedDeadHosts = true;
+					int i = 0;
 					foreach (string address in addresses)
 					{
+						string hostName = "";
 						IPAddress ip = StringToIp(address.Trim(), preferIpv4);
-						string hostName = reverseDnsLookup ? GetIpHostname(ip) : "";
+						if (reverseDnsLookup)
+						{
+							hostName = reverseDnsLookup ? GetIpHostname(ip) : "";
+						} else {
+							hostName = displaynames[i];
+						}
 						AddPingTarget(ip, hostName);
+						i++;
 					}
 				}
 				// Route
@@ -559,6 +569,7 @@ namespace PingTracer
 				btnStart.BackColor = Color.FromArgb(255, 128, 128);
 				controllerThread.Abort();
 				txtHost.Enabled = true;
+				txtDisplayName.Enabled = true;
 				cbTraceroute.Enabled = true;
 				cbReverseDNS.Enabled = true;
 			}
@@ -568,8 +579,9 @@ namespace PingTracer
 				btnStart.Text = "Click to Stop";
 				btnStart.BackColor = Color.FromArgb(128, 255, 128);
 				controllerThread = new Thread(controllerLoop);
-				controllerThread.Start(new object[] { txtHost.Text, cbTraceroute.Checked, cbReverseDNS.Checked, cbPreferIpv4.Checked });
+				controllerThread.Start(new object[] { txtHost.Text, cbTraceroute.Checked, cbReverseDNS.Checked, cbPreferIpv4.Checked, txtDisplayName.Text });
 				txtHost.Enabled = false;
+				txtDisplayName.Enabled = false;
 				cbTraceroute.Enabled = false;
 				cbReverseDNS.Enabled = false;
 			}
@@ -743,6 +755,11 @@ namespace PingTracer
 		private void cbReverseDNS_CheckedChanged(object sender, EventArgs e)
 		{
 			SaveProfileIfProfileAlreadyExists();
+			if (cbReverseDNS.Checked) {
+				txtDisplayName.Enabled = false;
+			} else { 
+				txtDisplayName.Enabled = true;
+			}
 		}
 
 		private void txtDisplayName_TextChanged(object sender, EventArgs e)
