@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Xml;
@@ -49,7 +50,12 @@ namespace PingTracer
 		{
 			get
 			{
-				return Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData).TrimEnd('/', '\\') + "/PingTracer/";
+				string path = Environment.CurrentDirectory.TrimEnd('/', '\\') + '/';
+				if (!File.Exists(path + "settings.cfg"))
+				{
+					path = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData).TrimEnd('/', '\\') + "/PingTracer/";
+				}
+				return path;
 			}
 		}
 		/// <summary>
