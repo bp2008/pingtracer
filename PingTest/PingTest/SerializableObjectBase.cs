@@ -44,7 +44,7 @@ namespace PingTracer
 					return true;
 				}
 				catch (ThreadAbortException) { throw; }
-				catch (Exception ex)
+				catch (Exception)
 				{
 					if (tries >= 5)
 					{
@@ -102,7 +102,7 @@ namespace PingTracer
 					return true;
 				}
 				catch (ThreadAbortException) { throw; }
-				catch (Exception ex)
+				catch (Exception)
 				{
 					if (tries >= 5)
 					{

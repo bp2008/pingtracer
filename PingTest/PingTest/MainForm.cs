@@ -18,7 +18,7 @@ namespace PingTracer
 	public partial class MainForm : Form
 	{
 		private volatile bool isRunning = false;
-		private Thread controllerThread;
+		private BackgroundWorker controllerWorker;
 		private volatile int pingDelay = 1000;
 
 		private long successfulPings = 0;
@@ -163,15 +163,29 @@ namespace PingTracer
 			return string.Empty;
 		}
 
-		private void controllerLoop(object arg)
+		private void ControllerWorker_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
+		{
+			btnStart.Enabled = true;
+		}
+		private void Invoke(BackgroundWorker worker, Action action)
+		{
+			if (controllerWorker == worker)
+				this.Invoke(action);
+		}
+		private void ControllerWorker_DoWork(object sender, DoWorkEventArgs e)
 		{
 			currentIPAddress = null;
-			object[] args = (object[])arg;
-			string host = (string)args[0];
-			bool traceRoute = (bool)args[1];
-			bool reverseDnsLookup = (bool)args[2];
-			bool preferIpv4 = (bool)args[3];
+			object[] args = (object[])e.Argument;
+			BackgroundWorker self = (BackgroundWorker)args[0];
+			string host = (string)args[1];
+			bool traceRoute = (bool)args[2];
+			bool reverseDnsLookup = (bool)args[3];
+			bool preferIpv4 = (bool)args[4];
 
+			Invoke(self, () =>
+			{
+				btnStart.Enabled = true;
+			});
 			foreach (PingGraphControl graph in pingGraphs.Values)
 			{
 				graph.ClearAll();
@@ -183,10 +197,10 @@ namespace PingTracer
 			pingTargets.Clear();
 			pingTargetHasAtLeastOneSuccess.Clear();
 			clearedDeadHosts = false;
-			panel_Graphs.Invoke((Action)(() =>
+			Invoke(self, () =>
 			{
 				panel_Graphs.Controls.Clear();
-			}));
+			});
 			graphSortingCounter = 0;
 			IPAddress target = null;
 			try
@@ -230,7 +244,7 @@ namespace PingTracer
 
 				long numberOfPingLoopIterations = 0;
 				DateTime tenPingsAt = DateTime.MinValue;
-				while (true)
+				while (!self.CancellationPending)
 				{
 					try
 					{
@@ -244,7 +258,7 @@ namespace PingTracer
 									if (!pingTargetHasAtLeastOneSuccess[pingTargetId])
 									{
 										// This ping target has not yet had a successful response. Assume it never will, and delete it.
-										panel_Graphs.Invoke((Action)(() =>
+										Invoke(self, () =>
 										{
 											pingTargets.Remove(pingTargetId);
 											panel_Graphs.Controls.Remove(pingGraphs[pingTargetId]);
@@ -257,33 +271,39 @@ namespace PingTracer
 												panel_Graphs.Controls.Add(lblNoGraphsRemain);
 											}
 											ResetGraphTimestamps();
-										}));
+										});
 									}
 								}
-								panel_Graphs.Invoke((Action)(() =>
+								Invoke(self, () =>
 								{
 									panel_Graphs_Resize(null, null);
-								}));
+								});
 							}
 							clearedDeadHosts = true;
 						}
-						while (pingDelay <= 0)
+						while (!self.CancellationPending && pingDelay <= 0)
 							Thread.Sleep(100);
-						int msToWait = (int)(lastPingAt.AddMilliseconds(pingDelay) - DateTime.Now).TotalMilliseconds;
-						while (msToWait > 0)
+						if (!self.CancellationPending)
 						{
-							Thread.Sleep(Math.Min(msToWait, 1000));
-							msToWait = (int)(lastPingAt.AddMilliseconds(pingDelay) - DateTime.Now).TotalMilliseconds;
-						}
-						lastPingAt = DateTime.Now;
-						// We can't re-use the same Ping instance because it is only capable of one ping at a time.
-						foreach (KeyValuePair<int, IPAddress> targetMapping in pingTargets)
-						{
-							PingGraphControl graph = pingGraphs[targetMapping.Key];
-							long offset = graph.ClearNextOffset();
-							Ping pinger = PingInstancePool.Get();
-							pinger.PingCompleted += pinger_PingCompleted;
-							pinger.SendAsync(targetMapping.Value, 5000, buffer, new object[] { lastPingAt, offset, graph, targetMapping.Key, targetMapping.Value, pinger });
+							int msToWait = (int)(lastPingAt.AddMilliseconds(pingDelay) - DateTime.Now).TotalMilliseconds;
+							while (!self.CancellationPending && msToWait > 0)
+							{
+								Thread.Sleep(Math.Min(msToWait, 1000));
+								msToWait = (int)(lastPingAt.AddMilliseconds(pingDelay) - DateTime.Now).TotalMilliseconds;
+							}
+							if (!self.CancellationPending)
+							{
+								lastPingAt = DateTime.Now;
+								// We can't re-use the same Ping instance because it is only capable of one ping at a time.
+								foreach (KeyValuePair<int, IPAddress> targetMapping in pingTargets)
+								{
+									PingGraphControl graph = pingGraphs[targetMapping.Key];
+									long offset = graph.ClearNextOffset();
+									Ping pinger = PingInstancePool.Get();
+									pinger.PingCompleted += pinger_PingCompleted;
+									pinger.SendAsync(targetMapping.Value, 5000, buffer, new object[] { lastPingAt, offset, graph, targetMapping.Key, targetMapping.Value, pinger });
+								}
+							}
 						}
 					}
 					catch (ThreadAbortException ex)
@@ -297,9 +317,6 @@ namespace PingTracer
 					if (numberOfPingLoopIterations == 10)
 						tenPingsAt = DateTime.Now;
 				}
-			}
-			catch (ThreadAbortException)
-			{
 			}
 			catch (Exception ex)
 			{
@@ -557,7 +574,7 @@ namespace PingTracer
 				isRunning = false;
 				btnStart.Text = "Click to Start";
 				btnStart.BackColor = Color.FromArgb(255, 128, 128);
-				controllerThread.Abort();
+				controllerWorker.CancelAsync();
 				txtHost.Enabled = true;
 				cbTraceroute.Enabled = true;
 				cbReverseDNS.Enabled = true;
@@ -567,13 +584,15 @@ namespace PingTracer
 				isRunning = true;
 				btnStart.Text = "Click to Stop";
 				btnStart.BackColor = Color.FromArgb(128, 255, 128);
-				controllerThread = new Thread(controllerLoop);
-				controllerThread.Start(new object[] { txtHost.Text, cbTraceroute.Checked, cbReverseDNS.Checked, cbPreferIpv4.Checked });
+				controllerWorker = new BackgroundWorker();
+				controllerWorker.WorkerSupportsCancellation = true;
+				controllerWorker.DoWork += ControllerWorker_DoWork;
+				controllerWorker.RunWorkerCompleted += ControllerWorker_RunWorkerCompleted;
+				controllerWorker.RunWorkerAsync(new object[] { controllerWorker, txtHost.Text, cbTraceroute.Checked, cbReverseDNS.Checked, cbPreferIpv4.Checked });
 				txtHost.Enabled = false;
 				cbTraceroute.Enabled = false;
 				cbReverseDNS.Enabled = false;
 			}
-			btnStart.Enabled = true;
 		}
 
 		private void nudPingsPerSecond_ValueChanged(object sender, EventArgs e)

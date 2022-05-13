@@ -15,10 +15,22 @@ namespace PingTracer
 		public Thread thread;
 		public EventWaitHandle waitHandle = new EventWaitHandle(false, EventResetMode.AutoReset);
 		public volatile bool thisThreadHasWork = false;
+		public CancellationToken cancellationToken;
+		private CancellationTokenSource cancellationTokenSource;
 
 		public PoolThread(Thread thread)
 		{
 			this.thread = thread;
+			this.cancellationTokenSource = new CancellationTokenSource();
+			this.cancellationToken = cancellationTokenSource.Token;
+		}
+		/// <summary>
+		/// Sets the cancellationToken to the canceled state.
+		/// </summary>
+		public void Cancel()
+		{
+			if (!this.cancellationTokenSource.IsCancellationRequested)
+				this.cancellationTokenSource.Cancel();
 		}
 	}
 	public class SimpleThreadPool
@@ -165,7 +177,7 @@ namespace PingTracer
 				foreach (PoolThread pt in idleThreads)
 					try
 					{
-						pt.thread.Abort();
+						pt.Cancel();
 					}
 					catch (ThreadAbortException) { throw; }
 					catch (Exception) { }
@@ -206,17 +218,18 @@ namespace PingTracer
 				while (true)
 				{
 					// Wait for a signal
-					if (!pt.waitHandle.WaitOne(threadTimeoutMilliseconds))
+					if (WaitHandle.WaitAny(new WaitHandle[] { pt.waitHandle, pt.cancellationToken.WaitHandle }, threadTimeoutMilliseconds) != 0)
 					{
 						// Timeout has occurred. Make sure this thread has no work to perform before quitting.
 						lock (threadLock)
 						{
-							if (pt.thisThreadHasWork)
+							bool isCancelled = pt.cancellationToken.IsCancellationRequested;
+							if (!isCancelled && pt.thisThreadHasWork)
 							{
 								// This thread can't quit now because it has work to do.
 								pt.thisThreadHasWork = false;
 							}
-							else if (CurrentLiveThreads <= MinThreads)
+							else if (!isCancelled && CurrentLiveThreads <= MinThreads)
 							{
 								// There is no work to do right now, but this thread is not allowed to quit.
 								continue;
