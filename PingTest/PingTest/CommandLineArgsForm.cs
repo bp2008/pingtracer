@@ -32,6 +32,14 @@ namespace PingTracer
 			SetCommandLineArgs();
 		}
 
+		private void CommandLineArgsForm_Load(object sender, EventArgs e)
+		{
+			txtDocumentation.Select(0, 0);
+			txtArgs.Select(0, 0);
+			txtArgs.Focus();
+			txtArgs.SelectAll();
+		}
+
 		private void SetCommandLineArgs(object sender, EventArgs e)
 		{
 			SetCommandLineArgs();
@@ -51,6 +59,8 @@ namespace PingTracer
 
 			options.MaximizeGraphs = mainForm.graphsMaximized;
 
+			options.PreferIPv6 = !mainForm.cbPreferIpv4.Checked;
+
 			txtArgs.Text = options.ToString();
 		}
 
@@ -62,14 +72,6 @@ namespace PingTracer
 			mainForm.StoppedPinging -= SetCommandLineArgs;
 			mainForm.SelectedHostChanged -= SetCommandLineArgs;
 			mainForm.MaximizeGraphsChanged -= SetCommandLineArgs;
-		}
-
-		private void CommandLineArgsForm_Load(object sender, EventArgs e)
-		{
-			txtDocumentation.Select(0, 0);
-			txtArgs.Select(0, 0);
-			txtArgs.Focus();
-			txtArgs.SelectAll();
 		}
 	}
 }

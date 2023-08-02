@@ -120,8 +120,10 @@
   <data name="txtDocumentation.Text" xml:space="preserve">
     <value>Arguments:
     -h &lt;value&gt;
-        The saved host with Display Name or Host field matching &lt;value&gt; will 
-        be loaded.
+        Load a saved configuration with Display Name or Host field matching &lt;value&gt;.
+    -6
+        The -h parameter will preferentially select a configuration that is configured to 
+        prefer IPv6.  If -6 is omitted, an IPv4 configuration is preferred.
     -l x,y,w,h
         The window will be moved to the specified location and size.
         "w" and "h" parameters are optional.

@@ -63,7 +63,7 @@ namespace PingTracer
 		/// </summary>
 		public event EventHandler StoppedPinging = delegate { };
 		/// <summary>
-		/// Event raised when the selected Host field or Display Name field value changed.  See <see cref="txtHost"/> and <see cref="txtDisplayName"/>.
+		/// Event raised when the selected Host field or Display Name field or Prefer IPv4 value changed.  See <see cref="txtHost"/> and <see cref="txtDisplayName"/> and <see cref="cbPreferIpv4"/>.
 		/// </summary>
 		public event EventHandler SelectedHostChanged = delegate { };
 		/// <summary>
@@ -114,7 +114,15 @@ namespace PingTracer
 				HostSettings item = null;
 				if (options.StartupHostName != null)
 				{
-					item = settings.hostHistory.FirstOrDefault(h => h.displayName == options.StartupHostName);
+					// Attempt to find the given hostname from the startup options.
+					// First, attempt to honor the argued IPv4/IPv6 preference.
+					item = settings.hostHistory.FirstOrDefault(h => h.displayName == options.StartupHostName && h.preferIpv4 != options.PreferIPv6);
+					if (item == null)
+						item = settings.hostHistory.FirstOrDefault(h => h.host == options.StartupHostName && h.preferIpv4 != options.PreferIPv6);
+
+					// Then attempt to match regardless of IPv4/IPv6 preference.
+					if (item == null)
+						item = settings.hostHistory.FirstOrDefault(h => h.displayName == options.StartupHostName);
 					if (item == null)
 						item = settings.hostHistory.FirstOrDefault(h => h.host == options.StartupHostName);
 				}
@@ -843,6 +851,7 @@ namespace PingTracer
 		private void cbPreferIpv4_CheckedChanged(object sender, EventArgs e)
 		{
 			SaveProfileIfProfileAlreadyExists();
+			SelectedHostChanged.Invoke(sender, e);
 		}
 
 		private void cbLogFailures_CheckedChanged(object sender, EventArgs e)

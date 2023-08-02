@@ -63,6 +63,7 @@
 			this.cbLastPing = new System.Windows.Forms.CheckBox();
 			this.cbPreferIpv4 = new System.Windows.Forms.CheckBox();
 			this.groupBox1 = new System.Windows.Forms.GroupBox();
+			this.cbLogFailures = new System.Windows.Forms.CheckBox();
 			this.mainMenu1 = new System.Windows.Forms.MainMenu(this.components);
 			this.menuItem6 = new System.Windows.Forms.MenuItem();
 			this.mi_Exit = new System.Windows.Forms.MenuItem();
@@ -74,7 +75,6 @@
 			this.menuItem_OpenSettingsFolder = new System.Windows.Forms.MenuItem();
 			this.menuItem_CommandLineArgs = new System.Windows.Forms.MenuItem();
 			this.selectPingsPerSecond = new System.Windows.Forms.ComboBox();
-			this.cbLogFailures = new System.Windows.Forms.CheckBox();
 			((System.ComponentModel.ISupportInitialize)(this.nudPingsPerSecond)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
 			this.splitContainer1.Panel1.SuspendLayout();
@@ -517,6 +517,19 @@
 			this.groupBox1.TabStop = false;
 			this.groupBox1.Text = "Graph Options:";
 			// 
+			// cbLogFailures
+			// 
+			this.cbLogFailures.AutoSize = true;
+			this.cbLogFailures.Checked = true;
+			this.cbLogFailures.CheckState = System.Windows.Forms.CheckState.Checked;
+			this.cbLogFailures.Location = new System.Drawing.Point(238, 0);
+			this.cbLogFailures.Name = "cbLogFailures";
+			this.cbLogFailures.Size = new System.Drawing.Size(83, 17);
+			this.cbLogFailures.TabIndex = 24;
+			this.cbLogFailures.Text = "Log Failures";
+			this.cbLogFailures.UseVisualStyleBackColor = true;
+			this.cbLogFailures.CheckedChanged += new System.EventHandler(this.cbLogFailures_CheckedChanged);
+			// 
 			// mainMenu1
 			// 
 			this.mainMenu1.MenuItems.AddRange(new System.Windows.Forms.MenuItem[] {
@@ -596,19 +609,6 @@
 			this.selectPingsPerSecond.Size = new System.Drawing.Size(132, 21);
 			this.selectPingsPerSecond.TabIndex = 5;
 			this.selectPingsPerSecond.SelectedIndexChanged += new System.EventHandler(this.selectPingsPerSecond_SelectedIndexChanged);
-			// 
-			// cbLogFailures
-			// 
-			this.cbLogFailures.AutoSize = true;
-			this.cbLogFailures.Checked = true;
-			this.cbLogFailures.CheckState = System.Windows.Forms.CheckState.Checked;
-			this.cbLogFailures.Location = new System.Drawing.Point(238, 0);
-			this.cbLogFailures.Name = "cbLogFailures";
-			this.cbLogFailures.Size = new System.Drawing.Size(83, 17);
-			this.cbLogFailures.TabIndex = 24;
-			this.cbLogFailures.Text = "Log Failures";
-			this.cbLogFailures.UseVisualStyleBackColor = true;
-			this.cbLogFailures.CheckedChanged += new System.EventHandler(this.cbLogFailures_CheckedChanged);
 			// 
 			// MainForm
 			// 
@@ -698,12 +698,12 @@
 		private System.Windows.Forms.CheckBox cbJitter;
 		private System.Windows.Forms.CheckBox cbAverage;
 		private System.Windows.Forms.CheckBox cbLastPing;
-		private System.Windows.Forms.CheckBox cbPreferIpv4;
 		private System.Windows.Forms.MenuItem menuItem_OpenSettingsFolder;
 		public System.Windows.Forms.TextBox txtDisplayName;
 		public System.Windows.Forms.TextBox txtHost;
 		private System.Windows.Forms.MenuItem menuItem_CommandLineArgs;
 		private System.Windows.Forms.CheckBox cbLogFailures;
+		public System.Windows.Forms.CheckBox cbPreferIpv4;
 	}
 }
 

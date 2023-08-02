@@ -46,7 +46,7 @@ namespace PingTracer
 			this.txtDocumentation.Name = "txtDocumentation";
 			this.txtDocumentation.ReadOnly = true;
 			this.txtDocumentation.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-			this.txtDocumentation.Size = new System.Drawing.Size(460, 179);
+			this.txtDocumentation.Size = new System.Drawing.Size(460, 203);
 			this.txtDocumentation.TabIndex = 2;
 			this.txtDocumentation.Text = resources.GetString("txtDocumentation.Text");
 			// 
@@ -54,7 +54,7 @@ namespace PingTracer
 			// 
 			this.label1.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
 			this.label1.AutoSize = true;
-			this.label1.Location = new System.Drawing.Point(12, 194);
+			this.label1.Location = new System.Drawing.Point(12, 218);
 			this.label1.Name = "label1";
 			this.label1.Size = new System.Drawing.Size(168, 13);
 			this.label1.TabIndex = 1;
@@ -65,7 +65,7 @@ namespace PingTracer
 			this.txtArgs.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
 			this.txtArgs.BackColor = System.Drawing.SystemColors.Window;
-			this.txtArgs.Location = new System.Drawing.Point(12, 210);
+			this.txtArgs.Location = new System.Drawing.Point(12, 234);
 			this.txtArgs.Name = "txtArgs";
 			this.txtArgs.ReadOnly = true;
 			this.txtArgs.Size = new System.Drawing.Size(460, 20);
@@ -75,7 +75,7 @@ namespace PingTracer
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-			this.ClientSize = new System.Drawing.Size(484, 242);
+			this.ClientSize = new System.Drawing.Size(484, 266);
 			this.Controls.Add(this.txtArgs);
 			this.Controls.Add(this.label1);
 			this.Controls.Add(this.txtDocumentation);

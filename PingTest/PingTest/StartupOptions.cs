@@ -13,9 +13,13 @@ namespace PingTracer
 	public class StartupOptions
 	{
 		/// <summary>
-		/// If not null, pings will start to the stored host with this display name or host field value upon application startup.
+		/// If not null, pings will start to the stored configuration with this display name or host field value upon application startup.
 		/// </summary>
 		public string StartupHostName = null;
+		/// <summary>
+		/// If true, the StartupHostName argument will prefer to match a stored configuration that is configured to prefer IPv6.  If false, then IPv4 will be preferred.
+		/// </summary>
+		public bool PreferIPv6 = false;
 		/// <summary>
 		/// If not null, the window will be positioned here upon application startup.  Width or Height values less than 1 will be ignored.
 		/// </summary>
@@ -39,7 +43,7 @@ namespace PingTracer
 		/// <param name="args"></param>
 		public StartupOptions(string[] args)
 		{
-			HashSet<string> flagKeysWithNoValue = new HashSet<string>(new string[] { "-s", "-m" });
+			HashSet<string> flagKeysWithNoValue = new HashSet<string>(new string[] { "-s", "-m", "-6" });
 			Dictionary<string, string> flags = new Dictionary<string, string>();
 			string key = null;
 			for (int i = 0; i < args.Length; i++)
@@ -79,6 +83,8 @@ namespace PingTracer
 				this.StartPinging = true;
 			if (flags.ContainsKey("-m"))
 				this.MaximizeGraphs = true;
+			if (flags.ContainsKey("-6"))
+				this.PreferIPv6 = true;
 		}
 
 		/// <summary>
@@ -106,6 +112,8 @@ namespace PingTracer
 				args.Add("-h");
 				args.Add(StartupHostName);
 			}
+			if (PreferIPv6)
+				args.Add("-6");
 			if (WindowLocation != null)
 			{
 				args.Add("-l");
