@@ -74,6 +74,7 @@
 			this.mi_deleteHost = new System.Windows.Forms.MenuItem();
 			this.menuItem_OpenSettingsFolder = new System.Windows.Forms.MenuItem();
 			this.menuItem_CommandLineArgs = new System.Windows.Forms.MenuItem();
+			this.menuItem_resetWindowSize = new System.Windows.Forms.MenuItem();
 			this.selectPingsPerSecond = new System.Windows.Forms.ComboBox();
 			((System.ComponentModel.ISupportInitialize)(this.nudPingsPerSecond)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
@@ -570,7 +571,8 @@
             this.mi_Options,
             this.mi_deleteHost,
             this.menuItem_OpenSettingsFolder,
-            this.menuItem_CommandLineArgs});
+            this.menuItem_CommandLineArgs,
+            this.menuItem_resetWindowSize});
 			this.menuItem4.Text = "&Tools";
 			// 
 			// mi_Options
@@ -596,6 +598,12 @@
 			this.menuItem_CommandLineArgs.Index = 3;
 			this.menuItem_CommandLineArgs.Text = "&Command Line Args";
 			this.menuItem_CommandLineArgs.Click += new System.EventHandler(this.menuItem_CommandLineArgs_Click);
+			// 
+			// menuItem_resetWindowSize
+			// 
+			this.menuItem_resetWindowSize.Index = 4;
+			this.menuItem_resetWindowSize.Text = "&Reset Window Size";
+			this.menuItem_resetWindowSize.Click += new System.EventHandler(this.menuItem_resetWindowSize_Click);
 			// 
 			// selectPingsPerSecond
 			// 
@@ -704,6 +712,7 @@
 		private System.Windows.Forms.MenuItem menuItem_CommandLineArgs;
 		private System.Windows.Forms.CheckBox cbLogFailures;
 		public System.Windows.Forms.CheckBox cbPreferIpv4;
+		private System.Windows.Forms.MenuItem menuItem_resetWindowSize;
 	}
 }
 

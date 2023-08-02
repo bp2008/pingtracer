@@ -1267,5 +1267,9 @@ namespace PingTracer
 				lblFailed.Text = (int.Parse(lblFailed.Text) + 1).ToString();
 			}
 		}
+		private void menuItem_resetWindowSize_Click(object sender, EventArgs e)
+		{
+			this.Size = defaultWindowSize;
+		}
 	}
 }
