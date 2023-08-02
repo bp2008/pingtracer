@@ -55,6 +55,13 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="CommandLineArgsForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="CommandLineArgsForm.Designer.cs">
+      <DependentUpon>CommandLineArgsForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Extensions.cs" />
     <Compile Include="include\Tracer.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -79,6 +86,7 @@
     <Compile Include="PingGraphControl.Designer.cs">
       <DependentUpon>PingGraphControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="StartupOptions.cs" />
     <Compile Include="Tracer\PingController.cs" />
     <Compile Include="Tracer\HostSettings.cs" />
     <Compile Include="Util\PingInstancePool.cs" />
@@ -104,6 +112,9 @@
     <Compile Include="TraceRoute\TraceRouteHostResult.cs" />
     <Compile Include="Tracert.cs" />
     <Compile Include="TracertEntry.cs" />
+    <EmbeddedResource Include="CommandLineArgsForm.resx">
+      <DependentUpon>CommandLineArgsForm.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="include\Tracer.resx">
       <DependentUpon>Tracer.cs</DependentUpon>
     </EmbeddedResource>

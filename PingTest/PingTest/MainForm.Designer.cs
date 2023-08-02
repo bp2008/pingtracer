@@ -72,7 +72,9 @@
 			this.mi_Options = new System.Windows.Forms.MenuItem();
 			this.mi_deleteHost = new System.Windows.Forms.MenuItem();
 			this.menuItem_OpenSettingsFolder = new System.Windows.Forms.MenuItem();
+			this.menuItem_CommandLineArgs = new System.Windows.Forms.MenuItem();
 			this.selectPingsPerSecond = new System.Windows.Forms.ComboBox();
+			this.cbLogFailures = new System.Windows.Forms.CheckBox();
 			((System.ComponentModel.ISupportInitialize)(this.nudPingsPerSecond)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
 			this.splitContainer1.Panel1.SuspendLayout();
@@ -104,6 +106,7 @@
 			this.txtHost.TabIndex = 1;
 			this.toolTip1.SetToolTip(this.txtHost, "Enter the IP address or host name of the destination you wish to monitor.\r\n\r\nYou " +
         "may click the blue Host label to choose a previously entered value.");
+			this.txtHost.TextChanged += new System.EventHandler(this.txtHost_TextChanged);
 			// 
 			// lblHost
 			// 
@@ -495,6 +498,7 @@
 			// 
 			// groupBox1
 			// 
+			this.groupBox1.Controls.Add(this.cbLogFailures);
 			this.groupBox1.Controls.Add(this.cbPreferIpv4);
 			this.groupBox1.Controls.Add(this.cbLastPing);
 			this.groupBox1.Controls.Add(this.cbJitter);
@@ -552,7 +556,8 @@
 			this.menuItem4.MenuItems.AddRange(new System.Windows.Forms.MenuItem[] {
             this.mi_Options,
             this.mi_deleteHost,
-            this.menuItem_OpenSettingsFolder});
+            this.menuItem_OpenSettingsFolder,
+            this.menuItem_CommandLineArgs});
 			this.menuItem4.Text = "&Tools";
 			// 
 			// mi_Options
@@ -564,14 +569,20 @@
 			// mi_deleteHost
 			// 
 			this.mi_deleteHost.Index = 1;
-			this.mi_deleteHost.Text = "Delete Current Host";
+			this.mi_deleteHost.Text = "&Delete Current Host";
 			this.mi_deleteHost.Click += new System.EventHandler(this.mi_deleteHost_Click);
 			// 
 			// menuItem_OpenSettingsFolder
 			// 
 			this.menuItem_OpenSettingsFolder.Index = 2;
-			this.menuItem_OpenSettingsFolder.Text = "Open Settings Folder";
+			this.menuItem_OpenSettingsFolder.Text = "Open &Settings Folder";
 			this.menuItem_OpenSettingsFolder.Click += new System.EventHandler(this.menuItem_OpenSettingsFolder_Click);
+			// 
+			// menuItem_CommandLineArgs
+			// 
+			this.menuItem_CommandLineArgs.Index = 3;
+			this.menuItem_CommandLineArgs.Text = "&Command Line Args";
+			this.menuItem_CommandLineArgs.Click += new System.EventHandler(this.menuItem_CommandLineArgs_Click);
 			// 
 			// selectPingsPerSecond
 			// 
@@ -585,6 +596,19 @@
 			this.selectPingsPerSecond.Size = new System.Drawing.Size(132, 21);
 			this.selectPingsPerSecond.TabIndex = 5;
 			this.selectPingsPerSecond.SelectedIndexChanged += new System.EventHandler(this.selectPingsPerSecond_SelectedIndexChanged);
+			// 
+			// cbLogFailures
+			// 
+			this.cbLogFailures.AutoSize = true;
+			this.cbLogFailures.Checked = true;
+			this.cbLogFailures.CheckState = System.Windows.Forms.CheckState.Checked;
+			this.cbLogFailures.Location = new System.Drawing.Point(238, 0);
+			this.cbLogFailures.Name = "cbLogFailures";
+			this.cbLogFailures.Size = new System.Drawing.Size(83, 17);
+			this.cbLogFailures.TabIndex = 24;
+			this.cbLogFailures.Text = "Log Failures";
+			this.cbLogFailures.UseVisualStyleBackColor = true;
+			this.cbLogFailures.CheckedChanged += new System.EventHandler(this.cbLogFailures_CheckedChanged);
 			// 
 			// MainForm
 			// 
@@ -636,7 +660,6 @@
 		#endregion
 
 		private System.Windows.Forms.TextBox txtOut;
-		private System.Windows.Forms.TextBox txtHost;
 		private System.Windows.Forms.Label lblHost;
 		private System.Windows.Forms.Label label2;
 		private System.Windows.Forms.NumericUpDown nudPingsPerSecond;
@@ -660,7 +683,6 @@
 		private System.Windows.Forms.ContextMenuStrip contextMenuStripHostHistory;
 		private System.Windows.Forms.Label label1;
 		private System.Windows.Forms.ToolTip toolTip1;
-		private System.Windows.Forms.TextBox txtDisplayName;
 		private System.Windows.Forms.CheckBox cbPacketLoss;
 		private System.Windows.Forms.GroupBox groupBox1;
 		private System.Windows.Forms.MainMenu mainMenu1;
@@ -678,6 +700,10 @@
 		private System.Windows.Forms.CheckBox cbLastPing;
 		private System.Windows.Forms.CheckBox cbPreferIpv4;
 		private System.Windows.Forms.MenuItem menuItem_OpenSettingsFolder;
+		public System.Windows.Forms.TextBox txtDisplayName;
+		public System.Windows.Forms.TextBox txtHost;
+		private System.Windows.Forms.MenuItem menuItem_CommandLineArgs;
+		private System.Windows.Forms.CheckBox cbLogFailures;
 	}
 }
 

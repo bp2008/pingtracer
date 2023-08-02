@@ -17,7 +17,8 @@ namespace PingTracer
 {
 	public partial class MainForm : Form
 	{
-		private volatile bool isRunning = false;
+		public bool isRunning { get; private set; } = false;
+		public bool graphsMaximized { get; private set; } = false;
 		private BackgroundWorker controllerWorker;
 		private volatile int pingDelay = 1000;
 
@@ -52,9 +53,50 @@ namespace PingTracer
 		public Settings settings = new Settings();
 
 		DateTime suppressHostSettingsSaveUntil = DateTime.MinValue;
+		private string[] args;
+		/// <summary>
+		/// Event raised when pinging begins.  See <see cref="isRunning"/>.
+		/// </summary>
+		public event EventHandler StartedPinging = delegate { };
+		/// <summary>
+		/// Event raised when pinging stops.  See <see cref="isRunning"/>.
+		/// </summary>
+		public event EventHandler StoppedPinging = delegate { };
+		/// <summary>
+		/// Event raised when the selected Host field or Display Name field value changed.  See <see cref="txtHost"/> and <see cref="txtDisplayName"/>.
+		/// </summary>
+		public event EventHandler SelectedHostChanged = delegate { };
+		/// <summary>
+		/// Event raised when the graphs are maximized or restored to the regular window.  See <see cref="graphsMaximized"/>.
+		/// </summary>
+		public event EventHandler MaximizeGraphsChanged = delegate { };
 
-		public MainForm()
+		private bool _logFailures = false;
+		/// <summary>
+		/// Gets or sets a value indicating whether failures should be logged for the current UI state.
+		/// </summary>
+		public bool LogFailures
 		{
+			get
+			{
+				return _logFailures;
+			}
+			set
+			{
+				_logFailures = value;
+				SetLogFailures(value);
+			}
+		}
+		private void SetLogFailures(bool value)
+		{
+			if (this.InvokeRequired)
+				this.Invoke((Action<bool>)SetLogFailures, value);
+			else
+				cbLogFailures.Checked = value;
+		}
+		public MainForm(string[] args)
+		{
+			this.args = args;
 			InitializeComponent();
 		}
 
@@ -66,14 +108,39 @@ namespace PingTracer
 			panelForm.FormClosing += panelForm_FormClosing;
 			selectPingsPerSecond.SelectedIndex = 0;
 			settings.Load();
+			StartupOptions options = new StartupOptions(args);
 			lock (settings.hostHistory)
 			{
-				if (settings.hostHistory.Count > 0)
-					LoadProfileIntoUI(settings.hostHistory[0]);
+				HostSettings item = null;
+				if (options.StartupHostName != null)
+				{
+					item = settings.hostHistory.FirstOrDefault(h => h.displayName == options.StartupHostName);
+					if (item == null)
+						item = settings.hostHistory.FirstOrDefault(h => h.host == options.StartupHostName);
+				}
+				if (item == null)
+					item = settings.hostHistory.FirstOrDefault();
+				if (item != null)
+					LoadProfileIntoUI(item);
 			}
 			selectPingsPerSecond_SelectedIndexChanged(null, null);
 			AddKeyDownHandler(this);
 			AddClickHandler(this);
+
+			if (options.WindowLocation != null)
+			{
+				Size s = this.Size;
+				if (options.WindowLocation.W > 0)
+					s.Width = options.WindowLocation.W;
+				if (options.WindowLocation.H > 0)
+					s.Height = options.WindowLocation.H;
+
+				this.Location = new Point(options.WindowLocation.X, options.WindowLocation.Y);
+				this.Size = s;
+			}
+
+			if (options.StartPinging)
+				btnStart_Click(this, new EventArgs());
 		}
 
 		/// <summary>
@@ -355,7 +422,7 @@ namespace PingTracer
 				if (e.Reply.Status != IPStatus.Success)
 				{
 					Interlocked.Increment(ref failedPings);
-					if (clearedDeadHosts && pingTargets.ContainsKey(pingTargetId))
+					if (clearedDeadHosts && pingTargets.ContainsKey(pingTargetId) && LogFailures)
 						CreateLogEntry("" + GetTimestamp(time) + ", " + remoteHost.ToString() + ": " + e.Reply.Status.ToString());
 				}
 				else
@@ -486,6 +553,7 @@ namespace PingTracer
 
 		private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
 		{
+			cla_form?.Close();
 			if (isRunning)
 			{
 				SaveProfileFromUI();
@@ -578,6 +646,7 @@ namespace PingTracer
 				txtHost.Enabled = true;
 				cbTraceroute.Enabled = true;
 				cbReverseDNS.Enabled = true;
+				StoppedPinging.Invoke(sender, e);
 			}
 			else
 			{
@@ -592,6 +661,7 @@ namespace PingTracer
 				txtHost.Enabled = false;
 				cbTraceroute.Enabled = false;
 				cbReverseDNS.Enabled = false;
+				StartedPinging.Invoke(sender, e);
 			}
 		}
 
@@ -767,11 +837,24 @@ namespace PingTracer
 		private void txtDisplayName_TextChanged(object sender, EventArgs e)
 		{
 			SaveProfileIfProfileAlreadyExists();
+			SelectedHostChanged.Invoke(sender, e);
 		}
 
 		private void cbPreferIpv4_CheckedChanged(object sender, EventArgs e)
 		{
 			SaveProfileIfProfileAlreadyExists();
+		}
+
+		private void cbLogFailures_CheckedChanged(object sender, EventArgs e)
+		{
+			_logFailures = cbLogFailures.Checked;
+			SaveProfileIfProfileAlreadyExists();
+		}
+
+		private void txtHost_TextChanged(object sender, EventArgs e)
+		{
+			// This txtHost_TextChanged event handler was added on 2023-08-02, so it did not call SaveProfileIfProfileAlreadyExists(); like most other event handlers.
+			SelectedHostChanged.Invoke(sender, e);
 		}
 		#endregion
 
@@ -906,19 +989,23 @@ namespace PingTracer
 		{
 			if (panel_Graphs.Parent == splitContainer1.Panel2)
 			{
+				graphsMaximized = true;
 				panelForm.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
 				panelForm.Controls.Add(panel_Graphs);
 				panel_Graphs.Dock = DockStyle.Fill;
 				panelForm.Show();
 				panelForm.SetBounds(this.Left, this.Top, this.Width, this.Height);
 				this.Hide();
+				MaximizeGraphsChanged.Invoke(this, e);
 			}
 			else
 			{
+				graphsMaximized = false;
 				splitContainer1.Panel2.Controls.Add(panel_Graphs);
 				panel_Graphs.Dock = DockStyle.Fill;
 				this.Show();
 				panelForm.Hide();
+				MaximizeGraphsChanged.Invoke(this, e);
 			}
 		}
 		#endregion
@@ -971,12 +1058,13 @@ namespace PingTracer
 			nudBadThreshold.Value = hs.badThreshold;
 			nudWorseThreshold.Value = hs.worseThreshold;
 			cbPreferIpv4.Checked = hs.preferIpv4;
+			LogFailures = hs.logFailures;
 
 
 			lock (settings.hostHistory)
 			{
 				for (int i = 1; i < settings.hostHistory.Count; i++)
-					if (settings.hostHistory[i].host == hs.host)
+					if (settings.hostHistory[i].host == hs.host && settings.hostHistory[i].preferIpv4 == hs.preferIpv4)
 					{
 						HostSettings justLoaded = settings.hostHistory[i];
 						settings.hostHistory.RemoveAt(i);
@@ -1044,6 +1132,7 @@ namespace PingTracer
 			p.badThreshold = (int)nudBadThreshold.Value;
 			p.worseThreshold = (int)nudWorseThreshold.Value;
 			p.preferIpv4 = cbPreferIpv4.Checked;
+			p.logFailures = LogFailures;
 
 			if (!string.IsNullOrWhiteSpace(p.host))
 			{
@@ -1105,6 +1194,19 @@ namespace PingTracer
 		private void menuItem_OpenSettingsFolder_Click(object sender, EventArgs e)
 		{
 			settings.OpenSettingsFolder();
+		}
+
+		CommandLineArgsForm cla_form;
+		private void menuItem_CommandLineArgs_Click(object sender, EventArgs e)
+		{
+			if (cla_form == null)
+			{
+				cla_form = new CommandLineArgsForm(this);
+				cla_form.FormClosed += (sender2, e2) => { cla_form = null; };
+				cla_form.Show();
+			}
+			else
+				cla_form.BringToFront();
 		}
 
 		private void MainForm_Click(object sender, EventArgs e)
