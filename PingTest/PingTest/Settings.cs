@@ -21,6 +21,7 @@ namespace PingTracer
 		public int graphScrollMultiplier = 1;
 		public bool showDateOnGraphTimeline = true;
 		public string customTimeStr;
+		public WindowParams lastWindowParams = null;
 
 		public bool Save()
 		{

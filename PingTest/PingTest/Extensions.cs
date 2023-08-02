@@ -69,5 +69,43 @@ namespace PingTracer
 			form.StartPosition = FormStartPosition.Manual;
 			form.Location = new Point(x, y);
 		}
+		/// <summary>
+		/// If the center of the form is not visible on any of the screens, moves the form to the screen whose center is closest to the form in its old position.
+		/// </summary>
+		/// <param name="form">The form to move.</param>
+		public static void MoveOnscreenIfOffscreen(this Form form)
+		{
+			// Check if the center of the form is visible on any of the screens
+			bool formIsVisible = false;
+			Point formCenter = new Point(form.Left + form.Width / 2, form.Top + form.Height / 2);
+			foreach (Screen screen in Screen.AllScreens)
+			{
+				if (screen.WorkingArea.Contains(formCenter))
+				{
+					formIsVisible = true;
+					break;
+				}
+			}
+
+			// If the center of the form is not visible, move it to the screen whose center is closest to the form in its old position
+			if (!formIsVisible)
+			{
+				Screen closestScreen = Screen.AllScreens[0];
+				double minDistance = double.MaxValue;
+				foreach (Screen screen in Screen.AllScreens)
+				{
+					Point screenCenter = new Point(screen.WorkingArea.Left + screen.WorkingArea.Width / 2, screen.WorkingArea.Top + screen.WorkingArea.Height / 2);
+					double distance = Math.Sqrt(Math.Pow(screenCenter.X - formCenter.X, 2) + Math.Pow(screenCenter.Y - formCenter.Y, 2));
+					if (distance < minDistance)
+					{
+						minDistance = distance;
+						closestScreen = screen;
+					}
+				}
+				int x = closestScreen.WorkingArea.Left + (closestScreen.WorkingArea.Width - form.Width) / 2;
+				int y = closestScreen.WorkingArea.Top + (closestScreen.WorkingArea.Height - form.Height) / 2;
+				form.Location = new Point(x, y);
+			}
+		}
 	}
 }

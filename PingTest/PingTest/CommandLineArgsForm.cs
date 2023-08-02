@@ -47,7 +47,7 @@ namespace PingTracer
 
 		private void SetCommandLineArgs()
 		{
-			options.WindowLocation = new StartupOptions.WindowParams(mainForm.Location.X, mainForm.Location.Y, mainForm.Size.Width, mainForm.Size.Height);
+			options.WindowLocation = new WindowParams(mainForm.Location.X, mainForm.Location.Y, mainForm.Size.Width, mainForm.Size.Height);
 
 			options.StartupHostName = mainForm.txtDisplayName.Text;
 			if (string.IsNullOrWhiteSpace(options.StartupHostName))

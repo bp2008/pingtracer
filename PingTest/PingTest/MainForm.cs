@@ -94,10 +94,23 @@ namespace PingTracer
 			else
 				cbLogFailures.Checked = value;
 		}
+		/// <summary>
+		/// Assigned during MainForm construction, this field remembers the default window size.
+		/// </summary>
+		private readonly Size defaultWindowSize;
+		/// <summary>
+		/// Calls <see cref="_rememberCurrentPosition"/> throttled.
+		/// </summary>
+		private Action RememberCurrentPositionThrottled;
+
 		public MainForm(string[] args)
 		{
 			this.args = args;
+			RememberCurrentPositionThrottled = Throttle.Create(_rememberCurrentPosition, 250, ex => MessageBox.Show(ex.ToString()));
+
 			InitializeComponent();
+
+			defaultWindowSize = this.Size;
 		}
 
 		private void MainForm_Load(object sender, EventArgs e)
@@ -135,20 +148,28 @@ namespace PingTracer
 			AddKeyDownHandler(this);
 			AddClickHandler(this);
 
-			if (options.WindowLocation != null)
+			WindowParams wParams = options.WindowLocation;
+			if (wParams == null)
+				wParams = settings.lastWindowParams;
+			if (wParams != null)
 			{
 				Size s = this.Size;
-				if (options.WindowLocation.W > 0)
-					s.Width = options.WindowLocation.W;
-				if (options.WindowLocation.H > 0)
-					s.Height = options.WindowLocation.H;
+				if (wParams.W > 0)
+					s.Width = wParams.W;
+				if (wParams.H > 0)
+					s.Height = wParams.H;
 
-				this.Location = new Point(options.WindowLocation.X, options.WindowLocation.Y);
+				this.Location = new Point(wParams.X, wParams.Y);
 				this.Size = s;
 			}
 
+			this.MoveOnscreenIfOffscreen();
+
 			if (options.StartPinging)
 				btnStart_Click(this, new EventArgs());
+
+			this.Move += MainForm_MoveOrResize;
+			this.Resize += MainForm_MoveOrResize;
 		}
 
 		/// <summary>
@@ -1221,6 +1242,30 @@ namespace PingTracer
 		private void MainForm_Click(object sender, EventArgs e)
 		{
 			//this.Focus();
+		}
+
+
+		private void MainForm_MoveOrResize(object sender, EventArgs e)
+		{
+			RememberCurrentPositionThrottled();
+		}
+
+		/// <summary>
+		/// Do not call this directly.  Instead, call <see cref="RememberCurrentPositionThrottled"/>.
+		/// </summary>
+		private void _rememberCurrentPosition()
+		{
+			if (this.InvokeRequired)
+				this.Invoke((Action)_rememberCurrentPosition);
+			else
+			{
+				lock (settings.hostHistory)
+				{
+					settings.lastWindowParams = new WindowParams(this.Location.X, this.Location.Y, this.Size.Width, this.Size.Height);
+					settings.Save();
+				}
+				lblFailed.Text = (int.Parse(lblFailed.Text) + 1).ToString();
+			}
 		}
 	}
 }

@@ -10,7 +10,7 @@ namespace PingTracer
 	/// <summary>
 	/// Specifies how the application will behave upon startup.
 	/// </summary>
-	public class StartupOptions
+	public partial class StartupOptions
 	{
 		/// <summary>
 		/// If not null, pings will start to the stored configuration with this display name or host field value upon application startup.
@@ -136,39 +136,6 @@ namespace PingTracer
 		{
 			string dqWrap = wrapInDoubleQuotes ? "\"" : "";
 			return dqWrap + str.Replace("\\", "\\\\").Replace("\"", "\\\"") + dqWrap;
-		}
-
-		public class WindowParams
-		{
-			/// <summary>
-			/// X coordinate
-			/// </summary>
-			public int X;
-			/// <summary>
-			/// Y coordinate
-			/// </summary>
-			public int Y;
-			/// <summary>
-			/// Width, ignore if less than 1.
-			/// </summary>
-			public int W;
-			/// <summary>
-			/// Height, ignore if less than 1.
-			/// </summary>
-			public int H;
-			public WindowParams() { }
-
-			public WindowParams(int x, int y, int w, int h)
-			{
-				X = x;
-				Y = y;
-				W = w;
-				H = h;
-			}
-			public override string ToString()
-			{
-				return X + "," + Y + "," + W + "," + H;
-			}
 		}
 	}
 }

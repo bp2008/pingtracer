@@ -87,6 +87,7 @@
       <DependentUpon>PingGraphControl.cs</DependentUpon>
     </Compile>
     <Compile Include="StartupOptions.cs" />
+    <Compile Include="Throttle.cs" />
     <Compile Include="Tracer\PingController.cs" />
     <Compile Include="Tracer\HostSettings.cs" />
     <Compile Include="Util\PingInstancePool.cs" />
@@ -112,6 +113,7 @@
     <Compile Include="TraceRoute\TraceRouteHostResult.cs" />
     <Compile Include="Tracert.cs" />
     <Compile Include="TracertEntry.cs" />
+    <Compile Include="WindowParams.cs" />
     <EmbeddedResource Include="CommandLineArgsForm.resx">
       <DependentUpon>CommandLineArgsForm.cs</DependentUpon>
     </EmbeddedResource>
