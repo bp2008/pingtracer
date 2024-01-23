@@ -11,6 +11,7 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace PingTracer
@@ -167,6 +168,16 @@ namespace PingTracer
 
 			if (options.StartPinging)
 				btnStart_Click(this, new EventArgs());
+
+			if (options.MaximizeGraphs)
+			{
+				this.Hide(); // Hide before end of OnLoad to help reduce visual glitching.
+				this.BeginInvoke((Action)(() =>
+				{
+					this.Show();
+					SetGraphsMaximizedState(true);
+				}));
+			}
 
 			this.Move += MainForm_MoveOrResize;
 			this.Resize += MainForm_MoveOrResize;
@@ -1017,7 +1028,11 @@ namespace PingTracer
 		}
 		private void panel_Graphs_Click(object sender, EventArgs e)
 		{
-			if (panel_Graphs.Parent == splitContainer1.Panel2)
+			SetGraphsMaximizedState(panel_Graphs.Parent == splitContainer1.Panel2);
+		}
+		private void SetGraphsMaximizedState(bool maximize)
+		{
+			if (maximize)
 			{
 				graphsMaximized = true;
 				panelForm.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
@@ -1026,7 +1041,7 @@ namespace PingTracer
 				panelForm.Show();
 				panelForm.SetBounds(this.Left, this.Top, this.Width, this.Height);
 				this.Hide();
-				MaximizeGraphsChanged.Invoke(this, e);
+				MaximizeGraphsChanged.Invoke(this, EventArgs.Empty);
 			}
 			else
 			{
@@ -1035,7 +1050,7 @@ namespace PingTracer
 				panel_Graphs.Dock = DockStyle.Fill;
 				this.Show();
 				panelForm.Hide();
-				MaximizeGraphsChanged.Invoke(this, e);
+				MaximizeGraphsChanged.Invoke(this, EventArgs.Empty);
 			}
 		}
 		#endregion
