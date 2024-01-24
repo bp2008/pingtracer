@@ -95,6 +95,30 @@ namespace PingTracer
 			else
 				cbLogFailures.Checked = value;
 		}
+
+		private bool _logSuccesses = false;
+		/// <summary>
+		/// Gets or sets a value indicating whether failures should be logged for the current UI state.
+		/// </summary>
+		public bool LogSuccesses
+		{
+			get
+			{
+				return _logSuccesses;
+			}
+			set
+			{
+				_logFailures = value;
+				SetLogSuccesses(value);
+			}
+		}
+		private void SetLogSuccesses(bool value)
+		{
+			if (this.InvokeRequired)
+				this.Invoke((Action<bool>)SetLogSuccesses, value);
+			else
+				cbLogSuccesses.Checked = value;
+		}
 		/// <summary>
 		/// Assigned during MainForm construction, this field remembers the default window size.
 		/// </summary>
@@ -395,7 +419,7 @@ namespace PingTracer
 							int msToWait = (int)(lastPingAt.AddMilliseconds(pingDelay) - DateTime.Now).TotalMilliseconds;
 							while (!self.CancellationPending && msToWait > 0)
 							{
-								Thread.Sleep(Math.Min(msToWait, 1000));
+								Thread.Sleep(Math.Min(msToWait, 100));
 								msToWait = (int)(lastPingAt.AddMilliseconds(pingDelay) - DateTime.Now).TotalMilliseconds;
 							}
 							if (!self.CancellationPending)
@@ -462,7 +486,7 @@ namespace PingTracer
 				if (e.Reply.Status != IPStatus.Success)
 				{
 					Interlocked.Increment(ref failedPings);
-					if (clearedDeadHosts && pingTargets.ContainsKey(pingTargetId) && LogFailures)
+					if (clearedDeadHosts && LogFailures && pingTargets.ContainsKey(pingTargetId))
 						CreateLogEntry("" + GetTimestamp(time) + ", " + remoteHost.ToString() + ": " + e.Reply.Status.ToString());
 				}
 				else
@@ -472,6 +496,8 @@ namespace PingTracer
 						pingTargetHasAtLeastOneSuccess[pingTargetId] = true;
 					}
 					Interlocked.Increment(ref successfulPings);
+					if (LogSuccesses && pingTargets.ContainsKey(pingTargetId))
+						CreateLogEntry("" + GetTimestamp(time) + ", " + remoteHost.ToString() + ": " + e.Reply.Status.ToString() + " in " + e.Reply.RoundtripTime + "ms");
 				}
 			}
 			finally
@@ -564,6 +590,8 @@ namespace PingTracer
 					txtOut.Invoke(new Action<string>(CreateLogEntry), str);
 				else
 				{
+					if (txtOut.TextLength > 32000)
+						txtOut.Text = txtOut.Text.Substring(txtOut.TextLength - 22000); // Keep txtOut from growing out of control.
 					txtOut.AppendText(Environment.NewLine + str);
 					if (settings.logTextOutputToFile)
 						File.AppendAllText("PingTracer_Output.txt", str + Environment.NewLine);
@@ -892,6 +920,12 @@ namespace PingTracer
 			SaveProfileIfProfileAlreadyExists();
 		}
 
+		private void cbLogSuccesses_CheckedChanged(object sender, EventArgs e)
+		{
+			_logSuccesses = cbLogSuccesses.Checked;
+			SaveProfileIfProfileAlreadyExists();
+		}
+
 		private void txtHost_TextChanged(object sender, EventArgs e)
 		{
 			// This txtHost_TextChanged event handler was added on 2023-08-02, so it did not call SaveProfileIfProfileAlreadyExists(); like most other event handlers.
@@ -1104,6 +1138,7 @@ namespace PingTracer
 			nudWorseThreshold.Value = hs.worseThreshold;
 			cbPreferIpv4.Checked = hs.preferIpv4;
 			LogFailures = hs.logFailures;
+			LogSuccesses = hs.logSuccesses;
 
 
 			lock (settings.hostHistory)
@@ -1178,6 +1213,7 @@ namespace PingTracer
 			p.worseThreshold = (int)nudWorseThreshold.Value;
 			p.preferIpv4 = cbPreferIpv4.Checked;
 			p.logFailures = LogFailures;
+			p.logSuccesses = LogSuccesses;
 
 			if (!string.IsNullOrWhiteSpace(p.host))
 			{

@@ -39,7 +39,7 @@ namespace PingTracer
 		private PingLog[] pings;
 		private string MouseHintText = "";
 		/// <summary>
-		/// Gets the number of pings currently cached within the graph control.
+		/// Gets the number of pings currently cached within the graph control (slow).
 		/// </summary>
 		public int cachedPings
 		{
@@ -48,6 +48,9 @@ namespace PingTracer
 				return pings.Count(x => x != null);
 			}
 		}
+		/// <summary>
+		/// The scroll X offset as a negative number, optionally offset by 1 if the "delay most recent ping" setting is set, in order to delay rendering of the most recent ping.
+		/// </summary>
 		private int countOffset
 		{
 			get
@@ -76,9 +79,14 @@ namespace PingTracer
 				if (currentOffset == -1)
 					return 0;
 				else
+				{
 					return (int)Math.Min(currentOffset + countOffset, pings.Length);
+				}
 			}
 		}
+		/// <summary>
+		/// Gets the number of pings we have data for in the current graph viewport. (the number of pings you should interate over, relatiev to StartIndex, when painting)
+		/// </summary>
 		private int DisplayableCount
 		{
 			get
@@ -86,15 +94,17 @@ namespace PingTracer
 				return Math.Min(BufferedCount, this.Width);
 			}
 		}
+		/// <summary>
+		/// Counter for tracking the next index in the circular buffer.
+		/// </summary>
 		private long _nextIndexOffset = -1;
-		private int NextIndex
-		{
-			get
-			{
-				return (int)((Interlocked.Increment(ref _nextIndexOffset)) % pings.Length);
-			}
-		}
+		/// <summary>
+		/// The amount of pixels the graph has been scrolled to the left. Scroll position is clamped between 0 and the <see cref="pings"/> buffer size.
+		/// </summary>
 		private int scrollXOffset = 0;
+		/// <summary>
+		/// Gets or sets the amount of pixels the graph has been scrolled to the left.  Scroll position is clamped between 0 and the <see cref="pings"/> buffer size.
+		/// </summary>
 		public int ScrollXOffset
 		{
 			get
@@ -103,14 +113,19 @@ namespace PingTracer
 			}
 			set
 			{
-				if (value < 0)
-					scrollXOffset = 0;
-				else
-					scrollXOffset = value;
+				int v = value;
+				if (v > pings.Length - this.Width)
+					v = pings.Length - this.Width;
+				if (v < 0)
+					v = 0;
+				scrollXOffset = v;
 				if (scrollXOffset == 0)
 					setLiveAtTime = Environment.TickCount;
 			}
 		}
+		/// <summary>
+		/// Remembers the TickCount (in milliseconds) when the graph was scrolled to the live position, so we can show a message for a short time.
+		/// </summary>
 		private int setLiveAtTime = 0;
 		#endregion
 		public PingGraphControl(Settings settings)
@@ -121,7 +136,8 @@ namespace PingTracer
 		}
 		public void AddPingLog(PingLog pingLog)
 		{
-			pings[NextIndex] = pingLog;
+			long newOffset = Interlocked.Increment(ref _nextIndexOffset);
+			pings[newOffset % pings.Length] = pingLog;
 			this.Invalidate();
 		}
 		public void AddPingLogToSpecificOffset(long offset, PingLog pingLog)
@@ -129,6 +145,10 @@ namespace PingTracer
 			pings[offset % pings.Length] = pingLog;
 			this.Invalidate();
 		}
+		/// <summary>
+		/// I'm not sure this function is safe to call.
+		/// </summary>
+		/// <param name="offset"></param>
 		public void ClearSpecificOffset(long offset)
 		{
 			pings[offset % pings.Length] = null;
@@ -199,10 +219,11 @@ namespace PingTracer
 			for (int i = 0; i < count; i++)
 			{
 				int idx = (start + i) % pings.Length;
-				if (pings[idx] != null && pings[idx].result == IPStatus.Success)
+				PingLog p = pings[idx];
+				if (p != null && p.result == IPStatus.Success)
 				{
 					successCount++;
-					last = pings[idx].pingTime;
+					last = p.pingTime;
 					sum += last;
 					max = Math.Max(max, last);
 					min = Math.Min(min, last);
@@ -245,17 +266,18 @@ namespace PingTracer
 				try
 				{
 					int idx = (start + i) % pings.Length;
-					if (pings[idx] == null)
+					PingLog p = pings[idx];
+					if (p == null)
 						continue;
-					if (pings[idx].result == IPStatus.Success)
+					if (p.result == IPStatus.Success)
 					{
-						if (pings[idx].pingTime < Threshold_Bad)
+						if (p.pingTime < Threshold_Bad)
 							pen = penSuccess;
-						else if (pings[idx].pingTime < Threshold_Worse)
+						else if (p.pingTime < Threshold_Worse)
 							pen = penSuccessBad;
 						else
 							pen = penSuccessWorse;
-						pStart.Y = (int)(height - (pings[idx].pingTime * vScale));
+						pStart.Y = (int)(height - (p.pingTime * vScale));
 					}
 					else
 					{
@@ -268,18 +290,18 @@ namespace PingTracer
 					if (showTimestampsThisTime)
 					{
 						if (lastStampedMinute == -1
-							|| pings[idx].startTime.Minute != lastStampedMinute)
+							|| p.startTime.Minute != lastStampedMinute)
 						{
 							if (settings.showDateOnGraphTimeline && lastStampedMinute == -1)
-								timelineOverlayString += pings[idx].startTime.ToString("yyyy-M-d ");
-							if (pings[idx].startTime.Second < 2) // Only draw the line if this is close to the actual moment the minute struck.
+								timelineOverlayString += p.startTime.ToString("yyyy-M-d ");
+							if (p.startTime.Second < 2) // Only draw the line if this is close to the actual moment the minute struck.
 								e.Graphics.DrawLine(penTimestampsMark, pTimestampMarkStart, pTimestampMarkEnd);
-							string stamp = pings[idx].startTime.ToString("t");
+							string stamp = p.startTime.ToString("t");
 							SizeF strSize = e.Graphics.MeasureString(stamp, textFont);
 							e.Graphics.FillRectangle(brushBackgroundTimestamps, new Rectangle(pTimestampMarkStart.X + 1, pTimestampMarkStart.Y, (int)strSize.Width - 1, (int)timestampsHeight - 1));
 							e.Graphics.DrawString(stamp, textFont, brushTimestampsText, pTimestampMarkStart.X, pTimestampMarkStart.Y - 1);
 
-							lastStampedMinute = pings[idx].startTime.Minute;
+							lastStampedMinute = p.startTime.Minute;
 						}
 					}
 				}
@@ -381,7 +403,9 @@ namespace PingTracer
 				int offset = x - this.Width;
 				int start = StartIndex + DisplayableCount;
 				int i = (start + offset) % pings.Length;
-				if (i < 0)
+				if (offset <= -pings.Length)
+					return "Out of bounds, Mouse ms: " + GetScaledHeightValue(height - y);
+				else if(i < 0)
 					return "No Data Yet, Mouse ms: " + GetScaledHeightValue(height - y);
 				PingLog pingLog = pings[i];
 				if (pingLog == null)

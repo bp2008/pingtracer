@@ -76,6 +76,7 @@
 			this.menuItem_CommandLineArgs = new System.Windows.Forms.MenuItem();
 			this.menuItem_resetWindowSize = new System.Windows.Forms.MenuItem();
 			this.selectPingsPerSecond = new System.Windows.Forms.ComboBox();
+			this.cbLogSuccesses = new System.Windows.Forms.CheckBox();
 			((System.ComponentModel.ISupportInitialize)(this.nudPingsPerSecond)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
 			this.splitContainer1.Panel1.SuspendLayout();
@@ -97,7 +98,7 @@
 			this.txtOut.ReadOnly = true;
 			this.txtOut.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
 			this.txtOut.Size = new System.Drawing.Size(608, 69);
-			this.txtOut.TabIndex = 15;
+			this.txtOut.TabIndex = 50;
 			// 
 			// txtHost
 			// 
@@ -287,7 +288,7 @@
 			this.cbAlwaysShowServerNames.Location = new System.Drawing.Point(6, 19);
 			this.cbAlwaysShowServerNames.Name = "cbAlwaysShowServerNames";
 			this.cbAlwaysShowServerNames.Size = new System.Drawing.Size(93, 17);
-			this.cbAlwaysShowServerNames.TabIndex = 10;
+			this.cbAlwaysShowServerNames.TabIndex = 30;
 			this.cbAlwaysShowServerNames.Text = "Server Names";
 			this.toolTip1.SetToolTip(this.cbAlwaysShowServerNames, "If checked, each server\'s name/address is overlaid on its graph.");
 			this.cbAlwaysShowServerNames.UseVisualStyleBackColor = true;
@@ -336,7 +337,7 @@
             0});
 			this.nudBadThreshold.Name = "nudBadThreshold";
 			this.nudBadThreshold.Size = new System.Drawing.Size(56, 20);
-			this.nudBadThreshold.TabIndex = 17;
+			this.nudBadThreshold.TabIndex = 40;
 			this.toolTip1.SetToolTip(this.nudBadThreshold, "Pings exceeding this threshold are drawn in faded yellow color, \r\nand the backgro" +
         "und of the ping graph will be yellow tinted \r\nabove this point.");
 			this.nudBadThreshold.Value = new decimal(new int[] {
@@ -357,7 +358,7 @@
             0});
 			this.nudWorseThreshold.Name = "nudWorseThreshold";
 			this.nudWorseThreshold.Size = new System.Drawing.Size(56, 20);
-			this.nudWorseThreshold.TabIndex = 18;
+			this.nudWorseThreshold.TabIndex = 41;
 			this.toolTip1.SetToolTip(this.nudWorseThreshold, "Pings exceeding this threshold are drawn in bright yellow color, \r\nand the backgr" +
         "ound of the ping graph will be red tinted \r\nabove this point.");
 			this.nudWorseThreshold.Value = new decimal(new int[] {
@@ -373,7 +374,7 @@
 			this.cbMinMax.Location = new System.Drawing.Point(223, 45);
 			this.cbMinMax.Name = "cbMinMax";
 			this.cbMinMax.Size = new System.Drawing.Size(74, 17);
-			this.cbMinMax.TabIndex = 16;
+			this.cbMinMax.TabIndex = 35;
 			this.cbMinMax.Text = "Min / Max";
 			this.toolTip1.SetToolTip(this.cbMinMax, "If checked, the shortest and longest visible ping times are overlaid in text form" +
         ".");
@@ -424,7 +425,7 @@
 			this.cbPacketLoss.Location = new System.Drawing.Point(110, 19);
 			this.cbPacketLoss.Name = "cbPacketLoss";
 			this.cbPacketLoss.Size = new System.Drawing.Size(96, 17);
-			this.cbPacketLoss.TabIndex = 12;
+			this.cbPacketLoss.TabIndex = 31;
 			this.cbPacketLoss.Text = "Packet Loss %";
 			this.toolTip1.SetToolTip(this.cbPacketLoss, "If checked, each graph\'s visible packet loss is overlaid as a percentage.");
 			this.cbPacketLoss.UseVisualStyleBackColor = true;
@@ -451,7 +452,7 @@
 			this.cbAverage.Location = new System.Drawing.Point(87, 45);
 			this.cbAverage.Name = "cbAverage";
 			this.cbAverage.Size = new System.Drawing.Size(66, 17);
-			this.cbAverage.TabIndex = 14;
+			this.cbAverage.TabIndex = 33;
 			this.cbAverage.Text = "Average";
 			this.toolTip1.SetToolTip(this.cbAverage, "If checked, the average response time (of visible ping times) is overlaid in text" +
         " form.");
@@ -464,7 +465,7 @@
 			this.cbJitter.Location = new System.Drawing.Point(164, 45);
 			this.cbJitter.Name = "cbJitter";
 			this.cbJitter.Size = new System.Drawing.Size(48, 17);
-			this.cbJitter.TabIndex = 15;
+			this.cbJitter.TabIndex = 34;
 			this.cbJitter.Text = "Jitter";
 			this.toolTip1.SetToolTip(this.cbJitter, "If checked, the jitter (across visible ping times) is overlaid in text form.");
 			this.cbJitter.UseVisualStyleBackColor = true;
@@ -476,7 +477,7 @@
 			this.cbLastPing.Location = new System.Drawing.Point(6, 45);
 			this.cbLastPing.Name = "cbLastPing";
 			this.cbLastPing.Size = new System.Drawing.Size(70, 17);
-			this.cbLastPing.TabIndex = 13;
+			this.cbLastPing.TabIndex = 32;
 			this.cbLastPing.Text = "Last Ping";
 			this.toolTip1.SetToolTip(this.cbLastPing, "If checked, the most recent ping response time is overlaid in text form.");
 			this.cbLastPing.UseVisualStyleBackColor = true;
@@ -487,10 +488,10 @@
 			this.cbPreferIpv4.AutoSize = true;
 			this.cbPreferIpv4.Checked = true;
 			this.cbPreferIpv4.CheckState = System.Windows.Forms.CheckState.Checked;
-			this.cbPreferIpv4.Location = new System.Drawing.Point(347, 0);
+			this.cbPreferIpv4.Location = new System.Drawing.Point(450, 0);
 			this.cbPreferIpv4.Name = "cbPreferIpv4";
 			this.cbPreferIpv4.Size = new System.Drawing.Size(79, 17);
-			this.cbPreferIpv4.TabIndex = 23;
+			this.cbPreferIpv4.TabIndex = 26;
 			this.cbPreferIpv4.Text = "Prefer IPv4";
 			this.toolTip1.SetToolTip(this.cbPreferIpv4, "If checked, a traceroute operation will be performed \r\nand multiple destinations " +
         "may be monitored.");
@@ -499,6 +500,7 @@
 			// 
 			// groupBox1
 			// 
+			this.groupBox1.Controls.Add(this.cbLogSuccesses);
 			this.groupBox1.Controls.Add(this.cbLogFailures);
 			this.groupBox1.Controls.Add(this.cbPreferIpv4);
 			this.groupBox1.Controls.Add(this.cbLastPing);
@@ -618,6 +620,19 @@
 			this.selectPingsPerSecond.TabIndex = 5;
 			this.selectPingsPerSecond.SelectedIndexChanged += new System.EventHandler(this.selectPingsPerSecond_SelectedIndexChanged);
 			// 
+			// cbLogSuccesses
+			// 
+			this.cbLogSuccesses.AutoSize = true;
+			this.cbLogSuccesses.Checked = true;
+			this.cbLogSuccesses.CheckState = System.Windows.Forms.CheckState.Checked;
+			this.cbLogSuccesses.Location = new System.Drawing.Point(336, 0);
+			this.cbLogSuccesses.Name = "cbLogSuccesses";
+			this.cbLogSuccesses.Size = new System.Drawing.Size(99, 17);
+			this.cbLogSuccesses.TabIndex = 25;
+			this.cbLogSuccesses.Text = "Log Successes";
+			this.cbLogSuccesses.UseVisualStyleBackColor = true;
+			this.cbLogSuccesses.CheckedChanged += new System.EventHandler(this.cbLogSuccesses_CheckedChanged);
+			// 
 			// MainForm
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -713,6 +728,7 @@
 		private System.Windows.Forms.CheckBox cbLogFailures;
 		public System.Windows.Forms.CheckBox cbPreferIpv4;
 		private System.Windows.Forms.MenuItem menuItem_resetWindowSize;
+		private System.Windows.Forms.CheckBox cbLogSuccesses;
 	}
 }
 

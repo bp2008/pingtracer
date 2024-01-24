@@ -29,6 +29,7 @@ namespace PingTracer.Tracer
 		public int worseThreshold = 200;
 		public bool preferIpv4 = true;
 		public bool logFailures = true;
+		public bool logSuccesses = false;
 
 		public override bool Equals(object other)
 		{
