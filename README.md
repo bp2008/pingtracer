@@ -32,3 +32,27 @@ Page Up/Down | -/+ | move one page width to the left/right
 
 
 
+## Command-Line arguments
+```
+Arguments:
+    -h <value>
+        Load a saved configuration with Display Name or Host field matching <value>.
+        If a matching configuration is not found, one will be created.
+    -4
+        (Use with -h) This indicates the "Prefer IPv4" checkbox must be checked.
+    -6
+        (Use with -h) This indicates the "Prefer IPv4" checkbox must be unchecked.
+    -t0
+        (Use with -h) This indicates the "Trace Route" checkbox must be unchecked.
+    -t1
+        (Use with -h) This indicates the "Trace Route" checkbox must be checked.
+    -l x,y,w,h
+        The window will be moved to the specified location and size.
+        "w" and "h" parameters are optional.
+    -s
+        Pinging will begin automatically.
+    -m
+        The ping graphs will be maximized.
+```
+
+See the latest command line arguments in-app with a usage example via Ping Tracer's `Tools` > `Command Line Arguments`.
