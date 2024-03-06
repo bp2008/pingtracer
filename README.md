@@ -56,3 +56,8 @@ Arguments:
 ```
 
 See the latest command line arguments in-app with a usage example via Ping Tracer's `Tools` > `Command Line Arguments`.
+
+
+## Building from source
+
+PingTracer (as of version 1.17) is a relatively simple C# and Windows Forms app with no third-party dependencies except .NET Framework 4.6.2.  You should have no trouble building it in a standard installation of Visual Studio Community Edition.
