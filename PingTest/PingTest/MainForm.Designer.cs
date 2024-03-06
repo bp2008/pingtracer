@@ -63,6 +63,7 @@
 			this.cbLastPing = new System.Windows.Forms.CheckBox();
 			this.cbPreferIpv4 = new System.Windows.Forms.CheckBox();
 			this.groupBox1 = new System.Windows.Forms.GroupBox();
+			this.cbLogSuccesses = new System.Windows.Forms.CheckBox();
 			this.cbLogFailures = new System.Windows.Forms.CheckBox();
 			this.mainMenu1 = new System.Windows.Forms.MainMenu(this.components);
 			this.menuItem6 = new System.Windows.Forms.MenuItem();
@@ -76,7 +77,6 @@
 			this.menuItem_CommandLineArgs = new System.Windows.Forms.MenuItem();
 			this.menuItem_resetWindowSize = new System.Windows.Forms.MenuItem();
 			this.selectPingsPerSecond = new System.Windows.Forms.ComboBox();
-			this.cbLogSuccesses = new System.Windows.Forms.CheckBox();
 			((System.ComponentModel.ISupportInitialize)(this.nudPingsPerSecond)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
 			this.splitContainer1.Panel1.SuspendLayout();
@@ -520,6 +520,19 @@
 			this.groupBox1.TabStop = false;
 			this.groupBox1.Text = "Graph Options:";
 			// 
+			// cbLogSuccesses
+			// 
+			this.cbLogSuccesses.AutoSize = true;
+			this.cbLogSuccesses.Checked = true;
+			this.cbLogSuccesses.CheckState = System.Windows.Forms.CheckState.Checked;
+			this.cbLogSuccesses.Location = new System.Drawing.Point(336, 0);
+			this.cbLogSuccesses.Name = "cbLogSuccesses";
+			this.cbLogSuccesses.Size = new System.Drawing.Size(99, 17);
+			this.cbLogSuccesses.TabIndex = 25;
+			this.cbLogSuccesses.Text = "Log Successes";
+			this.cbLogSuccesses.UseVisualStyleBackColor = true;
+			this.cbLogSuccesses.CheckedChanged += new System.EventHandler(this.cbLogSuccesses_CheckedChanged);
+			// 
 			// cbLogFailures
 			// 
 			this.cbLogFailures.AutoSize = true;
@@ -620,19 +633,6 @@
 			this.selectPingsPerSecond.TabIndex = 5;
 			this.selectPingsPerSecond.SelectedIndexChanged += new System.EventHandler(this.selectPingsPerSecond_SelectedIndexChanged);
 			// 
-			// cbLogSuccesses
-			// 
-			this.cbLogSuccesses.AutoSize = true;
-			this.cbLogSuccesses.Checked = true;
-			this.cbLogSuccesses.CheckState = System.Windows.Forms.CheckState.Checked;
-			this.cbLogSuccesses.Location = new System.Drawing.Point(336, 0);
-			this.cbLogSuccesses.Name = "cbLogSuccesses";
-			this.cbLogSuccesses.Size = new System.Drawing.Size(99, 17);
-			this.cbLogSuccesses.TabIndex = 25;
-			this.cbLogSuccesses.Text = "Log Successes";
-			this.cbLogSuccesses.UseVisualStyleBackColor = true;
-			this.cbLogSuccesses.CheckedChanged += new System.EventHandler(this.cbLogSuccesses_CheckedChanged);
-			// 
 			// MainForm
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -693,7 +693,6 @@
 		private System.Windows.Forms.Label label7;
 		private System.Windows.Forms.SplitContainer splitContainer1;
 		private System.Windows.Forms.Label lblHoveredPingStatus;
-		private System.Windows.Forms.CheckBox cbTraceroute;
 		private System.Windows.Forms.Panel panel_Graphs;
 		private System.Windows.Forms.Label label5;
 		private System.Windows.Forms.CheckBox cbAlwaysShowServerNames;
@@ -729,6 +728,7 @@
 		public System.Windows.Forms.CheckBox cbPreferIpv4;
 		private System.Windows.Forms.MenuItem menuItem_resetWindowSize;
 		private System.Windows.Forms.CheckBox cbLogSuccesses;
+		public System.Windows.Forms.CheckBox cbTraceroute;
 	}
 }
 

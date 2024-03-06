@@ -153,16 +153,35 @@ namespace PingTracer
 				if (options.StartupHostName != null)
 				{
 					// Attempt to find the given hostname from the startup options.
-					// First, attempt to honor the argued IPv4/IPv6 preference.
-					item = settings.hostHistory.FirstOrDefault(h => h.displayName == options.StartupHostName && h.preferIpv4 != options.PreferIPv6);
+					item = settings.hostHistory.FirstOrDefault(h => h.displayName == options.StartupHostName && _hostMatchesOptions(h, options));
 					if (item == null)
-						item = settings.hostHistory.FirstOrDefault(h => h.host == options.StartupHostName && h.preferIpv4 != options.PreferIPv6);
+						item = settings.hostHistory.FirstOrDefault(h => h.host == options.StartupHostName && _hostMatchesOptions(h, options));
 
-					// Then attempt to match regardless of IPv4/IPv6 preference.
 					if (item == null)
-						item = settings.hostHistory.FirstOrDefault(h => h.displayName == options.StartupHostName);
-					if (item == null)
-						item = settings.hostHistory.FirstOrDefault(h => h.host == options.StartupHostName);
+					{
+						// Create a new profile.
+						// Base it on a displayName-only match.
+						if (item == null)
+							item = settings.hostHistory.FirstOrDefault(h => h.displayName == options.StartupHostName);
+						// Base it on a host-only match.
+						if (item == null)
+							item = settings.hostHistory.FirstOrDefault(h => h.host == options.StartupHostName);
+						// Base it on the most recently accessed configuration
+						if (item == null)
+							item = settings.hostHistory.FirstOrDefault();
+						if (item != null)
+							LoadProfileIntoUI(item);
+
+						HostSettings newHS = NewHostSettingsFromUi();
+						newHS.host = options.StartupHostName;
+						newHS.displayName = "";
+						if (options.PreferIPv6 != BoolOverride.Inherit)
+							newHS.preferIpv4 = options.PreferIPv6 == BoolOverride.False;
+						if (options.TraceRoute != BoolOverride.Inherit)
+							newHS.doTraceRoute = options.TraceRoute == BoolOverride.True;
+						settings.hostHistory.Add(newHS);
+						item = newHS;
+					}
 				}
 				if (item == null)
 					item = settings.hostHistory.FirstOrDefault();
@@ -205,6 +224,12 @@ namespace PingTracer
 
 			this.Move += MainForm_MoveOrResize;
 			this.Resize += MainForm_MoveOrResize;
+		}
+
+		private bool _hostMatchesOptions(HostSettings h, StartupOptions options)
+		{
+			return (options.PreferIPv6 == BoolOverride.Inherit || h.preferIpv4 == (options.PreferIPv6 == BoolOverride.False))
+				&& (options.TraceRoute == BoolOverride.Inherit || h.doTraceRoute == (options.TraceRoute == BoolOverride.True));
 		}
 
 		/// <summary>
@@ -337,6 +362,11 @@ namespace PingTracer
 			try
 			{
 				string[] addresses = host.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+				if (addresses.Length == 0)
+				{
+					CreateLogEntry("(" + GetTimestamp(DateTime.Now) + "): Unable to start pinging because the host input is empty.");
+					return;
+				}
 				target = StringToIp(addresses[0], preferIpv4);
 				currentIPAddress = target.ToString();
 				CreateLogEntry("(" + GetTimestamp(DateTime.Now) + "): Initializing pings to " + host);
@@ -456,7 +486,8 @@ namespace PingTracer
 			}
 			finally
 			{
-				CreateLogEntry("(" + GetTimestamp(DateTime.Now) + "): Shutting down pings to " + host);
+				if (!string.IsNullOrEmpty(host))
+					CreateLogEntry("(" + GetTimestamp(DateTime.Now) + "): Shutting down pings to " + host);
 				if (isRunning)
 					btnStart_Click(btnStart, new EventArgs());
 			}
@@ -895,6 +926,7 @@ namespace PingTracer
 		private void cbTraceroute_CheckedChanged(object sender, EventArgs e)
 		{
 			SaveProfileIfProfileAlreadyExists();
+			SelectedHostChanged.Invoke(sender, e);
 		}
 
 		private void cbReverseDNS_CheckedChanged(object sender, EventArgs e)
@@ -1189,13 +1221,8 @@ namespace PingTracer
 				}
 			}
 		}
-		/// <summary>
-		/// Adds the current profile to the profile list and saves it to disk. Only if the host field is defined.
-		/// </summary>
-		private void SaveProfileFromUI()
+		private HostSettings NewHostSettingsFromUi()
 		{
-			if (DateTime.Now < suppressHostSettingsSaveUntil)
-				return;
 			HostSettings p = new HostSettings();
 			p.host = txtHost.Text;
 			p.displayName = txtDisplayName.Text;
@@ -1214,7 +1241,16 @@ namespace PingTracer
 			p.preferIpv4 = cbPreferIpv4.Checked;
 			p.logFailures = LogFailures;
 			p.logSuccesses = LogSuccesses;
-
+			return p;
+		}
+		/// <summary>
+		/// Adds the current profile to the profile list and saves it to disk. Only if the host field is defined.
+		/// </summary>
+		private void SaveProfileFromUI()
+		{
+			if (DateTime.Now < suppressHostSettingsSaveUntil)
+				return;
+			HostSettings p = NewHostSettingsFromUi();
 			if (!string.IsNullOrWhiteSpace(p.host))
 			{
 				lock (settings.hostHistory)

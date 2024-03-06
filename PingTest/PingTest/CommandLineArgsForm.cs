@@ -59,7 +59,9 @@ namespace PingTracer
 
 			options.MaximizeGraphs = mainForm.graphsMaximized;
 
-			options.PreferIPv6 = !mainForm.cbPreferIpv4.Checked;
+			options.PreferIPv6 = mainForm.cbPreferIpv4.Checked ? BoolOverride.False : BoolOverride.True;
+
+			options.TraceRoute = mainForm.cbTraceroute.Checked ? BoolOverride.True : BoolOverride.False;
 
 			txtArgs.Text = options.ToString();
 		}

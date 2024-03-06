@@ -19,7 +19,7 @@ namespace PingTracer
 		/// <summary>
 		/// If true, the StartupHostName argument will prefer to match a stored configuration that is configured to prefer IPv6.  If false, then IPv4 will be preferred.
 		/// </summary>
-		public bool PreferIPv6 = false;
+		public BoolOverride PreferIPv6 = BoolOverride.Inherit;
 		/// <summary>
 		/// If not null, the window will be positioned here upon application startup.  Width or Height values less than 1 will be ignored.
 		/// </summary>
@@ -27,11 +27,15 @@ namespace PingTracer
 		/// <summary>
 		/// If true, pings will be started automatically upon application startup.
 		/// </summary>
-		public bool StartPinging;
+		public bool StartPinging = false;
 		/// <summary>
 		/// If true, the graphs will be maximized automatically upon application startup.
 		/// </summary>
-		public bool MaximizeGraphs;
+		public bool MaximizeGraphs = false;
+		/// <summary>
+		/// If true, the StartupHostName argument will prefer to match a stored configuration that is configured with the Trace Route option checked.
+		/// </summary>
+		public BoolOverride TraceRoute = BoolOverride.Inherit;
 
 		/// <summary>
 		/// Constructs an empty StartupOptions.
@@ -43,7 +47,7 @@ namespace PingTracer
 		/// <param name="args"></param>
 		public StartupOptions(string[] args)
 		{
-			HashSet<string> flagKeysWithNoValue = new HashSet<string>(new string[] { "-s", "-m", "-6" });
+			HashSet<string> flagKeysWithNoValue = new HashSet<string>(new string[] { "-s", "-m", "-4", "-6", "-t0", "-t1" });
 			Dictionary<string, string> flags = new Dictionary<string, string>();
 			string key = null;
 			for (int i = 0; i < args.Length; i++)
@@ -83,8 +87,14 @@ namespace PingTracer
 				this.StartPinging = true;
 			if (flags.ContainsKey("-m"))
 				this.MaximizeGraphs = true;
+			if (flags.ContainsKey("-4"))
+				this.PreferIPv6 = BoolOverride.False;
 			if (flags.ContainsKey("-6"))
-				this.PreferIPv6 = true;
+				this.PreferIPv6 = BoolOverride.True;
+			if (flags.ContainsKey("-t1"))
+				this.TraceRoute = BoolOverride.True;
+			if (flags.ContainsKey("-t0"))
+				this.TraceRoute = BoolOverride.False;
 		}
 
 		/// <summary>
@@ -112,7 +122,9 @@ namespace PingTracer
 				args.Add("-h");
 				args.Add(StartupHostName);
 			}
-			if (PreferIPv6)
+			if (PreferIPv6 == BoolOverride.False)
+				args.Add("-4");
+			if (PreferIPv6 == BoolOverride.True)
 				args.Add("-6");
 			if (WindowLocation != null)
 			{
@@ -123,6 +135,10 @@ namespace PingTracer
 				args.Add("-s");
 			if (MaximizeGraphs)
 				args.Add("-m");
+			if (TraceRoute == BoolOverride.True)
+				args.Add("-t1");
+			if (TraceRoute == BoolOverride.False)
+				args.Add("-t0");
 			return args.ToArray();
 		}
 
@@ -137,5 +153,11 @@ namespace PingTracer
 			string dqWrap = wrapInDoubleQuotes ? "\"" : "";
 			return dqWrap + str.Replace("\\", "\\\\").Replace("\"", "\\\"") + dqWrap;
 		}
+	}
+	public enum BoolOverride
+	{
+		Inherit,
+		False,
+		True
 	}
 }
