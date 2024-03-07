@@ -2,7 +2,7 @@
 
 Ping Tracer continuously pings each network host between your computer and a given destination, helping identify the source of connectivity problems.
 
-![Ping Tracer](http://i.imgur.com/g5jmH0W.png)
+![image](https://github.com/bp2008/pingtracer/assets/5639911/3eff5b0c-b025-49bb-a149-77b2cb4c55ae)
 
 This program helps to visually determine the origin of connection problems.  The latency over time is shown on graphs, and each instance of packet loss is marked in red.
 
