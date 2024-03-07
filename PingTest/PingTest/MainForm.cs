@@ -267,13 +267,23 @@ namespace PingTracer
 			foreach (Control c in parent.Controls)
 				AddClickHandler(c);
 		}
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="address"></param>
+		/// <param name="preferIpv4"></param>
+		/// <param name="hostName">This gets assigned a copy of [address] if DNS was queried to get the IP address.  Null if the IP was simply parsed from [address].</param>
+		/// <returns></returns>
+		/// <exception cref="Exception"></exception>
 
-		private IPAddress StringToIp(string address, bool preferIpv4)
+		private IPAddress StringToIp(string address, bool preferIpv4, out string hostName)
 		{
-			// Validate IP
+			hostName = null;
+			// Parse IP
 			try
 			{
-				return IPAddress.Parse(address);
+				if (IPAddress.TryParse(address, out IPAddress tmp))
+					return tmp;
 			}
 			catch (FormatException)
 			{
@@ -282,6 +292,7 @@ namespace PingTracer
 			// Try to resolve host name
 			try
 			{
+				hostName = address;
 				IPHostEntry iphe = Dns.GetHostEntry(address);
 				if (preferIpv4)
 				{
@@ -305,18 +316,6 @@ namespace PingTracer
 
 			// Fail
 			throw new Exception("Unable to resolve '" + address + "'");
-		}
-
-		private string GetIpHostname(IPAddress ip)
-		{
-			try
-			{
-				return Dns.GetHostEntry(ip).HostName;
-			}
-			catch (Exception)
-			{
-			}
-			return string.Empty;
 		}
 
 		private void ControllerWorker_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
@@ -361,14 +360,13 @@ namespace PingTracer
 			IPAddress target = null;
 			try
 			{
-				string[] addresses = host.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+				string[] addresses = host.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
 				if (addresses.Length == 0)
 				{
 					CreateLogEntry("(" + GetTimestamp(DateTime.Now) + "): Unable to start pinging because the host input is empty.");
 					return;
 				}
-				target = StringToIp(addresses[0], preferIpv4);
-				currentIPAddress = target.ToString();
+				currentIPAddress = addresses[0];
 				CreateLogEntry("(" + GetTimestamp(DateTime.Now) + "): Initializing pings to " + host);
 
 				// Multiple addresses
@@ -378,29 +376,37 @@ namespace PingTracer
 					clearedDeadHosts = true;
 					foreach (string address in addresses)
 					{
-						IPAddress ip = StringToIp(address.Trim(), preferIpv4);
-						string hostName = reverseDnsLookup ? GetIpHostname(ip) : "";
-						AddPingTarget(ip, hostName);
+						if (self.CancellationPending)
+							break;
+						IPAddress ip = StringToIp(address.Trim(), preferIpv4, out string hostName);
+
+						if (self.CancellationPending)
+							break;
+						AddPingTarget(ip, hostName, reverseDnsLookup);
 					}
 				}
 				// Route
 				else if (traceRoute)
 				{
 					CreateLogEntry("Tracing route ...");
-					foreach (TracertEntry entry in Tracert.Trace(target, 64, 5000, reverseDnsLookup))
+					target = StringToIp(addresses[0], preferIpv4, out string hostName);
+					foreach (TracertEntry entry in Tracert.Trace(target, 64, 5000))
 					{
+						if (self.CancellationPending)
+							break;
 						CreateLogEntry(entry.ToString());
-						AddPingTarget(entry.Address, entry.Hostname);
+						AddPingTarget(entry.Address, null, reverseDnsLookup);
 					}
 				}
 				// Single address
 				else
 				{
-					AddPingTarget(target, host);
+					target = StringToIp(addresses[0], preferIpv4, out string hostName);
+					AddPingTarget(target, hostName, reverseDnsLookup);
 				}
 
 				CreateLogEntry("Now beginning pings");
-				DateTime lastPingAt = DateTime.Now.AddSeconds(-60);
+				Stopwatch sw = null;
 				byte[] buffer = new byte[0];
 
 				long numberOfPingLoopIterations = 0;
@@ -446,15 +452,19 @@ namespace PingTracer
 							Thread.Sleep(100);
 						if (!self.CancellationPending)
 						{
-							int msToWait = (int)(lastPingAt.AddMilliseconds(pingDelay) - DateTime.Now).TotalMilliseconds;
+							int msToWait = sw == null ? 0 : (int)(pingDelay - sw.ElapsedMilliseconds);
 							while (!self.CancellationPending && msToWait > 0)
 							{
 								Thread.Sleep(Math.Min(msToWait, 100));
-								msToWait = (int)(lastPingAt.AddMilliseconds(pingDelay) - DateTime.Now).TotalMilliseconds;
+								msToWait = sw == null ? 0 : (int)(pingDelay - sw.ElapsedMilliseconds);
 							}
 							if (!self.CancellationPending)
 							{
-								lastPingAt = DateTime.Now;
+								if (sw == null)
+									sw = Stopwatch.StartNew();
+								else
+									sw.Restart();
+								DateTime lastPingAt = DateTime.Now;
 								// We can't re-use the same Ping instance because it is only capable of one ping at a time.
 								foreach (KeyValuePair<int, IPAddress> targetMapping in pingTargets)
 								{
@@ -536,34 +546,23 @@ namespace PingTracer
 				UpdatePingCounts(Interlocked.Read(ref successfulPings), Interlocked.Read(ref failedPings));
 			}
 		}
-		private void AddPingTarget(IPAddress ipAddress, string name)
+		private void AddPingTarget(IPAddress ipAddress, string name, bool reverseDnsLookup)
 		{
 			if (ipAddress == null)
 				return;
 			try
 			{
 				if (panel_Graphs.InvokeRequired)
-					panel_Graphs.Invoke((Action<IPAddress, string>)AddPingTarget, ipAddress, name);
+					panel_Graphs.Invoke((Action<IPAddress, string, bool>)AddPingTarget, ipAddress, name, reverseDnsLookup);
 				else
 				{
 					int id = graphSortingCounter++;
-					PingGraphControl graph = new PingGraphControl(this.settings);
+					PingGraphControl graph = new PingGraphControl(this.settings, ipAddress, name, reverseDnsLookup);
 
 					pingTargets.Add(id, ipAddress);
 					pingGraphs.Add(id, graph);
 					ResetGraphTimestamps();
 					pingTargetHasAtLeastOneSuccess.Add(id, false);
-
-					string ipString = ipAddress.ToString();
-					if (!string.IsNullOrEmpty(name))
-					{
-						if (ipString == name)
-							graph.DisplayName = name;
-						else
-							graph.DisplayName = name + " [" + ipString + "]";
-					}
-					else
-						graph.DisplayName = ipString;
 
 					graph.AlwaysShowServerNames = cbAlwaysShowServerNames.Checked;
 					graph.Threshold_Bad = (int)nudBadThreshold.Value;

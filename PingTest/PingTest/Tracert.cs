@@ -21,7 +21,7 @@ namespace PingTracer
 		/// </summary>
 		/// <param name="address">The IP address of the destination.</param>
 		/// <param name="maxHops">Max hops to be returned.</param>
-		public static IEnumerable<TracertEntry> Trace(IPAddress address, int maxHops, int timeout, bool reverseDnsLookup)
+		public static IEnumerable<TracertEntry> Trace(IPAddress address, int maxHops, int timeout)
 		{
 			// Max hops should be at least one or else there won't be any data to return.
 			if (maxHops < 1)
@@ -46,15 +46,6 @@ namespace PingTracer
 				IPAddress replyAddress = reply.Address;
 				if (replyAddress != null && replyAddress.GetAddressBytes().All(b => b == 0))
 					replyAddress = null;
-				string hostname = string.Empty;
-				if (reverseDnsLookup && replyAddress != null)
-				{
-					try
-					{
-						hostname = Dns.GetHostEntry(replyAddress).HostName;    // Retrieve the hostname for the replied address.
-					}
-					catch (SocketException) { /* No host available for that address. */ }
-				}
 				if (reply.Status == IPStatus.TimedOut)
 					consecutiveTimeouts++;
 				else
@@ -64,7 +55,6 @@ namespace PingTracer
 				{
 					HopID = pingOptions.Ttl,
 					Address = replyAddress,
-					Hostname = hostname,
 					ReplyTime = pingReplyTime.ElapsedMilliseconds,
 					ReplyStatus = reply.Status
 				};

@@ -438,9 +438,9 @@
 			this.cbReverseDNS.CheckState = System.Windows.Forms.CheckState.Checked;
 			this.cbReverseDNS.Location = new System.Drawing.Point(362, 33);
 			this.cbReverseDNS.Name = "cbReverseDNS";
-			this.cbReverseDNS.Size = new System.Drawing.Size(161, 17);
+			this.cbReverseDNS.Size = new System.Drawing.Size(131, 17);
 			this.cbReverseDNS.TabIndex = 7;
-			this.cbReverseDNS.Text = "Reverse DNS Lookup (slow)";
+			this.cbReverseDNS.Text = "Reverse DNS Lookup";
 			this.toolTip1.SetToolTip(this.cbReverseDNS, "If checked, reverse DNS lookups are performed on each IP address to find the host" +
         " name.");
 			this.cbReverseDNS.UseVisualStyleBackColor = true;

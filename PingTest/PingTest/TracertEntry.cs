@@ -22,11 +22,6 @@ namespace PingTracer
 		public IPAddress Address { get; set; }
 
 		/// <summary>
-		/// The hostname
-		/// </summary>
-		public string Hostname { get; set; }
-
-		/// <summary>
 		/// The reply time it took for the host to receive and reply to the request in milliseconds.
 		/// </summary>
 		public long ReplyTime { get; set; }
@@ -41,10 +36,8 @@ namespace PingTracer
 			string host;
 			if (Address == null)
 				host = "N/A";
-			else if (string.IsNullOrEmpty(Hostname))
-				host = Address.ToString();
 			else
-				host = Hostname + "[" + Address.ToString() + "]";
+				host = Address.ToString();
 			string status;
 			if (ReplyStatus == IPStatus.TimedOut)
 				status = "Request Timed Out";

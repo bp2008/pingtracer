@@ -8,6 +8,7 @@ using System.Windows.Forms;
 using System.Threading;
 using System.Net.NetworkInformation;
 using System.Linq;
+using System.Net;
 
 namespace PingTracer
 {
@@ -128,12 +129,45 @@ namespace PingTracer
 		/// </summary>
 		private int setLiveAtTime = 0;
 		#endregion
-		public PingGraphControl(Settings settings)
+		public PingGraphControl(Settings settings, IPAddress ipAddress, string hostName, bool reverseDnsLookup)
 		{
 			this.settings = settings;
 			pings = new PingLog[settings.cacheSize];
+			this.DisplayName = ipAddress.ToString();
+			if (string.IsNullOrWhiteSpace(hostName))
+			{
+				if (reverseDnsLookup)
+					ThreadPool.QueueUserWorkItem(LookupHostname, ipAddress);
+			}
+			else
+				ConsumeHostName(hostName);
 			InitializeComponent();
 		}
+
+		private void LookupHostname(object arg)
+		{
+			ConsumeHostName(GetIpHostname((IPAddress)arg));
+		}
+
+		private string GetIpHostname(IPAddress ip)
+		{
+			try
+			{
+				return Dns.GetHostEntry(ip).HostName;
+			}
+			catch (Exception)
+			{
+			}
+			return string.Empty;
+		}
+
+		private void ConsumeHostName(string hostName)
+		{
+			if (string.IsNullOrWhiteSpace(hostName))
+				return;
+			this.DisplayName = hostName + " [" + this.DisplayName + "]";
+		}
+
 		public void AddPingLog(PingLog pingLog)
 		{
 			long newOffset = Interlocked.Increment(ref _nextIndexOffset);
@@ -405,7 +439,7 @@ namespace PingTracer
 				int i = (start + offset) % pings.Length;
 				if (offset <= -pings.Length)
 					return "Out of bounds, Mouse ms: " + GetScaledHeightValue(height - y);
-				else if(i < 0)
+				else if (i < 0)
 					return "No Data Yet, Mouse ms: " + GetScaledHeightValue(height - y);
 				PingLog pingLog = pings[i];
 				if (pingLog == null)
