@@ -12,11 +12,11 @@ I built this program for personal use, and decided to share it for free as an op
 
 Something you should be aware of is that when you attempt to "Graph every node leading to the destination", a trace route operation is performed in order to discover the hosts that will be monitored.
 
-* The trace route operation is not optimized for speed, and will take many seconds to complete in most cases.
+* The trace route operation is not optimized for speed, and will take many seconds to complete if any hosts are unresponsive.
 * The trace route operation attempts to contact each host (a.k.a. network node) only once.  Any host that fails to respond during the trace route operation will not be monitored.
 * The trace route operation is ended if 5 consecutive hosts fail to respond.  This usually indicates that the destination host was already passed by and did not respond to the trace ping.
-* Some hosts respond to the traceroute but do not respond to direct pings.  Technically it would still be possible to monitor these hosts by repeating their part of the traceroute, but I assume this would be against the wishes of the owner of the host.  If the owner wanted their router to be pingable, they would have enabled pinging, no?
-* I let you increase the ping rate as high as 10 pings per second (per host!) which can add up to dozens or even hundreds of pings per second.  This is kind of, sort of, maybe a little bit excessive.  I don't recommend actually running it that high.  In fact 1 ping per second is probably all you need.
+* Some hosts respond to the traceroute but do not respond to direct pings.  Such hosts are removed from monitoring after several seconds.
+* You can increase the ping rate as high as 10 pings per second (per host!) which can add up to dozens or even hundreds of pings per second.  Please use responsibly.
 * Some routers implement [ICMP rate limiting](https://docs.paloaltonetworks.com/pan-os/10-0/pan-os-admin/networking/session-settings-and-timeouts/icmp/icmpv6-rate-limiting.html) in such a way that penalizes rapid pinging.
 
 ## Installation
