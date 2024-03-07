@@ -10,14 +10,14 @@ A common use for such a tool is to monitor your connection to a multiplayer game
 
 I built this program for personal use, and decided to share it for free as an open source project.  As such, it is light on features and polish.
 
-Something you should be aware of is that when you attempt to "Graph every node leading to the destination", a trace route operation is performed in order to discover the hosts that will be monitored.
+Notes about PingTracer's "Trace Route" implementation:
 
 * The trace route operation is not optimized for speed, and will take many seconds to complete if any hosts are unresponsive.
 * The trace route operation attempts to contact each host (a.k.a. network node) only once.  Any host that fails to respond during the trace route operation will not be monitored.
 * The trace route operation is ended if 5 consecutive hosts fail to respond.  This usually indicates that the destination host was already passed by and did not respond to the trace ping.
 * Some hosts respond to the traceroute but do not respond to direct pings.  Such hosts are removed from monitoring after several seconds.
 * You can increase the ping rate as high as 10 pings per second (per host!) which can add up to dozens or even hundreds of pings per second.  Please use responsibly.
-* Some routers implement [ICMP rate limiting](https://docs.paloaltonetworks.com/pan-os/10-0/pan-os-admin/networking/session-settings-and-timeouts/icmp/icmpv6-rate-limiting.html) in such a way that penalizes rapid pinging.
+* Some routers implement [ICMP rate limiting](https://docs.paloaltonetworks.com/pan-os/10-0/pan-os-admin/networking/session-settings-and-timeouts/icmp/icmpv6-rate-limiting.html) in such a way that penalizes rapid pinging.  Therefore, with higher ping rates you may see increased packet loss which is not representative of actual network performance.
 
 ## Installation
 
