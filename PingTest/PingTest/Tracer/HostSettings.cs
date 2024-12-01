@@ -53,7 +53,7 @@ namespace PingTracer.Tracer
 					&& lowerLimit == o.lowerLimit
 					&& upperLimit == o.upperLimit
 					&& autoScale == o.autoScale
-					&& autoScaleLimit = o.autoScaleLimit
+					&& autoScaleLimit == o.autoScaleLimit
 					&& preferIpv4 == o.preferIpv4;
 			}
 			return false;
