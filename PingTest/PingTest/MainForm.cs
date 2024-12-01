@@ -1413,34 +1413,13 @@ namespace PingTracer
 			this.Size = defaultWindowSize;
 		}
 
-		private void ApplyScalePreset()
+		private void ApplyScalePreset() 
 		{
-			if (cbAutoScale.Checked)
-			{
-				cbAutoScaleLimit.Enabled = true;
-				if (cbAutoScaleLimit.Checked)
-				{
-					nudUpLimit.Enabled = true;
-					nudLowLimit.Enabled = true;
-					label3.Enabled = true;
-					label10.Enabled = true;
-				}
-				else
-				{
-					nudUpLimit.Enabled = false;
-					nudLowLimit.Enabled = false;
-					label3.Enabled = false;
-					label10.Enabled = false;
-				}
-			}
-			else
-			{
-				cbAutoScaleLimit.Enabled = false;
-				nudUpLimit.Enabled = true;
-				nudLowLimit.Enabled = true;
-				label3.Enabled = true;
-				label10.Enabled = true;
-			}
+		    bool autoScale = cbAutoScale.Checked;
+		    bool autoScaleLimit = autoScale && cbAutoScaleLimit.Checked;
+		
+		    cbAutoScaleLimit.Enabled = autoScale;
+		    nudUpLimit.Enabled = nudLowLimit.Enabled = label3.Enabled = label10.Enabled = !autoScale || autoScaleLimit;
 		}
   
 		private void cbAutoScale_CheckedChanged(object sender, EventArgs e)
