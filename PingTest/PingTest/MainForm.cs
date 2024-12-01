@@ -567,6 +567,10 @@ namespace PingTracer
 					graph.AlwaysShowServerNames = cbAlwaysShowServerNames.Checked;
 					graph.Threshold_Bad = (int)nudBadThreshold.Value;
 					graph.Threshold_Worse = (int)nudWorseThreshold.Value;
+					graph.upperLimit = (int)nudUpLimit.Value;
+					graph.lowerLimit = (int)nudLowLimit.Value;
+					graph.AutoScale = cbAutoScale.Checked;
+					graph.AutoScaleLimit = cbAutoScaleLimit.Checked;
 					graph.ShowLastPing = cbLastPing.Checked;
 					graph.ShowAverage = cbAverage.Checked;
 					graph.ShowJitter = cbJitter.Checked;
@@ -838,7 +842,48 @@ namespace PingTracer
 			}
 		}
 
-
+		private void nudUpLimit_ValueChanged(object sender, EventArgs e)
+		{
+			if (nudUpLimit.Value < nudLowLimit.Value)
+				nudUpLimit.Value = nudLowLimit.Value;
+			SaveProfileIfProfileAlreadyExists();
+			if (nudUpLimit.Value == 0)
+			{
+				cbAutoScaleLimit.Checked = false;
+			}
+			try
+			{
+				IList<PingGraphControl> graphs = pingGraphs.Values;
+				foreach (PingGraphControl graph in graphs)
+				{
+					graph.upperLimit = (int)nudUpLimit.Value;
+					graph.Invalidate();
+				}
+			}
+			catch (Exception)
+			{
+			}
+		}
+  
+		private void nudLowLimit_ValueChanged(object sender, EventArgs e)
+		{
+			if (nudLowLimit.Value > nudUpLimit.Value)
+				nudLowLimit.Value = nudUpLimit.Value;
+			SaveProfileIfProfileAlreadyExists();
+			try
+			{
+				IList<PingGraphControl> graphs = pingGraphs.Values;
+				foreach (PingGraphControl graph in graphs)
+				{
+					graph.lowerLimit = (int)nudLowLimit.Value;
+					graph.Invalidate();
+				}
+			}
+			catch (Exception)
+			{
+			}
+		}
+  
 		private void cbLastPing_CheckedChanged(object sender, EventArgs e)
 		{
 			SaveProfileIfProfileAlreadyExists();
@@ -1104,7 +1149,8 @@ namespace PingTracer
 				panelForm.Controls.Add(panel_Graphs);
 				panel_Graphs.Dock = DockStyle.Fill;
 				panelForm.Show();
-				panelForm.SetBounds(this.Left, this.Top, this.Width, this.Height);
+				//panelForm.SetBounds(this.Left, this.Top, this.Width, this.Height);
+    				panelForm.SetBounds(this.Left+7, this.Top, this.Width-14, this.Height-7);
 				this.Hide();
 				MaximizeGraphsChanged.Invoke(this, EventArgs.Empty);
 			}
@@ -1167,6 +1213,10 @@ namespace PingTracer
 			cbPacketLoss.Checked = hs.drawPacketLoss;
 			nudBadThreshold.Value = hs.badThreshold;
 			nudWorseThreshold.Value = hs.worseThreshold;
+			nudUpLimit.Value = hs.upperLimit;
+			nudLowLimit.Value = hs.lowerLimit;
+			cbAutoScale.Checked = hs.autoScale;
+			cbAutoScaleLimit.Checked = hs.autoScaleLimit;
 			cbPreferIpv4.Checked = hs.preferIpv4;
 			LogFailures = hs.logFailures;
 			LogSuccesses = hs.logSuccesses;
