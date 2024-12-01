@@ -27,6 +27,10 @@ namespace PingTracer.Tracer
 		public bool drawPacketLoss = true;
 		public int badThreshold = 100;
 		public int worseThreshold = 200;
+		public int upperLimit = 0;
+		public int lowerLimit = 0;
+		public bool autoScale = false;
+		public bool autoScaleLimit = false;
 		public bool preferIpv4 = true;
 		public bool logFailures = true;
 		public bool logSuccesses = false;
