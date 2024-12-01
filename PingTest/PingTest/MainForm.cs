@@ -1403,9 +1403,51 @@ namespace PingTracer
 				lblFailed.Text = (int.Parse(lblFailed.Text) + 1).ToString();
 			}
 		}
+  
 		private void menuItem_resetWindowSize_Click(object sender, EventArgs e)
 		{
 			this.Size = defaultWindowSize;
 		}
-	}
+  
+		private void cbAutoScale_CheckedChanged(object sender, EventArgs e)
+		{
+			SaveProfileIfProfileAlreadyExists();
+			try
+			{
+				IList<PingGraphControl> graphs = pingGraphs.Values;
+				foreach (PingGraphControl graph in graphs)
+				{
+					graph.AutoScale = cbAutoScale.Checked;
+					graph.Invalidate();
+				}
+			}
+			catch (Exception)
+			{
+			}
+		}
+
+		private void cbAutoScaleLimit_CheckedChanged(object sender, EventArgs e)
+		{
+			if ((cbAutoScaleLimit.Checked == true) && (nudUpLimit.Value > 0))
+			{
+			}
+			else
+			{
+				cbAutoScaleLimit.Checked = false;
+			}
+			SaveProfileIfProfileAlreadyExists();
+			try
+			{
+				IList<PingGraphControl> graphs = pingGraphs.Values;
+				foreach (PingGraphControl graph in graphs)
+				{
+					graph.AutoScaleLimit = cbAutoScaleLimit.Checked;
+					graph.Invalidate();
+				}
+			}
+			catch (Exception)
+			{
+			}
+		}
+  	}
 }
