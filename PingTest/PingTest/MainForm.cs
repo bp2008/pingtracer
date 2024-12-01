@@ -1287,10 +1287,10 @@ namespace PingTracer
 			p.drawPacketLoss = cbPacketLoss.Checked;
 			p.badThreshold = (int)nudBadThreshold.Value;
 			p.worseThreshold = (int)nudWorseThreshold.Value;
-			p.upperLimit = (int)nudUpLimit;
-			p.lowerLimit = (int)nudLowLimit;
-			p.autoScale = cbAutoScale;
-			p.autoScaleLimit = cbAutoScaleLimit;
+			p.upperLimit = (int)nudUpLimit.Value;
+			p.lowerLimit = (int)nudLowLimit.Value;
+			p.autoScale = cbAutoScale.Checked;
+			p.autoScaleLimit = cbAutoScaleLimit.Checked;
 			p.preferIpv4 = cbPreferIpv4.Checked;
 			p.logFailures = LogFailures;
 			p.logSuccesses = LogSuccesses;
