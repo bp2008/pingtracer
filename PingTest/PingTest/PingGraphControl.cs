@@ -441,7 +441,7 @@ namespace PingTracer
 
 			e.Graphics.DrawString(statusStr, textFont, brushText, 1, 1);
 		}
-  
+
 		private void PingGraphControl_Resize(object sender, EventArgs e)
 		{
 			this.Invalidate();
