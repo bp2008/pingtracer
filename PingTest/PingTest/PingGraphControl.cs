@@ -391,6 +391,11 @@ namespace PingTracer
 				}
 			}
 
+			if (count <= 0 && Interlocked.Read(ref _nextIndexOffset) != -1)
+				timelineOverlayString += "The graph begins " + -count + " lines to the right. ";
+			else if (scrollXOffset == 0 && Math.Abs(setLiveAtTime - Environment.TickCount) < 1000)
+				timelineOverlayString += "The graph is now displaying live data. ";
+
 			// Overlay logic remains unchanged
 			if (timelineOverlayString.Length > 0)
 			{
