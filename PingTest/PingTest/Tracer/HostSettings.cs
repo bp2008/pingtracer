@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -50,13 +50,17 @@ namespace PingTracer.Tracer
 					&& drawPacketLoss == o.drawPacketLoss
 					&& badThreshold == o.badThreshold
 					&& worseThreshold == o.worseThreshold
+					&& lowerLimit == o.lowerLimit
+					&& upperLimit == o.upperLimit
+					&& autoScale == o.autoScale
+					&& autoScaleLimit = o.autoScaleLimit
 					&& preferIpv4 == o.preferIpv4;
 			}
 			return false;
 		}
 		public override int GetHashCode()
 		{
-			return host.GetHashCode() ^ rate.GetHashCode() ^ badThreshold.GetHashCode() ^ worseThreshold.GetHashCode();
+			return host.GetHashCode() ^ rate.GetHashCode() ^ badThreshold.GetHashCode() ^ worseThreshold.GetHashCode() ^ lowerLimit.GetHashCode() ^ upperLimit.GetHashCode();
 		}
 	}
 }
