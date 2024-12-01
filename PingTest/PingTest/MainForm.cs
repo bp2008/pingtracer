@@ -844,8 +844,8 @@ namespace PingTracer
 
 		private void nudUpLimit_ValueChanged(object sender, EventArgs e)
 		{
-			if (nudUpLimit.Value < nudLowLimit.Value)
-				nudUpLimit.Value = nudLowLimit.Value;
+			if (nudUpLimit.Value <= nudLowLimit.Value)
+				nudUpLimit.Value = nudUpLimit.Value + 1;
 			SaveProfileIfProfileAlreadyExists();
 			if (nudUpLimit.Value == 0)
 			{
@@ -867,8 +867,8 @@ namespace PingTracer
   
 		private void nudLowLimit_ValueChanged(object sender, EventArgs e)
 		{
-			if (nudLowLimit.Value > nudUpLimit.Value)
-				nudLowLimit.Value = nudUpLimit.Value;
+			if (nudLowLimit.Value >= nudUpLimit.Value)
+				nudLowLimit.Value = nudLowLimit.Value - 1;
 			SaveProfileIfProfileAlreadyExists();
 			try
 			{
