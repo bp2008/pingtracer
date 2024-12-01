@@ -243,7 +243,7 @@ namespace PingTracer
 			this.panel_Graphs.Controls.Add(this.label5);
 			this.panel_Graphs.Location = new System.Drawing.Point(0, 0);
 			this.panel_Graphs.Name = "panel_Graphs";
-			this.panel_Graphs.Size = new System.Drawing.Size(629, 312);
+			this.panel_Graphs.Size = new System.Drawing.Size(768, 312);
 			this.panel_Graphs.TabIndex = 16;
 			this.panel_Graphs.Click += new System.EventHandler(this.panel_Graphs_Click);
 			this.panel_Graphs.Resize += new System.EventHandler(this.panel_Graphs_Resize);
