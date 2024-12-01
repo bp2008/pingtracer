@@ -310,14 +310,11 @@ namespace PingTracer
 				}
 			}
 
-			// Scaling for the graph
 			vScale = (double)height / (upperLimitDraw - lowerLimitDraw);
 
-			// Calculate thresholds based on the scale
 			int scaledBadLine = (int)((Threshold_Bad - lowerLimitDraw) * vScale);
 			int scaledWorseLine = (int)((Threshold_Worse - lowerLimitDraw) * vScale);
 
-			// Draw background regions for thresholds
 			if (scaledWorseLine < height)
 				e.Graphics.FillRectangle(brushBackgroundWorse, new Rectangle(0, 0, this.Width, height - scaledWorseLine));
 			if (scaledBadLine < height)
@@ -353,7 +350,6 @@ namespace PingTracer
 						else
 							pen = penSuccessWorse;
 
-						// Adjust the Y-coordinate to fit within the fixed range
 						pStart.Y = (int)(height - ((p.pingTime - lowerLimitDraw) * vScale));
 					}
 					else
