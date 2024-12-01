@@ -397,7 +397,6 @@ namespace PingTracer
 			else if (scrollXOffset == 0 && Math.Abs(setLiveAtTime - Environment.TickCount) < 1000)
 				timelineOverlayString += "The graph is now displaying live data. ";
 
-			// Overlay logic remains unchanged
 			if (timelineOverlayString.Length > 0)
 			{
 				SizeF strSize = e.Graphics.MeasureString(timelineOverlayString, textFont);
