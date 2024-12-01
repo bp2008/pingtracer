@@ -298,14 +298,14 @@ namespace PingTracer
 					lowerLimitDraw = 0;
 				}
 				else
-                {
+				{
 					lowerLimitDraw = lowerLimit;
 				}
 				if (upperLimit == 0) { 
 					upperLimitDraw = 200;
 				}
 				else
-                {
+				{
 					upperLimitDraw = upperLimit;
 				}
 			}
