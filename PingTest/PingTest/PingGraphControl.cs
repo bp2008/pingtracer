@@ -325,6 +325,7 @@ namespace PingTracer
 
 			if (showTimestampsThisTime)
 				e.Graphics.DrawLine(penTimestampsBorder, new Point(0, height), new Point(this.Width - 1, height));
+    			//	e.Graphics.FillRectangle(brushBackgroundTimestamps, new Rectangle(0, this.Height - timestampsHeight, this.Width, timestampsHeight));
 
 			Point pStart = new Point(this.Width - count, height - 1);
 			Point pEnd = new Point(this.Width - count, height - 1);
@@ -370,7 +371,7 @@ namespace PingTracer
 						{
 							if (settings.showDateOnGraphTimeline && lastStampedMinute == -1)
 								timelineOverlayString += p.startTime.ToString("yyyy-M-d ");
-							if (p.startTime.Second < 2)
+							if (p.startTime.Second < 2) // Only draw the line if this is close to the actual moment the minute struck.
 								e.Graphics.DrawLine(penTimestampsMark, pTimestampMarkStart, pTimestampMarkEnd);
 
 							string stamp = p.startTime.ToString("t");
@@ -396,7 +397,6 @@ namespace PingTracer
 			else if (scrollXOffset == 0 && Math.Abs(setLiveAtTime - Environment.TickCount) < 1000)
 				timelineOverlayString += "The graph is now displaying live data. ";
 
-			// Overlay logic remains unchanged
 			if (timelineOverlayString.Length > 0)
 			{
 				SizeF strSize = e.Graphics.MeasureString(timelineOverlayString, textFont);
