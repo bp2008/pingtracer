@@ -370,7 +370,7 @@ namespace PingTracer
 						{
 							if (settings.showDateOnGraphTimeline && lastStampedMinute == -1)
 								timelineOverlayString += p.startTime.ToString("yyyy-M-d ");
-							if (p.startTime.Second < 2)
+							if (p.startTime.Second < 2) // Only draw the line if this is close to the actual moment the minute struck.
 								e.Graphics.DrawLine(penTimestampsMark, pTimestampMarkStart, pTimestampMarkEnd);
 
 							string stamp = p.startTime.ToString("t");
