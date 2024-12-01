@@ -260,7 +260,7 @@ namespace PingTracer
 			this.label5.Size = new System.Drawing.Size(763, 91);
 			this.label5.TabIndex = 0;
 			this.label5.Text = "Ping response graphs will appear here. \r\n\r\nTry clicking the graph(s) after you ac" +
-    "tivate ping tracing.";
+	"tivate ping tracing.";
 			this.label5.TextAlign = System.Drawing.ContentAlignment.TopCenter;
 			// 
 			// lblHoveredPingStatus
@@ -271,7 +271,7 @@ namespace PingTracer
 			this.lblHoveredPingStatus.Name = "lblHoveredPingStatus";
 			this.lblHoveredPingStatus.Size = new System.Drawing.Size(19, 13);
 			this.lblHoveredPingStatus.TabIndex = 13;
-			this.lblHoveredPingStatus.Text = "    ";
+			this.lblHoveredPingStatus.Text = "	";
 			// 
 			// cbTraceroute
 			// 
@@ -589,6 +589,7 @@ namespace PingTracer
 			// cbAutoScaleLimit
 			// 
 			this.cbAutoScaleLimit.AutoSize = true;
+			this.cbAutoScaleLimit.Enabled = false;
 			this.cbAutoScaleLimit.Location = new System.Drawing.Point(626, 44);
 			this.cbAutoScaleLimit.Name = "cbAutoScaleLimit";
 			this.cbAutoScaleLimit.Size = new System.Drawing.Size(112, 17);
@@ -782,7 +783,6 @@ namespace PingTracer
 			this.groupBox1.PerformLayout();
 			this.ResumeLayout(false);
 			this.PerformLayout();
-
 		}
 
 		#endregion
