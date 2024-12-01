@@ -446,6 +446,8 @@ namespace PingTracer
 				statusStr += DisplayName + " ";
 
 			e.Graphics.DrawString(statusStr, textFont, brushText, 1, 1);
+			//SizeF measuredSize = e.Graphics.MeasureString(statusStr, textFont);
+			//e.Graphics.DrawString(statusStr, textFont, brushText, (this.Width - measuredSize.Width) - 15, 1);
 		}
 
 		private void PingGraphControl_Resize(object sender, EventArgs e)
