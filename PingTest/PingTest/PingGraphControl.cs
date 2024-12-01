@@ -325,6 +325,7 @@ namespace PingTracer
 
 			if (showTimestampsThisTime)
 				e.Graphics.DrawLine(penTimestampsBorder, new Point(0, height), new Point(this.Width - 1, height));
+			//	e.Graphics.FillRectangle(brushBackgroundTimestamps, new Rectangle(0, this.Height - timestampsHeight, this.Width, timestampsHeight));
 
 			Point pStart = new Point(this.Width - count, height - 1);
 			Point pEnd = new Point(this.Width - count, height - 1);
