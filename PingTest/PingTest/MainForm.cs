@@ -567,6 +567,10 @@ namespace PingTracer
 					graph.AlwaysShowServerNames = cbAlwaysShowServerNames.Checked;
 					graph.Threshold_Bad = (int)nudBadThreshold.Value;
 					graph.Threshold_Worse = (int)nudWorseThreshold.Value;
+					graph.upperLimit = (int)nudUpLimit.Value;
+					graph.lowerLimit = (int)nudLowLimit.Value;
+					graph.AutoScale = cbAutoScale.Checked;
+					graph.AutoScaleLimit = cbAutoScaleLimit.Checked;
 					graph.ShowLastPing = cbLastPing.Checked;
 					graph.ShowAverage = cbAverage.Checked;
 					graph.ShowJitter = cbJitter.Checked;
@@ -838,7 +842,48 @@ namespace PingTracer
 			}
 		}
 
-
+		private void nudUpLimit_ValueChanged(object sender, EventArgs e)
+		{
+			if (nudUpLimit.Value <= nudLowLimit.Value)
+				nudUpLimit.Value = nudUpLimit.Value + 1;
+			SaveProfileIfProfileAlreadyExists();
+			if (nudUpLimit.Value == 0)
+			{
+				cbAutoScaleLimit.Checked = false;
+			}
+			try
+			{
+				IList<PingGraphControl> graphs = pingGraphs.Values;
+				foreach (PingGraphControl graph in graphs)
+				{
+					graph.upperLimit = (int)nudUpLimit.Value;
+					graph.Invalidate();
+				}
+			}
+			catch (Exception)
+			{
+			}
+		}
+  
+		private void nudLowLimit_ValueChanged(object sender, EventArgs e)
+		{
+			if (nudLowLimit.Value >= nudUpLimit.Value)
+				nudLowLimit.Value = nudLowLimit.Value - 1;
+			SaveProfileIfProfileAlreadyExists();
+			try
+			{
+				IList<PingGraphControl> graphs = pingGraphs.Values;
+				foreach (PingGraphControl graph in graphs)
+				{
+					graph.lowerLimit = (int)nudLowLimit.Value;
+					graph.Invalidate();
+				}
+			}
+			catch (Exception)
+			{
+			}
+		}
+  
 		private void cbLastPing_CheckedChanged(object sender, EventArgs e)
 		{
 			SaveProfileIfProfileAlreadyExists();
@@ -1104,7 +1149,8 @@ namespace PingTracer
 				panelForm.Controls.Add(panel_Graphs);
 				panel_Graphs.Dock = DockStyle.Fill;
 				panelForm.Show();
-				panelForm.SetBounds(this.Left, this.Top, this.Width, this.Height);
+				//panelForm.SetBounds(this.Left, this.Top, this.Width, this.Height);
+    				panelForm.SetBounds(this.Left+7, this.Top, this.Width-14, this.Height-7);
 				this.Hide();
 				MaximizeGraphsChanged.Invoke(this, EventArgs.Empty);
 			}
@@ -1167,6 +1213,10 @@ namespace PingTracer
 			cbPacketLoss.Checked = hs.drawPacketLoss;
 			nudBadThreshold.Value = hs.badThreshold;
 			nudWorseThreshold.Value = hs.worseThreshold;
+			nudUpLimit.Value = hs.upperLimit;
+			nudLowLimit.Value = hs.lowerLimit;
+			cbAutoScale.Checked = hs.autoScale;
+			cbAutoScaleLimit.Checked = hs.autoScaleLimit;
 			cbPreferIpv4.Checked = hs.preferIpv4;
 			LogFailures = hs.logFailures;
 			LogSuccesses = hs.logSuccesses;
@@ -1237,6 +1287,10 @@ namespace PingTracer
 			p.drawPacketLoss = cbPacketLoss.Checked;
 			p.badThreshold = (int)nudBadThreshold.Value;
 			p.worseThreshold = (int)nudWorseThreshold.Value;
+			p.upperLimit = (int)nudUpLimit.Value;
+			p.lowerLimit = (int)nudLowLimit.Value;
+			p.autoScale = cbAutoScale.Checked;
+			p.autoScaleLimit = cbAutoScaleLimit.Checked;
 			p.preferIpv4 = cbPreferIpv4.Checked;
 			p.logFailures = LogFailures;
 			p.logSuccesses = LogSuccesses;
@@ -1353,9 +1407,62 @@ namespace PingTracer
 				lblFailed.Text = (int.Parse(lblFailed.Text) + 1).ToString();
 			}
 		}
+  
 		private void menuItem_resetWindowSize_Click(object sender, EventArgs e)
 		{
 			this.Size = defaultWindowSize;
 		}
-	}
+
+		private void ApplyScalePreset() 
+		{
+		    bool autoScale = cbAutoScale.Checked;
+		    bool autoScaleLimit = autoScale && cbAutoScaleLimit.Checked;
+		
+		    cbAutoScaleLimit.Enabled = autoScale;
+		    nudUpLimit.Enabled = nudLowLimit.Enabled = label3.Enabled = label10.Enabled = !autoScale || autoScaleLimit;
+		}
+  
+		private void cbAutoScale_CheckedChanged(object sender, EventArgs e)
+		{
+  			ApplyScalePreset();
+			SaveProfileIfProfileAlreadyExists();
+			try
+			{
+				IList<PingGraphControl> graphs = pingGraphs.Values;
+				foreach (PingGraphControl graph in graphs)
+				{
+					graph.AutoScale = cbAutoScale.Checked;
+					graph.Invalidate();
+				}
+			}
+			catch (Exception)
+			{
+			}
+		}
+
+		private void cbAutoScaleLimit_CheckedChanged(object sender, EventArgs e)
+		{
+			if ((cbAutoScaleLimit.Checked == true) && (nudUpLimit.Value > 0))
+			{
+			}
+			else
+			{
+				cbAutoScaleLimit.Checked = false;
+			}
+   			ApplyScalePreset();
+			SaveProfileIfProfileAlreadyExists();
+			try
+			{
+				IList<PingGraphControl> graphs = pingGraphs.Values;
+				foreach (PingGraphControl graph in graphs)
+				{
+					graph.AutoScaleLimit = cbAutoScaleLimit.Checked;
+					graph.Invalidate();
+				}
+			}
+			catch (Exception)
+			{
+			}
+		}
+  	}
 }
