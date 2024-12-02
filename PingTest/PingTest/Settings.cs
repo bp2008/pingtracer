@@ -16,12 +16,16 @@ namespace PingTracer
 		public bool delayMostRecentPing = true;
 		public bool warnGraphNotLive = true;
 		public List<HostSettings> hostHistory = new List<HostSettings>();
-		public int cacheSize = 10000;
+		public int cacheSize = 360000;
 		public bool fastRefreshScrollingGraphs = true;
-		public int graphScrollMultiplier = 1;
+		public int graphScrollMultiplier = 50;
 		public bool showDateOnGraphTimeline = true;
 		public string customTimeStr;
 		public WindowParams lastWindowParams = null;
+		public int osWindowTopMargin = 0;
+		public int osWindowLeftMargin = 7;
+		public int osWindowRightMargin = 7;
+		public int osWindowBottomMargin = 7;
 
 		public bool Save()
 		{

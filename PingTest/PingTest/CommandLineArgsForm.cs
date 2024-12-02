@@ -44,10 +44,16 @@ namespace PingTracer
 		{
 			SetCommandLineArgs();
 		}
-
+		int mT => mainForm.settings.osWindowTopMargin;
+		int mL => mainForm.settings.osWindowLeftMargin;
+		int mR => mainForm.settings.osWindowRightMargin;
+		int mB => mainForm.settings.osWindowBottomMargin;
 		private void SetCommandLineArgs()
 		{
-			options.WindowLocation = new WindowParams(mainForm.Location.X, mainForm.Location.Y, mainForm.Size.Width, mainForm.Size.Height);
+			options.WindowLocation = new WindowParams(mainForm.Location.X + mL,
+				mainForm.Location.Y + mT,
+				mainForm.Size.Width - (mL + mR),
+				mainForm.Size.Height - (mT + mB));
 
 			options.StartupHostName = mainForm.txtDisplayName.Text;
 			if (string.IsNullOrWhiteSpace(options.StartupHostName))

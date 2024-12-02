@@ -25,12 +25,12 @@ namespace PingTracer.Tracer
 		public bool drawJitter = false;
 		public bool drawMinMax = false;
 		public bool drawPacketLoss = true;
+		public bool drawLimitText = false;
 		public int badThreshold = 100;
 		public int worseThreshold = 200;
-		public int upperLimit = 0;
+		public int upperLimit = 300;
 		public int lowerLimit = 0;
-		public bool autoScale = false;
-		public bool autoScaleLimit = false;
+		public int ScalingMethodID = 0;
 		public bool preferIpv4 = true;
 		public bool logFailures = true;
 		public bool logSuccesses = false;
@@ -52,8 +52,7 @@ namespace PingTracer.Tracer
 					&& worseThreshold == o.worseThreshold
 					&& lowerLimit == o.lowerLimit
 					&& upperLimit == o.upperLimit
-					&& autoScale == o.autoScale
-					&& autoScaleLimit == o.autoScaleLimit
+					&& ScalingMethodID == o.ScalingMethodID
 					&& preferIpv4 == o.preferIpv4;
 			}
 			return false;

@@ -187,23 +187,39 @@ namespace PingTracer
 					item = settings.hostHistory.FirstOrDefault();
 				if (item != null)
 					LoadProfileIntoUI(item);
+				else
+				{
+					this.ScalingMethod = GraphScalingMethod.Classic;
+				}
 			}
 			selectPingsPerSecond_SelectedIndexChanged(null, null);
 			AddKeyDownHandler(this);
 			AddClickHandler(this);
 
-			WindowParams wParams = options.WindowLocation;
-			if (wParams == null)
-				wParams = settings.lastWindowParams;
-			if (wParams != null)
+			if (options.WindowLocation != null)
 			{
-				Size s = this.Size;
-				if (wParams.W > 0)
-					s.Width = wParams.W;
-				if (wParams.H > 0)
-					s.Height = wParams.H;
+				WindowParams wp = options.WindowLocation;
 
-				this.Location = new Point(wParams.X, wParams.Y);
+				Size s = this.Size;
+				if (wp.W > 0)
+					s.Width = wp.W + (settings.osWindowLeftMargin + settings.osWindowRightMargin);
+				if (wp.H > 0)
+					s.Height = wp.H + (settings.osWindowTopMargin + settings.osWindowBottomMargin);
+
+				this.Location = new Point(wp.X - settings.osWindowLeftMargin, wp.Y - settings.osWindowTopMargin);
+				this.Size = s;
+			}
+			else if (settings.lastWindowParams != null)
+			{
+				WindowParams wp = settings.lastWindowParams;
+
+				Size s = this.Size;
+				if (wp.W > 0)
+					s.Width = wp.W;
+				if (wp.H > 0)
+					s.Height = wp.H;
+
+				this.Location = new Point(wp.X, wp.Y);
 				this.Size = s;
 			}
 
@@ -569,13 +585,13 @@ namespace PingTracer
 					graph.Threshold_Worse = (int)nudWorseThreshold.Value;
 					graph.upperLimit = (int)nudUpLimit.Value;
 					graph.lowerLimit = (int)nudLowLimit.Value;
-					graph.AutoScale = cbAutoScale.Checked;
-					graph.AutoScaleLimit = cbAutoScaleLimit.Checked;
+					graph.ScalingMethod = ScalingMethod;
 					graph.ShowLastPing = cbLastPing.Checked;
 					graph.ShowAverage = cbAverage.Checked;
 					graph.ShowJitter = cbJitter.Checked;
 					graph.ShowMinMax = cbMinMax.Checked;
 					graph.ShowPacketLoss = cbPacketLoss.Checked;
+					graph.DrawLimitText = cbDrawLimits.Checked;
 
 					panel_Graphs.Controls.Add(graph);
 					AddEventHandlers(graph);
@@ -845,12 +861,8 @@ namespace PingTracer
 		private void nudUpLimit_ValueChanged(object sender, EventArgs e)
 		{
 			if (nudUpLimit.Value <= nudLowLimit.Value)
-				nudUpLimit.Value = nudUpLimit.Value + 1;
+				nudLowLimit.Value = nudUpLimit.Value - 1;
 			SaveProfileIfProfileAlreadyExists();
-			if (nudUpLimit.Value == 0)
-			{
-				cbAutoScaleLimit.Checked = false;
-			}
 			try
 			{
 				IList<PingGraphControl> graphs = pingGraphs.Values;
@@ -864,11 +876,11 @@ namespace PingTracer
 			{
 			}
 		}
-  
+
 		private void nudLowLimit_ValueChanged(object sender, EventArgs e)
 		{
 			if (nudLowLimit.Value >= nudUpLimit.Value)
-				nudLowLimit.Value = nudLowLimit.Value - 1;
+				nudUpLimit.Value = nudLowLimit.Value + 1;
 			SaveProfileIfProfileAlreadyExists();
 			try
 			{
@@ -883,7 +895,7 @@ namespace PingTracer
 			{
 			}
 		}
-  
+
 		private void cbLastPing_CheckedChanged(object sender, EventArgs e)
 		{
 			SaveProfileIfProfileAlreadyExists();
@@ -959,6 +971,23 @@ namespace PingTracer
 				foreach (PingGraphControl graph in graphs)
 				{
 					graph.ShowPacketLoss = cbPacketLoss.Checked;
+					graph.Invalidate();
+				}
+			}
+			catch (Exception)
+			{
+			}
+		}
+
+		private void cbDrawLimits_CheckedChanged(object sender, EventArgs e)
+		{
+			SaveProfileIfProfileAlreadyExists();
+			try
+			{
+				IList<PingGraphControl> graphs = pingGraphs.Values;
+				foreach (PingGraphControl graph in graphs)
+				{
+					graph.DrawLimitText = cbDrawLimits.Checked;
 					graph.Invalidate();
 				}
 			}
@@ -1150,7 +1179,7 @@ namespace PingTracer
 				panel_Graphs.Dock = DockStyle.Fill;
 				panelForm.Show();
 				//panelForm.SetBounds(this.Left, this.Top, this.Width, this.Height);
-    				panelForm.SetBounds(this.Left+7, this.Top, this.Width-14, this.Height-7);
+				panelForm.SetBounds(this.Left + settings.osWindowLeftMargin, this.Top + settings.osWindowTopMargin, this.Width - (settings.osWindowLeftMargin + settings.osWindowRightMargin), this.Height - settings.osWindowBottomMargin);
 				this.Hide();
 				MaximizeGraphsChanged.Invoke(this, EventArgs.Empty);
 			}
@@ -1211,12 +1240,12 @@ namespace PingTracer
 			cbJitter.Checked = hs.drawJitter;
 			cbMinMax.Checked = hs.drawMinMax;
 			cbPacketLoss.Checked = hs.drawPacketLoss;
+			cbDrawLimits.Checked = hs.drawLimitText;
 			nudBadThreshold.Value = hs.badThreshold;
 			nudWorseThreshold.Value = hs.worseThreshold;
 			nudUpLimit.Value = hs.upperLimit;
 			nudLowLimit.Value = hs.lowerLimit;
-			cbAutoScale.Checked = hs.autoScale;
-			cbAutoScaleLimit.Checked = hs.autoScaleLimit;
+			ScalingMethod = (GraphScalingMethod)hs.ScalingMethodID;
 			cbPreferIpv4.Checked = hs.preferIpv4;
 			LogFailures = hs.logFailures;
 			LogSuccesses = hs.logSuccesses;
@@ -1285,12 +1314,12 @@ namespace PingTracer
 			p.drawJitter = cbJitter.Checked;
 			p.drawMinMax = cbMinMax.Checked;
 			p.drawPacketLoss = cbPacketLoss.Checked;
+			p.drawLimitText = cbDrawLimits.Checked;
 			p.badThreshold = (int)nudBadThreshold.Value;
 			p.worseThreshold = (int)nudWorseThreshold.Value;
 			p.upperLimit = (int)nudUpLimit.Value;
 			p.lowerLimit = (int)nudLowLimit.Value;
-			p.autoScale = cbAutoScale.Checked;
-			p.autoScaleLimit = cbAutoScaleLimit.Checked;
+			p.ScalingMethodID = (int)ScalingMethod;
 			p.preferIpv4 = cbPreferIpv4.Checked;
 			p.logFailures = LogFailures;
 			p.logSuccesses = LogSuccesses;
@@ -1407,56 +1436,54 @@ namespace PingTracer
 				lblFailed.Text = (int.Parse(lblFailed.Text) + 1).ToString();
 			}
 		}
-  
+
 		private void menuItem_resetWindowSize_Click(object sender, EventArgs e)
 		{
 			this.Size = defaultWindowSize;
 		}
 
-		private void ApplyScalePreset() 
+		private void SetScaleLimitFieldsEnabledState()
 		{
-		    bool autoScale = cbAutoScale.Checked;
-		    bool autoScaleLimit = autoScale && cbAutoScaleLimit.Checked;
-		
-		    cbAutoScaleLimit.Enabled = autoScale;
-		    nudUpLimit.Enabled = nudLowLimit.Enabled = label3.Enabled = label10.Enabled = !autoScale || autoScaleLimit;
-		}
-  
-		private void cbAutoScale_CheckedChanged(object sender, EventArgs e)
-		{
-  			ApplyScalePreset();
-			SaveProfileIfProfileAlreadyExists();
-			try
+			if (ScalingMethod == GraphScalingMethod.Classic || ScalingMethod == GraphScalingMethod.Zoom || ScalingMethod == GraphScalingMethod.Fixed)
 			{
-				IList<PingGraphControl> graphs = pingGraphs.Values;
-				foreach (PingGraphControl graph in graphs)
-				{
-					graph.AutoScale = cbAutoScale.Checked;
-					graph.Invalidate();
-				}
-			}
-			catch (Exception)
-			{
-			}
-		}
-
-		private void cbAutoScaleLimit_CheckedChanged(object sender, EventArgs e)
-		{
-			if ((cbAutoScaleLimit.Checked == true) && (nudUpLimit.Value > 0))
-			{
+				nudUpLimit.Enabled = nudLowLimit.Enabled = true;
 			}
 			else
 			{
-				cbAutoScaleLimit.Checked = false;
+				nudUpLimit.Enabled = nudLowLimit.Enabled = false;
 			}
-   			ApplyScalePreset();
+		}
+		/// <summary>
+		/// <para>Gets or sets the ID of the graph scaling method currently selected in the GUI.</para>
+		/// <para>IDs currently correspond exactly with the dropdown list item index:</para>
+		/// <para>0: Classic</para>
+		/// <para>1: Zoom</para>
+		/// <para>2: Zoom Unlimited</para>
+		/// <para>3: Fixed</para>
+		/// <para>This implementation is subject to change in the future.</para>
+		/// </summary>
+		public GraphScalingMethod ScalingMethod
+		{
+			get
+			{
+				return (GraphScalingMethod)cbScalingMethod.SelectedIndex;
+			}
+			set
+			{
+				cbScalingMethod.SelectedIndex = (int)value;
+			}
+		}
+
+		private void cbScalingMethod_SelectedIndexChanged(object sender, EventArgs e)
+		{
+			SetScaleLimitFieldsEnabledState();
 			SaveProfileIfProfileAlreadyExists();
 			try
 			{
 				IList<PingGraphControl> graphs = pingGraphs.Values;
 				foreach (PingGraphControl graph in graphs)
 				{
-					graph.AutoScaleLimit = cbAutoScaleLimit.Checked;
+					graph.ScalingMethod = ScalingMethod;
 					graph.Invalidate();
 				}
 			}
@@ -1464,5 +1491,5 @@ namespace PingTracer
 			{
 			}
 		}
-  	}
+	}
 }

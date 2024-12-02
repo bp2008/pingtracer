@@ -138,7 +138,7 @@ For example, a cache size of 36000 will store
 Takes effect when ping monitoring is restarted.</value>
   </data>
   <data name="nudPingResponsesToCache.ToolTip" xml:space="preserve">
-    <value>(Default: 10000)
+    <value>(Default: 360000)
 
 Ping Tracer caches ping responses in memory in 
 a circular buffer.  When the buffer is full, old data 

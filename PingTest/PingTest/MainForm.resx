@@ -123,6 +123,45 @@
   <metadata name="contextMenuStripHostHistory.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
     <value>17, 17</value>
   </metadata>
+  <metadata name="toolTip1.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
+    <value>230, 17</value>
+  </metadata>
+  <data name="label11.ToolTip" xml:space="preserve">
+    <value>Choose a vertical scaling method for the graphs:
+
+Classic
+    Default PingTracer scaling behavior.
+
+Zoom
+    Graphs are zoomed vertically to fit the data 
+    within the specified limits.
+
+Zoom Unlimited
+    Graphs are zoomed vertically to fit the data.
+
+Fixed
+    Graph zoom level is fixed to show exactly the 
+    specified response time range.  Does not 
+    self-adjust to fit the data.</value>
+  </data>
+  <data name="cbScalingMethod.ToolTip" xml:space="preserve">
+    <value>Choose a vertical scaling method for the graphs:
+
+Classic
+    Default PingTracer scaling behavior.
+
+Zoom
+    Graphs are zoomed vertically to fit the data 
+    within the specified limits.
+
+Zoom Unlimited
+    Graphs are zoomed vertically to fit the data.
+
+Fixed
+    Graph zoom level is fixed to show exactly the 
+    specified response time range.  Does not 
+    self-adjust to fit the data.</value>
+  </data>
   <metadata name="mainMenu1.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
     <value>327, 17</value>
   </metadata>

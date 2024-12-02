@@ -17,19 +17,23 @@ namespace PingTracer
 		#region Fields and Properties
 		private Settings settings = new Settings();
 
-		public Pen penSuccess = new Pen(Color.FromArgb(64, 128, 64), 1);
-		public Pen penSuccessBad = new Pen(Color.FromArgb(128, 128, 0), 1);
-		public Pen penSuccessWorse = new Pen(Color.FromArgb(255, 255, 0), 1);
-		public Pen penFailure = new Pen(Color.FromArgb(255, 0, 0), 1);
-		public Brush brushText = new SolidBrush(Color.FromArgb(255, 255, 255));
-		public Color colorBackground = Color.FromArgb(0, 0, 0);
-		public Brush brushBackgroundBad = new SolidBrush(Color.FromArgb(35, 35, 0));
-		public Brush brushBackgroundWorse = new SolidBrush(Color.FromArgb(40, 0, 0));
-		public Brush brushBackgroundTimestamps = new SolidBrush(Color.FromArgb(0, 0, 0));
-		public Brush brushTimestampsText = new SolidBrush(Color.FromArgb(200, 200, 200));
-		public Pen penTimestampsMark = new Pen(Color.FromArgb(128, 128, 128), 1);
-		public Pen penTimestampsBorder = new Pen(Color.FromArgb(128, 128, 128), 1);
-		public Font textFont = new Font(FontFamily.GenericSansSerif, 8.25f);
+		public static Brush brushSuccess = new SolidBrush(Color.FromArgb(64, 128, 64));
+		public static Pen penSuccess = new Pen(brushSuccess, 1);
+		public static Brush brushSuccessBad = new SolidBrush(Color.FromArgb(128, 128, 0));
+		public static Pen penSuccessBad = new Pen(brushSuccessBad, 1);
+		public static Brush brushSuccessWorse = new SolidBrush(Color.FromArgb(255, 255, 0));
+		public static Pen penSuccessWorse = new Pen(brushSuccessWorse, 1);
+		public static Brush brushFailure = new SolidBrush(Color.FromArgb(255, 0, 0));
+		public static Pen penFailure = new Pen(brushFailure, 1);
+		public static Brush brushText = new SolidBrush(Color.FromArgb(255, 255, 255));
+		public static Color colorBackground = Color.FromArgb(0, 0, 0);
+		public static Brush brushBackgroundBad = new SolidBrush(Color.FromArgb(35, 35, 0));
+		public static Brush brushBackgroundWorse = new SolidBrush(Color.FromArgb(40, 0, 0));
+		public static Brush brushBackgroundTimestamps = new SolidBrush(Color.FromArgb(0, 0, 0));
+		public static Brush brushTimestampsText = new SolidBrush(Color.FromArgb(200, 200, 200));
+		public static Pen penTimestampsMark = new Pen(Color.FromArgb(128, 128, 128), 1);
+		public static Pen penTimestampsBorder = new Pen(Color.FromArgb(128, 128, 128), 1);
+		public static Font textFont = new Font(FontFamily.GenericSansSerif, 8.25f);
 		/// <summary>
 		/// Text that is displayed in the upper left corner of the graph.
 		/// </summary>
@@ -38,7 +42,6 @@ namespace PingTracer
 		/// A buffer to store information for the most recent pings.
 		/// </summary>
 		private PingLog[] pings;
-		private string MouseHintText = "";
 		/// <summary>
 		/// Gets the number of pings currently cached within the graph control (slow).
 		/// </summary>
@@ -222,23 +225,35 @@ namespace PingTracer
 				return isInvalidatedSync;
 			}
 		}
-		double vScale = 1;
 		int min = 0, avg = 0, max = 0, last = 0, height = short.MaxValue;
+		int mouseX = -1;
+		int mouseY = -1;
+		/// <summary>
+		/// This number defines the top of the graph.  Any response time greater than or equal to this MUST yield a full line on the graph.  Any response time less than this MAY yield a less-than-full line on the graph.
+		/// </summary>
+		int upperLimitDraw = 0;
+		/// <summary>
+		/// This number defines the bottom of the graph.  A ping response time must be greater than this number of milliseconds in order to appear on the graph.  For response times of 0ms to appear on the graph, this number must be negative.
+		/// </summary>
+		int lowerLimitDraw = 0;
+		/// <summary>
+		/// Gets the number of milliseconds of time covered by the Y axis.
+		/// </summary>
+		int drawHeight => upperLimitDraw - lowerLimitDraw;
+		double vScale = 0;
 		public bool AlwaysShowServerNames = false;
 		public int Threshold_Bad = 100;
 		public int Threshold_Worse = 100;
 		public int upperLimit = 0;
 		public int lowerLimit = 0;
-		public int upperLimitDraw = 0;
-		public int lowerLimitDraw = 0;
-		public bool AutoScale = false;
-		public bool AutoScaleLimit = false;
 		public bool ShowLastPing = false;
 		public bool ShowAverage = false;
 		public bool ShowJitter = false;
 		public bool ShowMinMax = false;
 		public bool ShowPacketLoss = false;
 		public bool ShowTimestamps = true;
+		public bool DrawLimitText = false;
+		public GraphScalingMethod ScalingMethod = GraphScalingMethod.Classic;
 
 		private void PingGraphControl_Paint(object sender, PaintEventArgs e)
 		{
@@ -248,7 +263,6 @@ namespace PingTracer
 			bool showTimestampsThisTime = ShowTimestamps;
 			height = Math.Min(this.Height - (showTimestampsThisTime ? timestampsHeight : 0), short.MaxValue);
 
-			Pen pen = penSuccess;
 			int start = StartIndex;
 			if (start == -1)
 				return;
@@ -285,30 +299,47 @@ namespace PingTracer
 			if (max == int.MinValue)
 				max = 0;
 
-			// Auto-scale feature based on lowest and highest ping values
-			if (AutoScale)
+			// Decide how to scale the Y-axis based on configuration and available data.
+			switch (ScalingMethod)
 			{
-				lowerLimitDraw = AutoScaleLimit ? Math.Max(min - 1, lowerLimit) : min - 1;
-				upperLimitDraw = AutoScaleLimit ? Math.Min(max + 1, upperLimit) : max + 1;
+				case GraphScalingMethod.Classic:
+					{
+						// Zoom out if necessary to fit the response time data, otherwise prefer to draw at an exact ratio of 1px : 1ms.
+						lowerLimitDraw = lowerLimit;
+						upperLimitDraw = lowerLimit + height;
+						if (max > upperLimitDraw)
+						{
+							// max value is too high to draw at 1px : 1ms ratio, so zoom out to fit
+							upperLimitDraw = (int)(max * 1.1);
+						}
+						if (upperLimitDraw > upperLimit)
+							upperLimitDraw = upperLimit;
+					}
+					break;
+				case GraphScalingMethod.Zoom:
+					{
+						// Zoom in or out to fit the response time data, but adhere to user-specified limits.
+						lowerLimitDraw = Math.Max(min - 1, lowerLimit);
+						upperLimitDraw = Math.Min(max + 1, upperLimit);
+					}
+					break;
+				case GraphScalingMethod.Zoom_Unlimited:
+					{
+						// Zoom in or out to fit the response time data.
+						lowerLimitDraw = min - 1;
+						upperLimitDraw = max + 1;
+					}
+					break;
+				case GraphScalingMethod.Fixed:
+					{
+						// Adhere to user-specified limits, do not dynamically zoom based on the response time data.
+						lowerLimitDraw = Math.Max(lowerLimit, 0);
+						upperLimitDraw = Math.Max(upperLimit, 1);
+					}
+					break;
 			}
-			else
-			{
-				if (lowerLimit == 0)
-				{
-					lowerLimitDraw = 0;
-				}
-				else
-				{
-					lowerLimitDraw = lowerLimit;
-				}
-				if (upperLimit == 0) { 
-					upperLimitDraw = 200;
-				}
-				else
-				{
-					upperLimitDraw = upperLimit;
-				}
-			}
+			if (upperLimitDraw <= lowerLimitDraw)
+				upperLimitDraw = lowerLimitDraw + 1; // Prevent vScale becoming "Infinity" which yields exception.
 
 			vScale = (double)height / (upperLimitDraw - lowerLimitDraw);
 
@@ -332,6 +363,8 @@ namespace PingTracer
 			int lastStampedMinute = -1;
 			string timelineOverlayString = "";
 
+			Pen linePen = penSuccess;
+			Brush lineBrush = brushSuccess;
 			for (int i = 0; i < count; i++)
 			{
 				try
@@ -341,26 +374,42 @@ namespace PingTracer
 					if (p == null)
 						continue;
 
-					if (p.result == IPStatus.Success)
+					if (p.pingTime > lowerLimitDraw)
 					{
-						if (p.pingTime < Threshold_Bad)
-							pen = penSuccess;
-						else if (p.pingTime < Threshold_Worse)
-							pen = penSuccessBad;
+						if (p.result == IPStatus.Success)
+						{
+							if (p.pingTime < Threshold_Bad)
+							{
+								lineBrush = brushSuccess;
+								linePen = penSuccess;
+							}
+							else if (p.pingTime < Threshold_Worse)
+							{
+								lineBrush = brushSuccessBad;
+								linePen = penSuccessBad;
+							}
+							else
+							{
+								lineBrush = brushSuccessWorse;
+								linePen = penSuccessWorse;
+							}
+
+							pStart.Y = (int)(height - ((p.pingTime - lowerLimitDraw) * vScale));
+						}
 						else
-							pen = penSuccessWorse;
+						{
+							lineBrush = brushFailure;
+							linePen = penFailure;
+							pStart.Y = 0;
+						}
 
-						pStart.Y = (int)(height - ((p.pingTime - lowerLimitDraw) * vScale));
+						if (pStart == pEnd)
+							e.Graphics.FillRectangle(lineBrush, pStart.X, pStart.Y, 1, 1);
+						else
+							e.Graphics.DrawLine(linePen, pStart, pEnd);
 					}
-					else
-					{
-						pen = penFailure;
-						pStart.Y = height; // Failure is shown at the bottom (100ms)
-					}
 
-					e.Graphics.DrawLine(pen, pStart, pEnd);
-
-					// Timestamp drawing logic (unchanged)
+					// Timestamp drawing logic
 					if (showTimestampsThisTime)
 					{
 						if (lastStampedMinute == -1 || p.startTime.Minute != lastStampedMinute)
@@ -400,13 +449,16 @@ namespace PingTracer
 				e.Graphics.DrawString(timelineOverlayString, textFont, brushTimestampsText, 0, pTimestampMarkStart.Y - 1);
 			}
 
-			// Add lower and upper limit labels on the right side
-			string lowerLimitLabel = lowerLimitDraw.ToString();
-			string upperLimitLabel = upperLimitDraw.ToString();
-			SizeF lowerLimitSize = e.Graphics.MeasureString(lowerLimitLabel, textFont);
-			SizeF upperLimitSize = e.Graphics.MeasureString(upperLimitLabel, textFont);
-			e.Graphics.DrawString(lowerLimitLabel, textFont, brushText, this.Width - lowerLimitSize.Width, height - 10);
-			e.Graphics.DrawString(upperLimitLabel, textFont, brushText, this.Width - upperLimitSize.Width, 0);
+			if (DrawLimitText)
+			{
+				// Add lower and upper limit labels on the right side
+				string lowerLimitLabel = lowerLimitDraw.ToString();
+				string upperLimitLabel = upperLimitDraw.ToString();
+				SizeF lowerLimitSize = e.Graphics.MeasureString(lowerLimitLabel, textFont);
+				SizeF upperLimitSize = e.Graphics.MeasureString(upperLimitLabel, textFont);
+				e.Graphics.DrawString(lowerLimitLabel, textFont, brushText, this.Width - lowerLimitSize.Width, height - lowerLimitSize.Height);
+				e.Graphics.DrawString(upperLimitLabel, textFont, brushText, this.Width - upperLimitSize.Width, 0);
+			}
 
 			string statusStr = "";
 
@@ -431,6 +483,7 @@ namespace PingTracer
 			if (intVals.Count > 0)
 				statusStr += "[" + string.Join(",", intVals) + "] ";
 
+			string MouseHintText = GetMouseoverHintText();
 			if (!string.IsNullOrEmpty(MouseHintText))
 			{
 				if (!string.IsNullOrEmpty(DisplayName))
@@ -473,44 +526,49 @@ namespace PingTracer
 		#region Mouseover Hint
 		private void PingGraphControl_MouseMove(object sender, MouseEventArgs e)
 		{
-			MouseHintText = GetStatusOfPingAtPosition(e.X, e.Y);
+			mouseX = e.X;
+			mouseY = e.Y;
 			this.Invalidate();
 		}
 
 		private void PingGraphControl_MouseLeave(object sender, EventArgs e)
 		{
-			MouseHintText = "";
+			mouseX = mouseY = -1;
 			this.Invalidate();
 		}
-
-		public string GetStatusOfPingAtPosition(int x, int y)
+		public string GetMouseoverHintText()
 		{
+			if (mouseX < 0 || mouseY < 0)
+				return "";
+			int mouseMs = GetScaledHeightValue(height - mouseY);
 			try
 			{
-				int offset = x - this.Width;
+				int offset = mouseX - this.Width;
 				int start = StartIndex + DisplayableCount;
 				int i = (start + offset) % pings.Length;
 				if (offset <= -pings.Length)
-					return "Out of bounds, Mouse ms: " + GetScaledHeightValue(height - y);
+					return "Out of bounds, Mouse ms: " + mouseMs;
 				else if (i < 0)
-					return "No Data Yet, Mouse ms: " + GetScaledHeightValue(height - y);
+					return "No Data Yet, Mouse ms: " + mouseMs;
 				PingLog pingLog = pings[i];
 				if (pingLog == null)
-					return "Waiting for response, Mouse ms: " + GetScaledHeightValue(height - y);
+					return "Waiting for response, Mouse ms: " + mouseMs;
 				if (pingLog.result != IPStatus.Success)
-					return GetTimestamp(pingLog.startTime) + ": " + pingLog.result.ToString() + ", Mouse ms: " + GetScaledHeightValue(height - y);
-				return GetTimestamp(pingLog.startTime) + ": " + pingLog.pingTime + " ms, Mouse ms: " + GetScaledHeightValue(height - y);
+					return GetTimestamp(pingLog.startTime) + ": " + pingLog.result.ToString() + ", Mouse ms: " + mouseMs;
+				return GetTimestamp(pingLog.startTime) + ": " + pingLog.pingTime + " ms, Mouse ms: " + mouseMs;
 			}
 			catch (Exception)
 			{
-				return "Error, Mouse ms: " + (height - y);
+				return "Error, Mouse ms: " + mouseMs;
 			}
 		}
-		private int GetScaledHeightValue(int height)
+		private int GetScaledHeightValue(int v)
 		{
 			if (vScale == 0)
 				return 0;
-			return (int)(height / vScale);
+			double posRelative = (double)v / (double)height;
+			int posMs = (int)(posRelative * drawHeight);
+			return posMs + lowerLimitDraw;
 		}
 		#endregion
 	}

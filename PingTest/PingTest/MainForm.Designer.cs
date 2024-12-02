@@ -64,10 +64,9 @@ namespace PingTracer
 			this.cbPreferIpv4 = new System.Windows.Forms.CheckBox();
 			this.nudUpLimit = new System.Windows.Forms.NumericUpDown();
 			this.nudLowLimit = new System.Windows.Forms.NumericUpDown();
-			this.label3 = new System.Windows.Forms.Label();
-			this.label10 = new System.Windows.Forms.Label();
-			this.cbAutoScale = new System.Windows.Forms.CheckBox();
-			this.cbAutoScaleLimit = new System.Windows.Forms.CheckBox();
+			this.lblUpperLimit = new System.Windows.Forms.Label();
+			this.lblLowerLimit = new System.Windows.Forms.Label();
+			this.cbDrawLimits = new System.Windows.Forms.CheckBox();
 			this.groupBox1 = new System.Windows.Forms.GroupBox();
 			this.cbLogSuccesses = new System.Windows.Forms.CheckBox();
 			this.cbLogFailures = new System.Windows.Forms.CheckBox();
@@ -83,6 +82,8 @@ namespace PingTracer
 			this.menuItem_CommandLineArgs = new System.Windows.Forms.MenuItem();
 			this.menuItem_resetWindowSize = new System.Windows.Forms.MenuItem();
 			this.selectPingsPerSecond = new System.Windows.Forms.ComboBox();
+			this.cbScalingMethod = new System.Windows.Forms.ComboBox();
+			this.label11 = new System.Windows.Forms.Label();
 			((System.ComponentModel.ISupportInitialize)(this.nudPingsPerSecond)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
 			this.splitContainer1.Panel1.SuspendLayout();
@@ -105,7 +106,7 @@ namespace PingTracer
 			this.txtOut.Name = "txtOut";
 			this.txtOut.ReadOnly = true;
 			this.txtOut.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-			this.txtOut.Size = new System.Drawing.Size(768, 65);
+			this.txtOut.Size = new System.Drawing.Size(780, 65);
 			this.txtOut.TabIndex = 50;
 			// 
 			// txtHost
@@ -115,7 +116,7 @@ namespace PingTracer
 			this.txtHost.Size = new System.Drawing.Size(184, 20);
 			this.txtHost.TabIndex = 1;
 			this.toolTip1.SetToolTip(this.txtHost, "Enter the IP address or host name of the destination you wish to monitor.\r\n\r\nYou " +
-		"may click the blue Host label to choose a previously entered value.");
+        "may click the blue Host label to choose a previously entered value.");
 			this.txtHost.TextChanged += new System.EventHandler(this.txtHost_TextChanged);
 			// 
 			// lblHost
@@ -128,7 +129,7 @@ namespace PingTracer
 			this.lblHost.TabIndex = 2;
 			this.lblHost.Text = "Host:";
 			this.toolTip1.SetToolTip(this.lblHost, "Enter the IP address or host name of the destination you wish to monitor.\r\n\r\nYou " +
-		"may click the blue Host label to choose a previously entered value.");
+        "may click the blue Host label to choose a previously entered value.");
 			this.lblHost.Click += new System.EventHandler(this.lblHost_Click);
 			// 
 			// label2
@@ -145,32 +146,32 @@ namespace PingTracer
 			// 
 			this.nudPingsPerSecond.Location = new System.Drawing.Point(50, 32);
 			this.nudPingsPerSecond.Maximum = new decimal(new int[] {
-			60,
-			0,
-			0,
-			0});
+            60,
+            0,
+            0,
+            0});
 			this.nudPingsPerSecond.Name = "nudPingsPerSecond";
 			this.nudPingsPerSecond.Size = new System.Drawing.Size(46, 20);
 			this.nudPingsPerSecond.TabIndex = 4;
 			this.toolTip1.SetToolTip(this.nudPingsPerSecond, "A rate of 1 ping per second is recommended \r\nfor all long-term monitoring.");
 			this.nudPingsPerSecond.Value = new decimal(new int[] {
-			60,
-			0,
-			0,
-			0});
+            60,
+            0,
+            0,
+            0});
 			this.nudPingsPerSecond.ValueChanged += new System.EventHandler(this.nudPingsPerSecond_ValueChanged);
 			// 
 			// btnStart
 			// 
 			this.btnStart.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
 			this.btnStart.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(255)))), ((int)(((byte)(128)))), ((int)(((byte)(128)))));
-			this.btnStart.Location = new System.Drawing.Point(689, 6);
+			this.btnStart.Location = new System.Drawing.Point(701, 6);
 			this.btnStart.Name = "btnStart";
 			this.btnStart.Size = new System.Drawing.Size(66, 46);
 			this.btnStart.TabIndex = 8;
 			this.btnStart.Text = "Click to Start";
 			this.toolTip1.SetToolTip(this.btnStart, "This button shows the current status of ping monitoring.\r\n\r\nClick the button to s" +
-		"tart or stop.");
+        "tart or stop.");
 			this.btnStart.UseVisualStyleBackColor = false;
 			this.btnStart.Click += new System.EventHandler(this.btnStart_Click);
 			// 
@@ -217,8 +218,8 @@ namespace PingTracer
 			// splitContainer1
 			// 
 			this.splitContainer1.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-			| System.Windows.Forms.AnchorStyles.Left) 
-			| System.Windows.Forms.AnchorStyles.Right)));
+            | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
 			this.splitContainer1.Location = new System.Drawing.Point(0, 135);
 			this.splitContainer1.Name = "splitContainer1";
 			this.splitContainer1.Orientation = System.Windows.Forms.Orientation.Horizontal;
@@ -230,38 +231,40 @@ namespace PingTracer
 			// splitContainer1.Panel2
 			// 
 			this.splitContainer1.Panel2.Controls.Add(this.panel_Graphs);
-			this.splitContainer1.Size = new System.Drawing.Size(768, 382);
+			this.splitContainer1.Size = new System.Drawing.Size(780, 382);
 			this.splitContainer1.SplitterDistance = 65;
 			this.splitContainer1.TabIndex = 12;
 			// 
 			// panel_Graphs
 			// 
 			this.panel_Graphs.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-			| System.Windows.Forms.AnchorStyles.Left) 
-			| System.Windows.Forms.AnchorStyles.Right)));
+            | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
 			this.panel_Graphs.BackColor = System.Drawing.SystemColors.Window;
 			this.panel_Graphs.Controls.Add(this.label5);
 			this.panel_Graphs.Location = new System.Drawing.Point(0, 0);
 			this.panel_Graphs.Name = "panel_Graphs";
-			this.panel_Graphs.Size = new System.Drawing.Size(768, 312);
+			this.panel_Graphs.Size = new System.Drawing.Size(780, 312);
 			this.panel_Graphs.TabIndex = 16;
 			this.panel_Graphs.Click += new System.EventHandler(this.panel_Graphs_Click);
 			this.panel_Graphs.Resize += new System.EventHandler(this.panel_Graphs_Resize);
 			// 
 			// label5
 			// 
-			this.label5.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
-			| System.Windows.Forms.AnchorStyles.Right)));
+			this.label5.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
+            | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
 			this.label5.BackColor = System.Drawing.SystemColors.Window;
 			this.label5.Font = new System.Drawing.Font("Microsoft Sans Serif", 14F);
 			this.label5.ForeColor = System.Drawing.SystemColors.ControlText;
 			this.label5.Location = new System.Drawing.Point(2, 12);
 			this.label5.Name = "label5";
-			this.label5.Size = new System.Drawing.Size(763, 91);
+			this.label5.Size = new System.Drawing.Size(775, 286);
 			this.label5.TabIndex = 0;
-			this.label5.Text = "Ping response graphs will appear here. \r\n\r\nTry clicking the graph(s) after you ac" +
-	"tivate ping tracing.";
+			this.label5.Text = "Ping response graphs will appear here. \r\n\r\nClick the graph(s) to maximize them an" +
+    "d remove window borders.";
 			this.label5.TextAlign = System.Drawing.ContentAlignment.TopCenter;
+			this.label5.Click += new System.EventHandler(this.panel_Graphs_Click);
 			// 
 			// lblHoveredPingStatus
 			// 
@@ -269,9 +272,9 @@ namespace PingTracer
 			this.lblHoveredPingStatus.AutoSize = true;
 			this.lblHoveredPingStatus.Location = new System.Drawing.Point(276, 520);
 			this.lblHoveredPingStatus.Name = "lblHoveredPingStatus";
-			this.lblHoveredPingStatus.Size = new System.Drawing.Size(19, 13);
+			this.lblHoveredPingStatus.Size = new System.Drawing.Size(7, 13);
 			this.lblHoveredPingStatus.TabIndex = 13;
-			this.lblHoveredPingStatus.Text = "	";
+			this.lblHoveredPingStatus.Text = "\t";
 			// 
 			// cbTraceroute
 			// 
@@ -282,7 +285,7 @@ namespace PingTracer
 			this.cbTraceroute.TabIndex = 6;
 			this.cbTraceroute.Text = "Trace Route";
 			this.toolTip1.SetToolTip(this.cbTraceroute, "If checked, a traceroute operation will be performed \r\nand multiple destinations " +
-		"may be monitored.");
+        "may be monitored.");
 			this.cbTraceroute.UseVisualStyleBackColor = true;
 			this.cbTraceroute.CheckedChanged += new System.EventHandler(this.cbTraceroute_CheckedChanged);
 			// 
@@ -312,66 +315,66 @@ namespace PingTracer
 			// 
 			this.label8.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
 			this.label8.AutoSize = true;
-			this.label8.Location = new System.Drawing.Point(354, 22);
+			this.label8.Location = new System.Drawing.Point(361, 22);
 			this.label8.Name = "label8";
 			this.label8.Size = new System.Drawing.Size(75, 13);
 			this.label8.TabIndex = 17;
 			this.label8.Text = "Bad threshold:";
 			this.toolTip1.SetToolTip(this.label8, "Pings exceeding this threshold are drawn in faded yellow color, \r\nand the backgro" +
-		"und of the ping graph will be yellow tinted \r\nabove this point.");
+        "und of the ping graph will be yellow tinted \r\nabove this point.");
 			// 
 			// label9
 			// 
 			this.label9.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
 			this.label9.AutoSize = true;
-			this.label9.Location = new System.Drawing.Point(342, 47);
+			this.label9.Location = new System.Drawing.Point(349, 47);
 			this.label9.Name = "label9";
 			this.label9.Size = new System.Drawing.Size(87, 13);
 			this.label9.TabIndex = 18;
 			this.label9.Text = "Worse threshold:";
 			this.toolTip1.SetToolTip(this.label9, "Pings exceeding this threshold are drawn in bright yellow color, \r\nand the backgr" +
-		"ound of the ping graph will be red tinted \r\nabove this point.");
+        "ound of the ping graph will be red tinted \r\nabove this point.");
 			// 
 			// nudBadThreshold
 			// 
 			this.nudBadThreshold.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-			this.nudBadThreshold.Location = new System.Drawing.Point(430, 18);
+			this.nudBadThreshold.Location = new System.Drawing.Point(437, 20);
 			this.nudBadThreshold.Maximum = new decimal(new int[] {
-			9999,
-			0,
-			0,
-			0});
+            9999,
+            0,
+            0,
+            0});
 			this.nudBadThreshold.Name = "nudBadThreshold";
 			this.nudBadThreshold.Size = new System.Drawing.Size(56, 20);
 			this.nudBadThreshold.TabIndex = 40;
 			this.toolTip1.SetToolTip(this.nudBadThreshold, "Pings exceeding this threshold are drawn in faded yellow color, \r\nand the backgro" +
-		"und of the ping graph will be yellow tinted \r\nabove this point.");
+        "und of the ping graph will be yellow tinted \r\nabove this point.");
 			this.nudBadThreshold.Value = new decimal(new int[] {
-			180,
-			0,
-			0,
-			0});
+            180,
+            0,
+            0,
+            0});
 			this.nudBadThreshold.ValueChanged += new System.EventHandler(this.nudBadThreshold_ValueChanged);
 			// 
 			// nudWorseThreshold
 			// 
 			this.nudWorseThreshold.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-			this.nudWorseThreshold.Location = new System.Drawing.Point(430, 45);
+			this.nudWorseThreshold.Location = new System.Drawing.Point(437, 45);
 			this.nudWorseThreshold.Maximum = new decimal(new int[] {
-			9999,
-			0,
-			0,
-			0});
+            9999,
+            0,
+            0,
+            0});
 			this.nudWorseThreshold.Name = "nudWorseThreshold";
 			this.nudWorseThreshold.Size = new System.Drawing.Size(56, 20);
 			this.nudWorseThreshold.TabIndex = 41;
 			this.toolTip1.SetToolTip(this.nudWorseThreshold, "Pings exceeding this threshold are drawn in bright yellow color, \r\nand the backgr" +
-		"ound of the ping graph will be red tinted \r\nabove this point.");
+        "ound of the ping graph will be red tinted \r\nabove this point.");
 			this.nudWorseThreshold.Value = new decimal(new int[] {
-			200,
-			0,
-			0,
-			0});
+            200,
+            0,
+            0,
+            0});
 			this.nudWorseThreshold.ValueChanged += new System.EventHandler(this.nudWorseThreshold_ValueChanged);
 			// 
 			// cbMinMax
@@ -382,10 +385,10 @@ namespace PingTracer
 			this.cbMinMax.Location = new System.Drawing.Point(223, 45);
 			this.cbMinMax.Name = "cbMinMax";
 			this.cbMinMax.Size = new System.Drawing.Size(74, 17);
-			this.cbMinMax.TabIndex = 35;
+			this.cbMinMax.TabIndex = 36;
 			this.cbMinMax.Text = "Min / Max";
 			this.toolTip1.SetToolTip(this.cbMinMax, "If checked, the shortest and longest visible ping times are overlaid in text form" +
-		".");
+        ".");
 			this.cbMinMax.UseVisualStyleBackColor = true;
 			this.cbMinMax.CheckedChanged += new System.EventHandler(this.cbMinMax_CheckedChanged);
 			// 
@@ -404,7 +407,7 @@ namespace PingTracer
 			this.label1.TabIndex = 22;
 			this.label1.Text = "Display Name:";
 			this.toolTip1.SetToolTip(this.label1, "(Optional) \r\nA memorable name to show in the history \r\nwhen you click on the blue" +
-		" Host label.");
+        " Host label.");
 			// 
 			// toolTip1
 			// 
@@ -416,13 +419,13 @@ namespace PingTracer
 			// txtDisplayName
 			// 
 			this.txtDisplayName.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
-			| System.Windows.Forms.AnchorStyles.Right)));
+            | System.Windows.Forms.AnchorStyles.Right)));
 			this.txtDisplayName.Location = new System.Drawing.Point(321, 6);
 			this.txtDisplayName.Name = "txtDisplayName";
-			this.txtDisplayName.Size = new System.Drawing.Size(362, 20);
+			this.txtDisplayName.Size = new System.Drawing.Size(374, 20);
 			this.txtDisplayName.TabIndex = 2;
 			this.toolTip1.SetToolTip(this.txtDisplayName, "(Optional) \r\nA memorable name to show in the history \r\nwhen you click on the blue" +
-		" Host label.");
+        " Host label.");
 			this.txtDisplayName.TextChanged += new System.EventHandler(this.txtDisplayName_TextChanged);
 			// 
 			// cbPacketLoss
@@ -448,7 +451,7 @@ namespace PingTracer
 			this.cbReverseDNS.TabIndex = 7;
 			this.cbReverseDNS.Text = "Reverse DNS Lookup";
 			this.toolTip1.SetToolTip(this.cbReverseDNS, "If checked, reverse DNS lookups are performed on each IP address to find the host" +
-		" name.");
+        " name.");
 			this.cbReverseDNS.UseVisualStyleBackColor = true;
 			this.cbReverseDNS.CheckedChanged += new System.EventHandler(this.cbReverseDNS_CheckedChanged);
 			// 
@@ -460,10 +463,10 @@ namespace PingTracer
 			this.cbAverage.Location = new System.Drawing.Point(87, 45);
 			this.cbAverage.Name = "cbAverage";
 			this.cbAverage.Size = new System.Drawing.Size(66, 17);
-			this.cbAverage.TabIndex = 33;
+			this.cbAverage.TabIndex = 34;
 			this.cbAverage.Text = "Average";
 			this.toolTip1.SetToolTip(this.cbAverage, "If checked, the average response time (of visible ping times) is overlaid in text" +
-		" form.");
+        " form.");
 			this.cbAverage.UseVisualStyleBackColor = true;
 			this.cbAverage.CheckedChanged += new System.EventHandler(this.cbAverage_CheckedChanged);
 			// 
@@ -475,7 +478,7 @@ namespace PingTracer
 			this.cbJitter.Location = new System.Drawing.Point(164, 45);
 			this.cbJitter.Name = "cbJitter";
 			this.cbJitter.Size = new System.Drawing.Size(48, 17);
-			this.cbJitter.TabIndex = 34;
+			this.cbJitter.TabIndex = 35;
 			this.cbJitter.Text = "Jitter";
 			this.toolTip1.SetToolTip(this.cbJitter, "If checked, the jitter (across visible ping times) is overlaid in text form.");
 			this.cbJitter.UseVisualStyleBackColor = true;
@@ -489,7 +492,7 @@ namespace PingTracer
 			this.cbLastPing.Location = new System.Drawing.Point(6, 45);
 			this.cbLastPing.Name = "cbLastPing";
 			this.cbLastPing.Size = new System.Drawing.Size(70, 17);
-			this.cbLastPing.TabIndex = 32;
+			this.cbLastPing.TabIndex = 33;
 			this.cbLastPing.Text = "Last Ping";
 			this.toolTip1.SetToolTip(this.cbLastPing, "If checked, the most recent ping response time is overlaid in text form.");
 			this.cbLastPing.UseVisualStyleBackColor = true;
@@ -506,113 +509,104 @@ namespace PingTracer
 			this.cbPreferIpv4.TabIndex = 26;
 			this.cbPreferIpv4.Text = "Prefer IPv4";
 			this.toolTip1.SetToolTip(this.cbPreferIpv4, "If checked, a traceroute operation will be performed \r\nand multiple destinations " +
-		"may be monitored.");
+        "may be monitored.");
 			this.cbPreferIpv4.UseVisualStyleBackColor = true;
 			this.cbPreferIpv4.CheckedChanged += new System.EventHandler(this.cbPreferIpv4_CheckedChanged);
 			// 
 			// nudUpLimit
 			// 
 			this.nudUpLimit.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-			this.nudUpLimit.Location = new System.Drawing.Point(557, 17);
+			this.nudUpLimit.Location = new System.Drawing.Point(691, 20);
 			this.nudUpLimit.Maximum = new decimal(new int[] {
-			9999,
-			0,
-			0,
-			0});
+            10000,
+            0,
+            0,
+            0});
 			this.nudUpLimit.Name = "nudUpLimit";
 			this.nudUpLimit.Size = new System.Drawing.Size(56, 20);
-			this.nudUpLimit.TabIndex = 44;
-			this.toolTip1.SetToolTip(this.nudUpLimit, "The upper limit of the graph. Pings above this value will be clipped from the gra" +
-		"ph view.");
+			this.nudUpLimit.TabIndex = 43;
+			this.toolTip1.SetToolTip(this.nudUpLimit, "The upper limit of the graph, in milliseconds. Pings with response time above thi" +
+        "s value will be clipped in the graph view.");
 			this.nudUpLimit.Value = new decimal(new int[] {
-			250,
-			0,
-			0,
-			0});
+            300,
+            0,
+            0,
+            0});
 			this.nudUpLimit.ValueChanged += new System.EventHandler(this.nudUpLimit_ValueChanged);
 			// 
 			// nudLowLimit
 			// 
 			this.nudLowLimit.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-			this.nudLowLimit.Location = new System.Drawing.Point(557, 43);
+			this.nudLowLimit.Location = new System.Drawing.Point(691, 44);
 			this.nudLowLimit.Maximum = new decimal(new int[] {
-			9999,
-			0,
-			0,
-			0});
+            9999,
+            0,
+            0,
+            0});
+			this.nudLowLimit.Minimum = new decimal(new int[] {
+            10,
+            0,
+            0,
+            -2147483648});
 			this.nudLowLimit.Name = "nudLowLimit";
 			this.nudLowLimit.Size = new System.Drawing.Size(56, 20);
-			this.nudLowLimit.TabIndex = 45;
-			this.toolTip1.SetToolTip(this.nudLowLimit, "The lower limit of the graph. Pings below this value will be clipped from the gra" +
-		"ph view.");
+			this.nudLowLimit.TabIndex = 44;
+			this.toolTip1.SetToolTip(this.nudLowLimit, "The lower limit of the graph, in milliseconds. Pings with a response time below t" +
+        "his value will not be visible in the graph view.");
 			this.nudLowLimit.ValueChanged += new System.EventHandler(this.nudLowLimit_ValueChanged);
 			// 
-			// label3
+			// lblUpperLimit
 			// 
-			this.label3.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-			this.label3.AutoSize = true;
-			this.label3.Location = new System.Drawing.Point(497, 18);
-			this.label3.Name = "label3";
-			this.label3.Size = new System.Drawing.Size(63, 13);
-			this.label3.TabIndex = 42;
-			this.label3.Text = "Upper Limit:";
-			this.label3.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-			this.toolTip1.SetToolTip(this.label3, "Pings exceeding this threshold are drawn in faded yellow color, \r\nand the backgro" +
-		"und of the ping graph will be yellow tinted \r\nabove this point.");
+			this.lblUpperLimit.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+			this.lblUpperLimit.AutoSize = true;
+			this.lblUpperLimit.Location = new System.Drawing.Point(626, 22);
+			this.lblUpperLimit.Name = "lblUpperLimit";
+			this.lblUpperLimit.Size = new System.Drawing.Size(63, 13);
+			this.lblUpperLimit.TabIndex = 42;
+			this.lblUpperLimit.Text = "Upper Limit:";
+			this.lblUpperLimit.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
+			this.toolTip1.SetToolTip(this.lblUpperLimit, "The upper limit of the graph, in milliseconds. Pings with response time above thi" +
+        "s value will be clipped in the graph view.");
 			// 
-			// label10
+			// lblLowerLimit
 			// 
-			this.label10.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-			this.label10.AutoSize = true;
-			this.label10.Location = new System.Drawing.Point(497, 44);
-			this.label10.Name = "label10";
-			this.label10.Size = new System.Drawing.Size(63, 13);
-			this.label10.TabIndex = 43;
-			this.label10.Text = "Lower Limit:";
-			this.label10.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-			this.toolTip1.SetToolTip(this.label10, "Pings exceeding this threshold are drawn in bright yellow color, \r\nand the backgr" +
-		"ound of the ping graph will be red tinted \r\nabove this point.");
+			this.lblLowerLimit.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+			this.lblLowerLimit.AutoSize = true;
+			this.lblLowerLimit.Location = new System.Drawing.Point(626, 47);
+			this.lblLowerLimit.Name = "lblLowerLimit";
+			this.lblLowerLimit.Size = new System.Drawing.Size(63, 13);
+			this.lblLowerLimit.TabIndex = 43;
+			this.lblLowerLimit.Text = "Lower Limit:";
+			this.lblLowerLimit.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
+			this.toolTip1.SetToolTip(this.lblLowerLimit, "The lower limit of the graph, in milliseconds. Pings with a response time below t" +
+        "his value will not be visible in the graph view.");
 			// 
-			// cbAutoScale
+			// cbDrawLimits
 			// 
-			this.cbAutoScale.AutoSize = true;
-			this.cbAutoScale.Location = new System.Drawing.Point(626, 19);
-			this.cbAutoScale.Name = "cbAutoScale";
-			this.cbAutoScale.Size = new System.Drawing.Size(78, 17);
-			this.cbAutoScale.TabIndex = 46;
-			this.cbAutoScale.Text = "Auto Scale";
-			this.toolTip1.SetToolTip(this.cbAutoScale, "If checked, the upper and lower limit of the graph\'s Y-axis will scale dynamicall" +
-		"y based on the pings..");
-			this.cbAutoScale.UseVisualStyleBackColor = true;
-			this.cbAutoScale.CheckedChanged += new System.EventHandler(this.cbAutoScale_CheckedChanged);
-			// 
-			// cbAutoScaleLimit
-			// 
-			this.cbAutoScaleLimit.AutoSize = true;
-			this.cbAutoScaleLimit.Enabled = false;
-			this.cbAutoScaleLimit.Location = new System.Drawing.Point(626, 44);
-			this.cbAutoScaleLimit.Name = "cbAutoScaleLimit";
-			this.cbAutoScaleLimit.Size = new System.Drawing.Size(112, 17);
-			this.cbAutoScaleLimit.TabIndex = 47;
-			this.cbAutoScaleLimit.Text = "Scale within Limits";
-			this.toolTip1.SetToolTip(this.cbAutoScaleLimit, "Ensure that the auto scaling does not exceed the Upper and Lower Limits as set.\r\n" +
-		"Upper Limit must be greater than 0, in order for this to be checked.");
-			this.cbAutoScaleLimit.UseVisualStyleBackColor = true;
-			this.cbAutoScaleLimit.CheckedChanged += new System.EventHandler(this.cbAutoScaleLimit_CheckedChanged);
+			this.cbDrawLimits.AutoSize = true;
+			this.cbDrawLimits.Location = new System.Drawing.Point(223, 19);
+			this.cbDrawLimits.Name = "cbDrawLimits";
+			this.cbDrawLimits.Size = new System.Drawing.Size(52, 17);
+			this.cbDrawLimits.TabIndex = 32;
+			this.cbDrawLimits.Text = "Limits";
+			this.toolTip1.SetToolTip(this.cbDrawLimits, "If checked, each graph\'s vertical limits are drawn on the right side.");
+			this.cbDrawLimits.UseVisualStyleBackColor = true;
+			this.cbDrawLimits.CheckedChanged += new System.EventHandler(this.cbDrawLimits_CheckedChanged);
 			// 
 			// groupBox1
 			// 
-			this.groupBox1.Controls.Add(this.cbAutoScaleLimit);
-			this.groupBox1.Controls.Add(this.cbAutoScale);
+			this.groupBox1.Controls.Add(this.label11);
+			this.groupBox1.Controls.Add(this.cbScalingMethod);
+			this.groupBox1.Controls.Add(this.cbDrawLimits);
 			this.groupBox1.Controls.Add(this.nudUpLimit);
 			this.groupBox1.Controls.Add(this.cbLogSuccesses);
 			this.groupBox1.Controls.Add(this.nudLowLimit);
 			this.groupBox1.Controls.Add(this.cbLogFailures);
 			this.groupBox1.Controls.Add(this.cbPreferIpv4);
 			this.groupBox1.Controls.Add(this.cbLastPing);
-			this.groupBox1.Controls.Add(this.label3);
+			this.groupBox1.Controls.Add(this.lblUpperLimit);
 			this.groupBox1.Controls.Add(this.cbJitter);
-			this.groupBox1.Controls.Add(this.label10);
+			this.groupBox1.Controls.Add(this.lblLowerLimit);
 			this.groupBox1.Controls.Add(this.cbAverage);
 			this.groupBox1.Controls.Add(this.cbAlwaysShowServerNames);
 			this.groupBox1.Controls.Add(this.cbMinMax);
@@ -623,7 +617,7 @@ namespace PingTracer
 			this.groupBox1.Controls.Add(this.label9);
 			this.groupBox1.Location = new System.Drawing.Point(15, 58);
 			this.groupBox1.Name = "groupBox1";
-			this.groupBox1.Size = new System.Drawing.Size(741, 71);
+			this.groupBox1.Size = new System.Drawing.Size(753, 71);
 			this.groupBox1.TabIndex = 9;
 			this.groupBox1.TabStop = false;
 			this.groupBox1.Text = "Graph Options:";
@@ -653,15 +647,15 @@ namespace PingTracer
 			// mainMenu1
 			// 
 			this.mainMenu1.MenuItems.AddRange(new System.Windows.Forms.MenuItem[] {
-			this.menuItem6,
-			this.menuItem1,
-			this.menuItem4});
+            this.menuItem6,
+            this.menuItem1,
+            this.menuItem4});
 			// 
 			// menuItem6
 			// 
 			this.menuItem6.Index = 0;
 			this.menuItem6.MenuItems.AddRange(new System.Windows.Forms.MenuItem[] {
-			this.mi_Exit});
+            this.mi_Exit});
 			this.menuItem6.Text = "&File";
 			// 
 			// mi_Exit
@@ -674,7 +668,7 @@ namespace PingTracer
 			// 
 			this.menuItem1.Index = 1;
 			this.menuItem1.MenuItems.AddRange(new System.Windows.Forms.MenuItem[] {
-			this.mi_snapshotGraphs});
+            this.mi_snapshotGraphs});
 			this.menuItem1.Text = "E&xport";
 			// 
 			// mi_snapshotGraphs
@@ -687,11 +681,11 @@ namespace PingTracer
 			// 
 			this.menuItem4.Index = 2;
 			this.menuItem4.MenuItems.AddRange(new System.Windows.Forms.MenuItem[] {
-			this.mi_Options,
-			this.mi_deleteHost,
-			this.menuItem_OpenSettingsFolder,
-			this.menuItem_CommandLineArgs,
-			this.menuItem_resetWindowSize});
+            this.mi_Options,
+            this.mi_deleteHost,
+            this.menuItem_OpenSettingsFolder,
+            this.menuItem_CommandLineArgs,
+            this.menuItem_resetWindowSize});
 			this.menuItem4.Text = "&Tools";
 			// 
 			// mi_Options
@@ -729,19 +723,47 @@ namespace PingTracer
 			this.selectPingsPerSecond.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
 			this.selectPingsPerSecond.FormattingEnabled = true;
 			this.selectPingsPerSecond.Items.AddRange(new object[] {
-			"pings per second",
-			"seconds per ping"});
+            "pings per second",
+            "seconds per ping"});
 			this.selectPingsPerSecond.Location = new System.Drawing.Point(102, 31);
 			this.selectPingsPerSecond.Name = "selectPingsPerSecond";
 			this.selectPingsPerSecond.Size = new System.Drawing.Size(132, 21);
 			this.selectPingsPerSecond.TabIndex = 5;
 			this.selectPingsPerSecond.SelectedIndexChanged += new System.EventHandler(this.selectPingsPerSecond_SelectedIndexChanged);
 			// 
+			// cbScalingMethod
+			// 
+			this.cbScalingMethod.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+			this.cbScalingMethod.FormattingEnabled = true;
+			this.cbScalingMethod.Items.AddRange(new object[] {
+            "Classic",
+            "Zoom",
+            "Zoom Unlimited",
+            "Fixed"});
+			this.cbScalingMethod.Location = new System.Drawing.Point(499, 38);
+			this.cbScalingMethod.Name = "cbScalingMethod";
+			this.cbScalingMethod.Size = new System.Drawing.Size(121, 21);
+			this.cbScalingMethod.TabIndex = 42;
+			this.toolTip1.SetToolTip(this.cbScalingMethod, resources.GetString("cbScalingMethod.ToolTip"));
+			this.cbScalingMethod.SelectedIndexChanged += new System.EventHandler(this.cbScalingMethod_SelectedIndexChanged);
+			// 
+			// label11
+			// 
+			this.label11.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+			this.label11.AutoSize = true;
+			this.label11.Location = new System.Drawing.Point(499, 22);
+			this.label11.Name = "label11";
+			this.label11.Size = new System.Drawing.Size(84, 13);
+			this.label11.TabIndex = 50;
+			this.label11.Text = "Scaling Method:";
+			this.label11.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
+			this.toolTip1.SetToolTip(this.label11, resources.GetString("label11.ToolTip"));
+			// 
 			// MainForm
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-			this.ClientSize = new System.Drawing.Size(768, 540);
+			this.ClientSize = new System.Drawing.Size(780, 540);
 			this.Controls.Add(this.selectPingsPerSecond);
 			this.Controls.Add(this.cbReverseDNS);
 			this.Controls.Add(this.groupBox1);
@@ -783,6 +805,7 @@ namespace PingTracer
 			this.groupBox1.PerformLayout();
 			this.ResumeLayout(false);
 			this.PerformLayout();
+
 		}
 
 		#endregion
@@ -836,9 +859,10 @@ namespace PingTracer
 		public System.Windows.Forms.CheckBox cbTraceroute;
 		private System.Windows.Forms.NumericUpDown nudUpLimit;
 		private System.Windows.Forms.NumericUpDown nudLowLimit;
-		private System.Windows.Forms.Label label3;
-		private System.Windows.Forms.Label label10;
-		private System.Windows.Forms.CheckBox cbAutoScale;
-		private System.Windows.Forms.CheckBox cbAutoScaleLimit;
-    }
+		private System.Windows.Forms.Label lblUpperLimit;
+		private System.Windows.Forms.Label lblLowerLimit;
+		private System.Windows.Forms.CheckBox cbDrawLimits;
+		private System.Windows.Forms.ComboBox cbScalingMethod;
+		private System.Windows.Forms.Label label11;
+	}
 }

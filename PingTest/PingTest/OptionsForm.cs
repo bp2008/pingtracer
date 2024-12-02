@@ -31,6 +31,10 @@ namespace PingTracer
 			nudGraphScrollMultiplier.Value = mainForm.settings.graphScrollMultiplier;
 			cbShowDateInCorner.Checked = mainForm.settings.showDateOnGraphTimeline;
 			txtCustomTimeString.Text = mainForm.settings.customTimeStr;
+			nudTopMargin.Value = mainForm.settings.osWindowTopMargin;
+			nudLeftMargin.Value = mainForm.settings.osWindowLeftMargin;
+			nudRightMargin.Value = mainForm.settings.osWindowRightMargin;
+			nudBottomMargin.Value = mainForm.settings.osWindowBottomMargin;
 		}
 
 		private void cbLogToFile_CheckedChanged(object sender, EventArgs e)
@@ -82,8 +86,31 @@ namespace PingTracer
 
 		private void txtCustomTimeStringGraphs_TextChanged(object sender, EventArgs e)
 		{
-			
 			mainForm.settings.customTimeStr = txtCustomTimeString.Text;
+			mainForm.settings.Save();
+		}
+
+		private void nudTopMargin_ValueChanged(object sender, EventArgs e)
+		{
+			mainForm.settings.osWindowTopMargin = (int)nudTopMargin.Value;
+			mainForm.settings.Save();
+		}
+
+		private void nudLeftMargin_ValueChanged(object sender, EventArgs e)
+		{
+			mainForm.settings.osWindowLeftMargin = (int)nudLeftMargin.Value;
+			mainForm.settings.Save();
+		}
+
+		private void nudRightMargin_ValueChanged(object sender, EventArgs e)
+		{
+			mainForm.settings.osWindowRightMargin = (int)nudRightMargin.Value;
+			mainForm.settings.Save();
+		}
+
+		private void nudBottomMargin_ValueChanged(object sender, EventArgs e)
+		{
+			mainForm.settings.osWindowBottomMargin = (int)nudBottomMargin.Value;
 			mainForm.settings.Save();
 		}
 	}

@@ -44,8 +44,20 @@
 			this.label4 = new System.Windows.Forms.Label();
 			this.txtCustomTimeString = new System.Windows.Forms.TextBox();
 			this.customTimeStringHelp = new System.Windows.Forms.LinkLabel();
+			this.panel1 = new System.Windows.Forms.Panel();
+			this.groupBoxFormMargins = new System.Windows.Forms.GroupBox();
+			this.nudBottomMargin = new System.Windows.Forms.NumericUpDown();
+			this.nudRightMargin = new System.Windows.Forms.NumericUpDown();
+			this.nudLeftMargin = new System.Windows.Forms.NumericUpDown();
+			this.nudTopMargin = new System.Windows.Forms.NumericUpDown();
+			this.label5 = new System.Windows.Forms.Label();
 			((System.ComponentModel.ISupportInitialize)(this.nudPingResponsesToCache)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.nudGraphScrollMultiplier)).BeginInit();
+			this.groupBoxFormMargins.SuspendLayout();
+			((System.ComponentModel.ISupportInitialize)(this.nudBottomMargin)).BeginInit();
+			((System.ComponentModel.ISupportInitialize)(this.nudRightMargin)).BeginInit();
+			((System.ComponentModel.ISupportInitialize)(this.nudLeftMargin)).BeginInit();
+			((System.ComponentModel.ISupportInitialize)(this.nudTopMargin)).BeginInit();
 			this.SuspendLayout();
 			// 
 			// cbLogToFile
@@ -127,7 +139,7 @@
 			this.nudPingResponsesToCache.TabIndex = 7;
 			this.toolTip1.SetToolTip(this.nudPingResponsesToCache, resources.GetString("nudPingResponsesToCache.ToolTip"));
 			this.nudPingResponsesToCache.Value = new decimal(new int[] {
-            10000,
+            360000,
             0,
             0,
             0});
@@ -166,9 +178,9 @@
 			this.label3.Size = new System.Drawing.Size(126, 13);
 			this.label3.TabIndex = 15;
 			this.label3.Text = "Graph scrolling multiplier: ";
-			this.toolTip1.SetToolTip(this.label3, "(Default: 1)\r\n\r\nWhen you click and drag a ping graph horizontally,\r\nit scrolls.  " +
-        "If you increase this value, it will scroll faster.\r\n\r\nIf you set this value to 0" +
-        ", graph scrolling will be disabled.");
+			this.toolTip1.SetToolTip(this.label3, "(Default: 50)\r\n\r\nWhen you click and drag a ping graph horizontally,\r\nit scrolls. " +
+        " If you increase this value, it will scroll faster.\r\n\r\nIf you set this value to " +
+        "0, graph scrolling will be disabled.");
 			// 
 			// nudGraphScrollMultiplier
 			// 
@@ -181,9 +193,9 @@
 			this.nudGraphScrollMultiplier.Name = "nudGraphScrollMultiplier";
 			this.nudGraphScrollMultiplier.Size = new System.Drawing.Size(102, 20);
 			this.nudGraphScrollMultiplier.TabIndex = 6;
-			this.toolTip1.SetToolTip(this.nudGraphScrollMultiplier, "(Default: 1)\r\n\r\nWhen you click and drag a ping graph horizontally,\r\nit scrolls.  " +
-        "If you increase this value, it will scroll faster.\r\n\r\nIf you set this value to 0" +
-        ", graph scrolling will be disabled.");
+			this.toolTip1.SetToolTip(this.nudGraphScrollMultiplier, "(Default: 50)\r\n\r\nWhen you click and drag a ping graph horizontally,\r\nit scrolls. " +
+        " If you increase this value, it will scroll faster.\r\n\r\nIf you set this value to " +
+        "0, graph scrolling will be disabled.");
 			this.nudGraphScrollMultiplier.Value = new decimal(new int[] {
             1,
             0,
@@ -234,11 +246,128 @@
 			this.customTimeStringHelp.Text = "(help)";
 			this.customTimeStringHelp.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.customTimeStringHelp_LinkClicked);
 			// 
+			// panel1
+			// 
+			this.panel1.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+			this.panel1.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+			this.panel1.Location = new System.Drawing.Point(228, 42);
+			this.panel1.Name = "panel1";
+			this.panel1.Size = new System.Drawing.Size(53, 49);
+			this.panel1.TabIndex = 19;
+			// 
+			// groupBoxFormMargins
+			// 
+			this.groupBoxFormMargins.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
+            | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+			this.groupBoxFormMargins.Controls.Add(this.nudBottomMargin);
+			this.groupBoxFormMargins.Controls.Add(this.nudRightMargin);
+			this.groupBoxFormMargins.Controls.Add(this.nudLeftMargin);
+			this.groupBoxFormMargins.Controls.Add(this.nudTopMargin);
+			this.groupBoxFormMargins.Controls.Add(this.label5);
+			this.groupBoxFormMargins.Controls.Add(this.panel1);
+			this.groupBoxFormMargins.Location = new System.Drawing.Point(12, 258);
+			this.groupBoxFormMargins.Name = "groupBoxFormMargins";
+			this.groupBoxFormMargins.Size = new System.Drawing.Size(346, 133);
+			this.groupBoxFormMargins.TabIndex = 20;
+			this.groupBoxFormMargins.TabStop = false;
+			this.groupBoxFormMargins.Text = "Window Margins";
+			// 
+			// nudBottomMargin
+			// 
+			this.nudBottomMargin.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+			this.nudBottomMargin.Location = new System.Drawing.Point(228, 97);
+			this.nudBottomMargin.Maximum = new decimal(new int[] {
+            30,
+            0,
+            0,
+            0});
+			this.nudBottomMargin.Minimum = new decimal(new int[] {
+            30,
+            0,
+            0,
+            -2147483648});
+			this.nudBottomMargin.Name = "nudBottomMargin";
+			this.nudBottomMargin.Size = new System.Drawing.Size(53, 20);
+			this.nudBottomMargin.TabIndex = 24;
+			this.nudBottomMargin.ValueChanged += new System.EventHandler(this.nudBottomMargin_ValueChanged);
+			// 
+			// nudRightMargin
+			// 
+			this.nudRightMargin.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+			this.nudRightMargin.Location = new System.Drawing.Point(287, 56);
+			this.nudRightMargin.Maximum = new decimal(new int[] {
+            30,
+            0,
+            0,
+            0});
+			this.nudRightMargin.Minimum = new decimal(new int[] {
+            30,
+            0,
+            0,
+            -2147483648});
+			this.nudRightMargin.Name = "nudRightMargin";
+			this.nudRightMargin.Size = new System.Drawing.Size(53, 20);
+			this.nudRightMargin.TabIndex = 23;
+			this.nudRightMargin.ValueChanged += new System.EventHandler(this.nudRightMargin_ValueChanged);
+			// 
+			// nudLeftMargin
+			// 
+			this.nudLeftMargin.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+			this.nudLeftMargin.Location = new System.Drawing.Point(169, 56);
+			this.nudLeftMargin.Maximum = new decimal(new int[] {
+            30,
+            0,
+            0,
+            0});
+			this.nudLeftMargin.Minimum = new decimal(new int[] {
+            30,
+            0,
+            0,
+            -2147483648});
+			this.nudLeftMargin.Name = "nudLeftMargin";
+			this.nudLeftMargin.Size = new System.Drawing.Size(53, 20);
+			this.nudLeftMargin.TabIndex = 22;
+			this.nudLeftMargin.ValueChanged += new System.EventHandler(this.nudLeftMargin_ValueChanged);
+			// 
+			// nudTopMargin
+			// 
+			this.nudTopMargin.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+			this.nudTopMargin.Location = new System.Drawing.Point(228, 16);
+			this.nudTopMargin.Maximum = new decimal(new int[] {
+            30,
+            0,
+            0,
+            0});
+			this.nudTopMargin.Minimum = new decimal(new int[] {
+            30,
+            0,
+            0,
+            -2147483648});
+			this.nudTopMargin.Name = "nudTopMargin";
+			this.nudTopMargin.Size = new System.Drawing.Size(53, 20);
+			this.nudTopMargin.TabIndex = 21;
+			this.nudTopMargin.ValueChanged += new System.EventHandler(this.nudTopMargin_ValueChanged);
+			// 
+			// label5
+			// 
+			this.label5.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
+            | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+			this.label5.Location = new System.Drawing.Point(6, 18);
+			this.label5.Name = "label5";
+			this.label5.Size = new System.Drawing.Size(157, 112);
+			this.label5.TabIndex = 20;
+			this.label5.Text = "When maximizing the ping graphs, they may appear larger or smaller than the regul" +
+    "ar program window.  To correct this, the following margins will be subtracted fr" +
+    "om the maximized graph view.";
+			// 
 			// OptionsForm
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-			this.ClientSize = new System.Drawing.Size(358, 281);
+			this.ClientSize = new System.Drawing.Size(370, 398);
+			this.Controls.Add(this.groupBoxFormMargins);
 			this.Controls.Add(this.customTimeStringHelp);
 			this.Controls.Add(this.txtCustomTimeString);
 			this.Controls.Add(this.label4);
@@ -257,6 +386,11 @@
 			this.Text = "Ping Tracer Options";
 			((System.ComponentModel.ISupportInitialize)(this.nudPingResponsesToCache)).EndInit();
 			((System.ComponentModel.ISupportInitialize)(this.nudGraphScrollMultiplier)).EndInit();
+			this.groupBoxFormMargins.ResumeLayout(false);
+			((System.ComponentModel.ISupportInitialize)(this.nudBottomMargin)).EndInit();
+			((System.ComponentModel.ISupportInitialize)(this.nudRightMargin)).EndInit();
+			((System.ComponentModel.ISupportInitialize)(this.nudLeftMargin)).EndInit();
+			((System.ComponentModel.ISupportInitialize)(this.nudTopMargin)).EndInit();
 			this.ResumeLayout(false);
 			this.PerformLayout();
 
@@ -278,5 +412,12 @@
 		private System.Windows.Forms.Label label4;
 		private System.Windows.Forms.TextBox txtCustomTimeString;
 		private System.Windows.Forms.LinkLabel customTimeStringHelp;
+		private System.Windows.Forms.Panel panel1;
+		private System.Windows.Forms.GroupBox groupBoxFormMargins;
+		private System.Windows.Forms.NumericUpDown nudTopMargin;
+		private System.Windows.Forms.Label label5;
+		private System.Windows.Forms.NumericUpDown nudBottomMargin;
+		private System.Windows.Forms.NumericUpDown nudRightMargin;
+		private System.Windows.Forms.NumericUpDown nudLeftMargin;
 	}
 }
