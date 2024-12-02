@@ -51,6 +51,9 @@
 			this.nudLeftMargin = new System.Windows.Forms.NumericUpDown();
 			this.nudTopMargin = new System.Windows.Forms.NumericUpDown();
 			this.label5 = new System.Windows.Forms.Label();
+			this.nudPingTimeoutRedLineHeight = new System.Windows.Forms.NumericUpDown();
+			this.label6 = new System.Windows.Forms.Label();
+			this.label7 = new System.Windows.Forms.Label();
 			((System.ComponentModel.ISupportInitialize)(this.nudPingResponsesToCache)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.nudGraphScrollMultiplier)).BeginInit();
 			this.groupBoxFormMargins.SuspendLayout();
@@ -58,6 +61,7 @@
 			((System.ComponentModel.ISupportInitialize)(this.nudRightMargin)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.nudLeftMargin)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.nudTopMargin)).BeginInit();
+			((System.ComponentModel.ISupportInitialize)(this.nudPingTimeoutRedLineHeight)).BeginInit();
 			this.SuspendLayout();
 			// 
 			// cbLogToFile
@@ -114,7 +118,7 @@
 			// label1
 			// 
 			this.label1.AutoSize = true;
-			this.label1.Location = new System.Drawing.Point(12, 182);
+			this.label1.Location = new System.Drawing.Point(12, 181);
 			this.label1.Name = "label1";
 			this.label1.Size = new System.Drawing.Size(293, 13);
 			this.label1.TabIndex = 11;
@@ -123,7 +127,7 @@
 			// 
 			// nudPingResponsesToCache
 			// 
-			this.nudPingResponsesToCache.Location = new System.Drawing.Point(12, 201);
+			this.nudPingResponsesToCache.Location = new System.Drawing.Point(12, 200);
 			this.nudPingResponsesToCache.Maximum = new decimal(new int[] {
             10000000,
             0,
@@ -148,7 +152,7 @@
 			// label2
 			// 
 			this.label2.AutoSize = true;
-			this.label2.Location = new System.Drawing.Point(120, 203);
+			this.label2.Location = new System.Drawing.Point(120, 202);
 			this.label2.Name = "label2";
 			this.label2.Size = new System.Drawing.Size(227, 13);
 			this.label2.TabIndex = 13;
@@ -173,7 +177,7 @@
 			// label3
 			// 
 			this.label3.AutoSize = true;
-			this.label3.Location = new System.Drawing.Point(9, 151);
+			this.label3.Location = new System.Drawing.Point(9, 150);
 			this.label3.Name = "label3";
 			this.label3.Size = new System.Drawing.Size(126, 13);
 			this.label3.TabIndex = 15;
@@ -184,7 +188,7 @@
 			// 
 			// nudGraphScrollMultiplier
 			// 
-			this.nudGraphScrollMultiplier.Location = new System.Drawing.Point(141, 149);
+			this.nudGraphScrollMultiplier.Location = new System.Drawing.Point(141, 148);
 			this.nudGraphScrollMultiplier.Maximum = new decimal(new int[] {
             10000,
             0,
@@ -221,7 +225,7 @@
 			// label4
 			// 
 			this.label4.AutoSize = true;
-			this.label4.Location = new System.Drawing.Point(12, 235);
+			this.label4.Location = new System.Drawing.Point(12, 234);
 			this.label4.Name = "label4";
 			this.label4.Size = new System.Drawing.Size(142, 13);
 			this.label4.TabIndex = 16;
@@ -229,7 +233,7 @@
 			// 
 			// txtCustomTimeString
 			// 
-			this.txtCustomTimeString.Location = new System.Drawing.Point(160, 232);
+			this.txtCustomTimeString.Location = new System.Drawing.Point(160, 231);
 			this.txtCustomTimeString.Name = "txtCustomTimeString";
 			this.txtCustomTimeString.Size = new System.Drawing.Size(147, 20);
 			this.txtCustomTimeString.TabIndex = 17;
@@ -238,7 +242,7 @@
 			// customTimeStringHelp
 			// 
 			this.customTimeStringHelp.AutoSize = true;
-			this.customTimeStringHelp.Location = new System.Drawing.Point(313, 235);
+			this.customTimeStringHelp.Location = new System.Drawing.Point(313, 234);
 			this.customTimeStringHelp.Name = "customTimeStringHelp";
 			this.customTimeStringHelp.Size = new System.Drawing.Size(33, 13);
 			this.customTimeStringHelp.TabIndex = 18;
@@ -266,9 +270,9 @@
 			this.groupBoxFormMargins.Controls.Add(this.nudTopMargin);
 			this.groupBoxFormMargins.Controls.Add(this.label5);
 			this.groupBoxFormMargins.Controls.Add(this.panel1);
-			this.groupBoxFormMargins.Location = new System.Drawing.Point(12, 258);
+			this.groupBoxFormMargins.Location = new System.Drawing.Point(12, 277);
 			this.groupBoxFormMargins.Name = "groupBoxFormMargins";
-			this.groupBoxFormMargins.Size = new System.Drawing.Size(346, 133);
+			this.groupBoxFormMargins.Size = new System.Drawing.Size(346, 131);
 			this.groupBoxFormMargins.TabIndex = 20;
 			this.groupBoxFormMargins.TabStop = false;
 			this.groupBoxFormMargins.Text = "Window Margins";
@@ -356,17 +360,70 @@
             | System.Windows.Forms.AnchorStyles.Right)));
 			this.label5.Location = new System.Drawing.Point(6, 18);
 			this.label5.Name = "label5";
-			this.label5.Size = new System.Drawing.Size(157, 112);
+			this.label5.Size = new System.Drawing.Size(157, 110);
 			this.label5.TabIndex = 20;
 			this.label5.Text = "When maximizing the ping graphs, they may appear larger or smaller than the regul" +
     "ar program window.  To correct this, the following margins will be subtracted fr" +
     "om the maximized graph view.";
 			// 
+			// nudPingTimeoutRedLineHeight
+			// 
+			this.nudPingTimeoutRedLineHeight.Location = new System.Drawing.Point(160, 257);
+			this.nudPingTimeoutRedLineHeight.Maximum = new decimal(new int[] {
+            10000,
+            0,
+            0,
+            0});
+			this.nudPingTimeoutRedLineHeight.Minimum = new decimal(new int[] {
+            1,
+            0,
+            0,
+            0});
+			this.nudPingTimeoutRedLineHeight.Name = "nudPingTimeoutRedLineHeight";
+			this.nudPingTimeoutRedLineHeight.Size = new System.Drawing.Size(64, 20);
+			this.nudPingTimeoutRedLineHeight.TabIndex = 21;
+			this.toolTip1.SetToolTip(this.nudPingTimeoutRedLineHeight, "When a ping times out (gets no response), a red line is drawn \r\nup to this many p" +
+        "ixels tall in the graph. You can reduce this \r\nvalue to shrink the line that is " +
+        "drawn.");
+			this.nudPingTimeoutRedLineHeight.Value = new decimal(new int[] {
+            10000,
+            0,
+            0,
+            0});
+			this.nudPingTimeoutRedLineHeight.ValueChanged += new System.EventHandler(this.nudPingTimeoutRedLineHeight_ValueChanged);
+			// 
+			// label6
+			// 
+			this.label6.AutoSize = true;
+			this.label6.Location = new System.Drawing.Point(12, 259);
+			this.label6.Name = "label6";
+			this.label6.Size = new System.Drawing.Size(137, 13);
+			this.label6.TabIndex = 22;
+			this.label6.Text = "Ping timeout red line height:";
+			this.toolTip1.SetToolTip(this.label6, "When a ping times out (gets no response), a red line is drawn \r\nup to this many p" +
+        "ixels tall in the graph. You can reduce this \r\nvalue to shrink the line that is " +
+        "drawn.");
+			// 
+			// label7
+			// 
+			this.label7.AutoSize = true;
+			this.label7.Location = new System.Drawing.Point(232, 259);
+			this.label7.Name = "label7";
+			this.label7.Size = new System.Drawing.Size(39, 13);
+			this.label7.TabIndex = 23;
+			this.label7.Text = "(pixels)";
+			this.toolTip1.SetToolTip(this.label7, "When a ping times out (gets no response), a red line is drawn \r\nup to this many p" +
+        "ixels tall in the graph. You can reduce this \r\nvalue to shrink the line that is " +
+        "drawn.");
+			// 
 			// OptionsForm
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-			this.ClientSize = new System.Drawing.Size(370, 398);
+			this.ClientSize = new System.Drawing.Size(370, 415);
+			this.Controls.Add(this.label7);
+			this.Controls.Add(this.nudPingTimeoutRedLineHeight);
+			this.Controls.Add(this.label6);
 			this.Controls.Add(this.groupBoxFormMargins);
 			this.Controls.Add(this.customTimeStringHelp);
 			this.Controls.Add(this.txtCustomTimeString);
@@ -391,6 +448,7 @@
 			((System.ComponentModel.ISupportInitialize)(this.nudRightMargin)).EndInit();
 			((System.ComponentModel.ISupportInitialize)(this.nudLeftMargin)).EndInit();
 			((System.ComponentModel.ISupportInitialize)(this.nudTopMargin)).EndInit();
+			((System.ComponentModel.ISupportInitialize)(this.nudPingTimeoutRedLineHeight)).EndInit();
 			this.ResumeLayout(false);
 			this.PerformLayout();
 
@@ -419,5 +477,8 @@
 		private System.Windows.Forms.NumericUpDown nudBottomMargin;
 		private System.Windows.Forms.NumericUpDown nudRightMargin;
 		private System.Windows.Forms.NumericUpDown nudLeftMargin;
+		private System.Windows.Forms.NumericUpDown nudPingTimeoutRedLineHeight;
+		private System.Windows.Forms.Label label6;
+		private System.Windows.Forms.Label label7;
 	}
 }

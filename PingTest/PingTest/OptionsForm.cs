@@ -30,6 +30,7 @@ namespace PingTracer
 			cbFastRefreshScrollingGraphs.Checked = mainForm.settings.fastRefreshScrollingGraphs;
 			nudGraphScrollMultiplier.Value = mainForm.settings.graphScrollMultiplier;
 			cbShowDateInCorner.Checked = mainForm.settings.showDateOnGraphTimeline;
+			nudPingTimeoutRedLineHeight.Value = mainForm.settings.maxHeightOfPingTimeoutLine;
 			txtCustomTimeString.Text = mainForm.settings.customTimeStr;
 			nudTopMargin.Value = mainForm.settings.osWindowTopMargin;
 			nudLeftMargin.Value = mainForm.settings.osWindowLeftMargin;
@@ -87,6 +88,12 @@ namespace PingTracer
 		private void txtCustomTimeStringGraphs_TextChanged(object sender, EventArgs e)
 		{
 			mainForm.settings.customTimeStr = txtCustomTimeString.Text;
+			mainForm.settings.Save();
+		}
+
+		private void nudPingTimeoutRedLineHeight_ValueChanged(object sender, EventArgs e)
+		{
+			mainForm.settings.maxHeightOfPingTimeoutLine = (int)nudPingTimeoutRedLineHeight.Value;
 			mainForm.settings.Save();
 		}
 

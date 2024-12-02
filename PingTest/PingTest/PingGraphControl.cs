@@ -374,10 +374,12 @@ namespace PingTracer
 					if (p == null)
 						continue;
 
-					if (p.pingTime > lowerLimitDraw)
+					bool drawMyLine = false;
+					if (p.result == IPStatus.Success)
 					{
-						if (p.result == IPStatus.Success)
+						if (p.pingTime > lowerLimitDraw)
 						{
+							drawMyLine = true;
 							if (p.pingTime < Threshold_Bad)
 							{
 								lineBrush = brushSuccess;
@@ -396,13 +398,20 @@ namespace PingTracer
 
 							pStart.Y = (int)(height - ((p.pingTime - lowerLimitDraw) * vScale));
 						}
+					}
+					else
+					{
+						drawMyLine = true;
+						lineBrush = brushFailure;
+						linePen = penFailure;
+						if (height > settings.maxHeightOfPingTimeoutLine)
+							pStart.Y = height - settings.maxHeightOfPingTimeoutLine;
 						else
-						{
-							lineBrush = brushFailure;
-							linePen = penFailure;
 							pStart.Y = 0;
-						}
+					}
 
+					if (drawMyLine)
+					{
 						if (pStart == pEnd)
 							e.Graphics.FillRectangle(lineBrush, pStart.X, pStart.Y, 1, 1);
 						else
