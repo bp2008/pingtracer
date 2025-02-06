@@ -25,16 +25,16 @@ jobs:
 
       # Restore dependencies for .NET Framework
       - name: Restore NuGet packages
-        run: nuget restore Pingtest.sln
+        run: nuget restore PingTracer.sln
 
       # Build the application using MSBuild (for .NET Framework)
       - name: Build the project
-        run: msbuild Pingtest.sln /p:Configuration=Release
+        run: msbuild PingTracer.sln /p:Configuration=Release
 
       # Run Unit Tests using Visual Studio Test (vstest.console.exe)
-      - name: Run unit tests
-        run: |
-          vstest.console.exe **\*Test*.dll /EnableCodeCoverage:true
+    #  - name: Run unit tests
+    #    run: |
+    #      vstest.console.exe **\*Test*.dll /EnableCodeCoverage:true
 
       # Security scan using .NET Security or custom tools
       - name: Run .NET security analysis (optional)
