@@ -20,8 +20,7 @@ jobs:
       # Install .NET Framework version (this should be pre-installed on the runner)
       - name: Install .NET Framework 4.6.2
         run: |
-          # Normally no action required, but you can install specific dependencies if needed
-          choco install dotnet-4.6.2-sdk
+          choco install netfx-4.6.2-devpack
 
       # Restore dependencies for .NET Framework
       - name: Restore NuGet packages
