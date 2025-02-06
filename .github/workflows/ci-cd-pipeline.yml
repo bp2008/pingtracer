@@ -1,44 +1,47 @@
-name: .NET Core CI/CD Pipeline
+name: .NET Framework CI/CD Pipeline
 
 on:
   push:
     branches:
-       - '*'  
+       - '*'  # Trigger on push to any branch
   pull_request:
     branches:
-       - '*'  
+       - '*'  # Trigger on pull request to any branch
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest  # Use Windows runner for .NET Framework
 
     steps:
       # Check out the repository
       - name: Checkout Code
         uses: actions/checkout@v2
 
-      # Set up .NET SDK
-      - name: Set up .NET
-        uses: actions/setup-dotnet@v3
-        with:
-          dotnet-version: '6.0'  # Replace with your version
+      # Install .NET Framework version (this should be pre-installed on the runner)
+      - name: Install .NET Framework 4.6.2
+        run: |
+          # Normally no action required, but you can install specific dependencies if needed
+          choco install dotnet-4.6.2-sdk
 
-      # Restore dependencies
-      - name: Restore dependencies
-        run: dotnet restore
+      # Restore dependencies for .NET Framework
+      - name: Restore NuGet packages
+        run: nuget restore Pingtest.sln
 
-      # Build the application
+      # Build the application using MSBuild (for .NET Framework)
       - name: Build the project
-        run: dotnet build --configuration Release
+        run: msbuild Pingtest.sln /p:Configuration=Release
 
-      # Run Unit Tests
+      # Run Unit Tests using Visual Studio Test (vstest.console.exe)
       - name: Run unit tests
-        run: dotnet test --configuration Release --no-build --verbosity normal
+        run: |
+          vstest.console.exe **\*Test*.dll /EnableCodeCoverage:true
 
-      # Security scan using .NET Security
-      - name: Run .NET security analysis
-        run: dotnet tool install --global dotnet-security --version 1.0.0-beta1
+      # Security scan using .NET Security or custom tools
+      - name: Run .NET security analysis (optional)
+        run: |
+          dotnet tool install --global dotnet-security --version 1.0.0-beta1
         continue-on-error: true
 
       - name: Analyze project security
-        run: dotnet security analyze
+        run: |
+          dotnet security analyze
