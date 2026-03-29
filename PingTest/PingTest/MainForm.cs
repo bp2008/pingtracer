@@ -257,13 +257,7 @@ namespace PingTracer
 			settings.lastLoadedConfigurationGuid = cfg.guid;
 			settings.Save();
 
-			// Update title bar
-			string baseTitle = "Ping Tracer " + System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString();
-			if (!string.IsNullOrWhiteSpace(cfg.displayName))
-				this.Text = baseTitle + " - " + cfg.displayName;
-			else
-				this.Text = baseTitle;
-			panelForm.Text = this.Text;
+			UpdateTitleBar(cfg);
 
 			// Sync dropdown selection (reload from disk so newly saved configs are available)
 			PopulateConfigDropdownFromDisk();
@@ -1440,10 +1434,14 @@ namespace PingTracer
 				graph.InvalidateSync();
 			}
 
-			// Update title bar
+			UpdateTitleBar(cfg);
+		}
+
+		private void UpdateTitleBar(PingConfiguration cfg)
+		{
 			string baseTitle = "Ping Tracer " + System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString();
 			if (!string.IsNullOrWhiteSpace(cfg.displayName))
-				this.Text = baseTitle + " - " + cfg.displayName;
+				this.Text = cfg.displayName + " - " + baseTitle;
 			else
 				this.Text = baseTitle;
 			panelForm.Text = this.Text;
