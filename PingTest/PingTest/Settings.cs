@@ -15,6 +15,10 @@ namespace PingTracer
 		public bool logTextOutputToFile = true;
 		public bool delayMostRecentPing = true;
 		public bool warnGraphNotLive = true;
+		/// <summary>
+		/// Legacy field retained during PingTracer 2.x lifecycle for backward-compatible deserialization and one-time migration from PingTracer 1.x format.
+		/// After migration, this list will be empty.
+		/// </summary>
 		public List<HostSettings> hostHistory = new List<HostSettings>();
 		public int cacheSize = 360000;
 		public bool fastRefreshScrollingGraphs = true;
@@ -28,13 +32,14 @@ namespace PingTracer
 		public int osWindowBottomMargin = 7;
 		public int maxHeightOfPingTimeoutLine = 10000;
 		public int pingPayloadSizeBytes = 32;
+		/// <summary>
+		/// The Guid of the most recently loaded PingConfiguration, used to auto-load on next launch.
+		/// </summary>
+		public string lastLoadedConfigurationGuid = null;
 
 		public bool Save()
 		{
-			lock (hostHistory)
-			{
-				return Save(settingsFilePath);
-			}
+			return Save(settingsFilePath);
 		}
 		public bool Load()
 		{
@@ -47,13 +52,13 @@ namespace PingTracer
 		{
 			get
 			{
-				return settingsFolderPath + "settings.cfg";
+				return SettingsFolderPath + "settings.cfg";
 			}
 		}
 		/// <summary>
 		/// Gets the absolute path to the settings folder.
 		/// </summary>
-		private static string settingsFolderPath
+		public static string SettingsFolderPath
 		{
 			get
 			{
@@ -70,7 +75,7 @@ namespace PingTracer
 		/// </summary>
 		public void OpenSettingsFolder()
 		{
-			Process.Start(settingsFolderPath);
+			Process.Start(SettingsFolderPath);
 		}
 	}
 }

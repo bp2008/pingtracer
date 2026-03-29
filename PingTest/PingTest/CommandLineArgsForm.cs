@@ -55,19 +55,28 @@ namespace PingTracer
 				mainForm.Size.Width - (mL + mR),
 				mainForm.Size.Height - (mT + mB));
 
-			options.StartupHostName = mainForm.txtDisplayName.Text;
-			if (string.IsNullOrWhiteSpace(options.StartupHostName))
-				options.StartupHostName = mainForm.txtHost.Text;
-			if (string.IsNullOrWhiteSpace(options.StartupHostName))
+			var cfg = mainForm.currentConfiguration;
+			if (cfg != null)
+			{
+				options.StartupHostName = cfg.displayName;
+				if (string.IsNullOrWhiteSpace(options.StartupHostName))
+					options.StartupHostName = cfg.GetHostString();
+				if (string.IsNullOrWhiteSpace(options.StartupHostName))
+					options.StartupHostName = null;
+
+				options.PreferIPv6 = cfg.GetPreferIPv4() ? BoolOverride.False : BoolOverride.True;
+				options.TraceRoute = cfg.doTraceRoute ? BoolOverride.True : BoolOverride.False;
+			}
+			else
+			{
 				options.StartupHostName = null;
+				options.PreferIPv6 = BoolOverride.Inherit;
+				options.TraceRoute = BoolOverride.Inherit;
+			}
 
 			options.StartPinging = mainForm.isRunning;
 
 			options.MaximizeGraphs = mainForm.graphsMaximized;
-
-			options.PreferIPv6 = mainForm.cbPreferIpv4.Checked ? BoolOverride.False : BoolOverride.True;
-
-			options.TraceRoute = mainForm.cbTraceroute.Checked ? BoolOverride.True : BoolOverride.False;
 
 			txtArgs.Text = options.ToString();
 		}

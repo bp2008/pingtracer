@@ -53,7 +53,27 @@ namespace PingTracer
 
 		public Settings settings = new Settings();
 
-		DateTime suppressHostSettingsSaveUntil = DateTime.MinValue;
+		/// <summary>
+		/// In-memory log buffer. Access must be synchronized via logBufferLock.
+		/// </summary>
+		private readonly List<string> logBuffer = new List<string>();
+		private readonly object logBufferLock = new object();
+		private const int MaxLogLines = 10000;
+
+		/// <summary>
+		/// The output log form, created on demand and destroyed when closed.
+		/// </summary>
+		private OutputLogForm outputLogForm = null;
+
+		/// <summary>
+		/// Suppresses config dropdown SelectedIndexChanged events during programmatic updates.
+		/// </summary>
+		private bool suppressConfigDropdownEvents = false;
+
+		/// <summary>
+		/// The currently loaded PingConfiguration, or null if none is loaded.
+		/// </summary>
+		public PingConfiguration currentConfiguration { get; private set; } = null;
 		private string[] args;
 		/// <summary>
 		/// Event raised when pinging begins.  See <see cref="isRunning"/>.
@@ -64,7 +84,7 @@ namespace PingTracer
 		/// </summary>
 		public event EventHandler StoppedPinging = delegate { };
 		/// <summary>
-		/// Event raised when the selected Host field or Display Name field or Prefer IPv4 value changed.  See <see cref="txtHost"/> and <see cref="txtDisplayName"/> and <see cref="cbPreferIpv4"/>.
+		/// Event raised when the currently loaded configuration changes.
 		/// </summary>
 		public event EventHandler SelectedHostChanged = delegate { };
 		/// <summary>
@@ -72,53 +92,15 @@ namespace PingTracer
 		/// </summary>
 		public event EventHandler MaximizeGraphsChanged = delegate { };
 
-		private bool _logFailures = false;
 		/// <summary>
-		/// Gets or sets a value indicating whether failures should be logged for the current UI state.
+		/// Gets or sets a value indicating whether failures should be logged for the current configuration.
 		/// </summary>
-		public bool LogFailures
-		{
-			get
-			{
-				return _logFailures;
-			}
-			set
-			{
-				_logFailures = value;
-				SetLogFailures(value);
-			}
-		}
-		private void SetLogFailures(bool value)
-		{
-			if (this.InvokeRequired)
-				this.Invoke((Action<bool>)SetLogFailures, value);
-			else
-				cbLogFailures.Checked = value;
-		}
+		public bool LogFailures { get; set; } = false;
 
-		private bool _logSuccesses = false;
 		/// <summary>
-		/// Gets or sets a value indicating whether failures should be logged for the current UI state.
+		/// Gets or sets a value indicating whether successes should be logged for the current configuration.
 		/// </summary>
-		public bool LogSuccesses
-		{
-			get
-			{
-				return _logSuccesses;
-			}
-			set
-			{
-				_logFailures = value;
-				SetLogSuccesses(value);
-			}
-		}
-		private void SetLogSuccesses(bool value)
-		{
-			if (this.InvokeRequired)
-				this.Invoke((Action<bool>)SetLogSuccesses, value);
-			else
-				cbLogSuccesses.Checked = value;
-		}
+		public bool LogSuccesses { get; set; } = false;
 		/// <summary>
 		/// Assigned during MainForm construction, this field remembers the default window size.
 		/// </summary>
@@ -144,55 +126,63 @@ namespace PingTracer
 			panelForm.Text = this.Text;
 			panelForm.Icon = this.Icon;
 			panelForm.FormClosing += panelForm_FormClosing;
-			selectPingsPerSecond.SelectedIndex = 0;
 			settings.Load();
+
+			// One-time migration from legacy HostSettings to PingConfigurations
+			PingConfigurations.MigrateFromSettings(settings);
+
+			// Load PingConfigurations and populate toolbar dropdown
+			PingConfigurations allConfigs = new PingConfigurations();
+			allConfigs.Load();
+			PopulateConfigDropdown(allConfigs);
+
 			StartupOptions options = new StartupOptions(args);
-			lock (settings.hostHistory)
+			PingConfiguration configToLoad = null;
+
+			if (options.StartupHostName != null)
 			{
-				HostSettings item = null;
-				if (options.StartupHostName != null)
-				{
-					// Attempt to find the given hostname from the startup options.
-					item = settings.hostHistory.FirstOrDefault(h => h.displayName == options.StartupHostName && _hostMatchesOptions(h, options));
-					if (item == null)
-						item = settings.hostHistory.FirstOrDefault(h => h.host == options.StartupHostName && _hostMatchesOptions(h, options));
+				// Attempt to find a matching configuration by display name
+				configToLoad = allConfigs.configurations.FirstOrDefault(c =>
+					string.Equals(c.displayName, options.StartupHostName, StringComparison.OrdinalIgnoreCase)
+					&& _configMatchesOptions(c, options));
+				if (configToLoad == null)
+					configToLoad = allConfigs.configurations.FirstOrDefault(c =>
+						string.Equals(c.GetHostString(), options.StartupHostName, StringComparison.OrdinalIgnoreCase)
+						&& _configMatchesOptions(c, options));
+				if (configToLoad == null)
+					configToLoad = allConfigs.configurations.FirstOrDefault(c =>
+						string.Equals(c.displayName, options.StartupHostName, StringComparison.OrdinalIgnoreCase));
+				if (configToLoad == null)
+					configToLoad = allConfigs.configurations.FirstOrDefault(c =>
+						string.Equals(c.GetHostString(), options.StartupHostName, StringComparison.OrdinalIgnoreCase));
 
-					if (item == null)
-					{
-						// Create a new profile.
-						// Base it on a displayName-only match.
-						if (item == null)
-							item = settings.hostHistory.FirstOrDefault(h => h.displayName == options.StartupHostName);
-						// Base it on a host-only match.
-						if (item == null)
-							item = settings.hostHistory.FirstOrDefault(h => h.host == options.StartupHostName);
-						// Base it on the most recently accessed configuration
-						if (item == null)
-							item = settings.hostHistory.FirstOrDefault();
-						if (item != null)
-							LoadProfileIntoUI(item);
-
-						HostSettings newHS = NewHostSettingsFromUi();
-						newHS.host = options.StartupHostName;
-						newHS.displayName = "";
-						if (options.PreferIPv6 != BoolOverride.Inherit)
-							newHS.preferIpv4 = options.PreferIPv6 == BoolOverride.False;
-						if (options.TraceRoute != BoolOverride.Inherit)
-							newHS.doTraceRoute = options.TraceRoute == BoolOverride.True;
-						settings.hostHistory.Add(newHS);
-						item = newHS;
-					}
-				}
-				if (item == null)
-					item = settings.hostHistory.FirstOrDefault();
-				if (item != null)
-					LoadProfileIntoUI(item);
-				else
+				if (configToLoad == null)
 				{
-					this.ScalingMethod = GraphScalingMethod.Classic;
+					// Create a new configuration from the startup options
+					configToLoad = new PingConfiguration();
+					configToLoad.displayName = options.StartupHostName;
+					Host h = new Host();
+					h.hostname = options.StartupHostName;
+					configToLoad.hosts.Add(h);
+					if (options.PreferIPv6 != BoolOverride.Inherit)
+						configToLoad.preferIPv4 = options.PreferIPv6 == BoolOverride.False;
+					if (options.TraceRoute != BoolOverride.Inherit)
+						configToLoad.doTraceRoute = options.TraceRoute == BoolOverride.True;
+					PingConfigurations.SaveSingleConfiguration(configToLoad);
 				}
 			}
-			selectPingsPerSecond_SelectedIndexChanged(null, null);
+
+			if (configToLoad == null && settings.lastLoadedConfigurationGuid != null)
+				configToLoad = allConfigs.GetByGuid(settings.lastLoadedConfigurationGuid);
+
+			if (configToLoad == null && allConfigs.configurations.Count > 0)
+				configToLoad = allConfigs.configurations[0];
+
+			if (configToLoad != null)
+				ApplyConfiguration(configToLoad);
+			else
+				UpdateStatus("Idle");
+
 			AddKeyDownHandler(this);
 			AddClickHandler(this);
 
@@ -230,7 +220,7 @@ namespace PingTracer
 
 			if (options.MaximizeGraphs)
 			{
-				this.Hide(); // Hide before end of OnLoad to help reduce visual glitching.
+				this.Hide();
 				this.BeginInvoke((Action)(() =>
 				{
 					this.Show();
@@ -238,14 +228,52 @@ namespace PingTracer
 				}));
 			}
 
+			// If no configuration was loaded, show the configuration form so the user knows to create one
+			if (configToLoad == null)
+			{
+				this.BeginInvoke((Action)(() => { OpenConfigurationForm(); }));
+			}
+
 			this.Move += MainForm_MoveOrResize;
 			this.Resize += MainForm_MoveOrResize;
 		}
 
-		private bool _hostMatchesOptions(HostSettings h, StartupOptions options)
+		private bool _configMatchesOptions(PingConfiguration cfg, StartupOptions options)
 		{
-			return (options.PreferIPv6 == BoolOverride.Inherit || h.preferIpv4 == (options.PreferIPv6 == BoolOverride.False))
-				&& (options.TraceRoute == BoolOverride.Inherit || h.doTraceRoute == (options.TraceRoute == BoolOverride.True));
+			return (options.PreferIPv6 == BoolOverride.Inherit || cfg.GetPreferIPv4() == (options.PreferIPv6 == BoolOverride.False))
+				&& (options.TraceRoute == BoolOverride.Inherit || cfg.doTraceRoute == (options.TraceRoute == BoolOverride.True));
+		}
+
+		/// <summary>
+		/// Applies a PingConfiguration to the MainForm, setting up ping parameters.
+		/// </summary>
+		public void ApplyConfiguration(PingConfiguration cfg)
+		{
+			currentConfiguration = cfg;
+			LogFailures = cfg.logFailures;
+			LogSuccesses = cfg.logSuccesses;
+
+			// Remember this as the most recently loaded configuration
+			settings.lastLoadedConfigurationGuid = cfg.guid;
+			settings.Save();
+
+			// Update title bar
+			string baseTitle = "Ping Tracer " + System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString();
+			if (!string.IsNullOrWhiteSpace(cfg.displayName))
+				this.Text = baseTitle + " - " + cfg.displayName;
+			else
+				this.Text = baseTitle;
+			panelForm.Text = this.Text;
+
+			// Sync dropdown selection
+			SelectConfigInDropdown(cfg.guid);
+
+			UpdateStatus(isRunning ? "Pinging Active" : "Idle");
+
+			// Notify the configuration form (if open) so it can update button states
+			configForm?.UpdateLoadButtonState();
+
+			SelectedHostChanged.Invoke(this, EventArgs.Empty);
 		}
 
 		/// <summary>
@@ -374,6 +402,7 @@ namespace PingTracer
 			});
 			graphSortingCounter = 0;
 			IPAddress target = null;
+			string statusNote = "";
 			try
 			{
 				string[] addresses = host.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
@@ -394,34 +423,73 @@ namespace PingTracer
 					{
 						if (self.CancellationPending)
 							break;
-						IPAddress ip = StringToIp(address.Trim(), preferIpv4, out string hostName);
-
-						if (self.CancellationPending)
-							break;
-						AddPingTarget(ip, hostName, reverseDnsLookup);
+						try
+						{
+							IPAddress ip = StringToIp(address.Trim(), preferIpv4, out string hostName);
+							if (self.CancellationPending)
+								break;
+							AddPingTarget(ip, hostName, reverseDnsLookup);
+						}
+						catch (Exception ex)
+						{
+							CreateLogEntry("(" + GetTimestamp(DateTime.Now) + "): " + ex.Message);
+						}
 					}
+					if (addresses.Length > pingGraphs.Count)
+						statusNote = " (" + pingGraphs.Count + "/" + addresses.Length + "; see log)";
 				}
 				// Route
 				else if (traceRoute)
 				{
 					CreateLogEntry("Tracing route ...");
-					target = StringToIp(addresses[0], preferIpv4, out string hostName);
-					foreach (TracertEntry entry in Tracert.Trace(target, 64, 5000, settings.pingPayloadSizeBytes))
+					UpdateStatus("Tracing Route");
+					try
 					{
-						if (self.CancellationPending)
-							break;
-						CreateLogEntry(entry.ToString());
-						AddPingTarget(entry.Address, null, reverseDnsLookup);
+						target = StringToIp(addresses[0], preferIpv4, out string hostName);
+					}
+					catch (Exception ex)
+					{
+						CreateLogEntry("(" + GetTimestamp(DateTime.Now) + "): " + ex.Message);
+						target = null;
+					}
+					if (target != null)
+					{
+						foreach (TracertEntry entry in Tracert.Trace(target, 64, 5000, settings.pingPayloadSizeBytes))
+						{
+							if (self.CancellationPending)
+								break;
+							CreateLogEntry(entry.ToString());
+							AddPingTarget(entry.Address, null, reverseDnsLookup);
+						}
 					}
 				}
 				// Single address
 				else
 				{
-					target = StringToIp(addresses[0], preferIpv4, out string hostName);
-					AddPingTarget(target, hostName, reverseDnsLookup);
+					try
+					{
+						target = StringToIp(addresses[0], preferIpv4, out string hostName);
+						AddPingTarget(target, hostName, reverseDnsLookup);
+					}
+					catch (Exception ex)
+					{
+						CreateLogEntry("(" + GetTimestamp(DateTime.Now) + "): " + ex.Message);
+					}
+				}
+
+				// If no graphs were added (all resolves failed), show the log and stop
+				if (pingGraphs.Count == 0)
+				{
+					CreateLogEntry("(" + GetTimestamp(DateTime.Now) + "): No hosts could be resolved. Pinging will not start.");
+					Invoke(self, () =>
+					{
+						ShowLogMessagesForm();
+					});
+					return;
 				}
 
 				CreateLogEntry("Now beginning pings");
+				UpdateStatus("Pinging Active" + statusNote);
 				Stopwatch sw = null;
 				byte[] buffer = new byte[settings.pingPayloadSizeBytes];
 
@@ -510,7 +578,7 @@ namespace PingTracer
 			catch (Exception ex)
 			{
 				if (!(ex.InnerException is ThreadAbortException))
-					MessageBox.Show(ex.ToString());
+					CreateLogEntry("(" + GetTimestamp(DateTime.Now) + "): Error during ping operation: " + ex.Message);
 			}
 			finally
 			{
@@ -582,18 +650,21 @@ namespace PingTracer
 					ResetGraphTimestamps();
 					pingTargetHasAtLeastOneSuccess.Add(id, false);
 
-					graph.AlwaysShowServerNames = cbAlwaysShowServerNames.Checked;
-					graph.Threshold_Bad = (int)nudBadThreshold.Value;
-					graph.Threshold_Worse = (int)nudWorseThreshold.Value;
-					graph.upperLimit = (int)nudUpLimit.Value;
-					graph.lowerLimit = (int)nudLowLimit.Value;
-					graph.ScalingMethod = ScalingMethod;
-					graph.ShowLastPing = cbLastPing.Checked;
-					graph.ShowAverage = cbAverage.Checked;
-					graph.ShowJitter = cbJitter.Checked;
-					graph.ShowMinMax = cbMinMax.Checked;
-					graph.ShowPacketLoss = cbPacketLoss.Checked;
-					graph.DrawLimitText = cbDrawLimits.Checked;
+					if (currentConfiguration != null)
+					{
+						graph.AlwaysShowServerNames = currentConfiguration.drawServerNames;
+						graph.Threshold_Bad = currentConfiguration.badThreshold;
+						graph.Threshold_Worse = currentConfiguration.worseThreshold;
+						graph.upperLimit = currentConfiguration.upperLimit;
+						graph.lowerLimit = currentConfiguration.lowerLimit;
+						graph.ScalingMethod = (GraphScalingMethod)currentConfiguration.ScalingMethodID;
+						graph.ShowLastPing = currentConfiguration.drawLastPing;
+						graph.ShowAverage = currentConfiguration.drawAverage;
+						graph.ShowJitter = currentConfiguration.drawJitter;
+						graph.ShowMinMax = currentConfiguration.drawMinMax;
+						graph.ShowPacketLoss = currentConfiguration.drawPacketLoss;
+						graph.DrawLimitText = currentConfiguration.drawLimitText;
+					}
 
 					panel_Graphs.Controls.Add(graph);
 					AddEventHandlers(graph);
@@ -638,16 +709,16 @@ namespace PingTracer
 		{
 			try
 			{
-				if (txtOut.InvokeRequired)
-					txtOut.Invoke(new Action<string>(CreateLogEntry), str);
-				else
+				lock (logBufferLock)
 				{
-					if (txtOut.TextLength > 32000)
-						txtOut.Text = txtOut.Text.Substring(txtOut.TextLength - 22000); // Keep txtOut from growing out of control.
-					txtOut.AppendText(Environment.NewLine + str);
-					if (settings.logTextOutputToFile)
-						File.AppendAllText("PingTracer_Output.txt", str + Environment.NewLine);
+					logBuffer.Add(str);
+					while (logBuffer.Count > MaxLogLines)
+						logBuffer.RemoveAt(0);
 				}
+				if (outputLogForm != null)
+					outputLogForm.AppendLog(str);
+				if (settings.logTextOutputToFile)
+					File.AppendAllText("PingTracer_Output.txt", str + Environment.NewLine);
 			}
 			catch (Exception)
 			{
@@ -673,11 +744,17 @@ namespace PingTracer
 
 		private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
 		{
-			cla_form?.Close();
+			if (e.Cancel)
+				return;
 			if (isRunning)
 			{
-				SaveProfileFromUI();
 				btnStart_Click(btnStart, new EventArgs());
+			}
+			if (outputLogForm != null)
+			{
+				outputLogForm.FormClosed -= OutputLogForm_FormClosed;
+				outputLogForm.Dispose();
+				outputLogForm = null;
 			}
 		}
 
@@ -694,43 +771,97 @@ namespace PingTracer
 		{
 			if (pingGraphs.Count == 0)
 				return;
+			int bottomBorderSize = 1;
 			IList<int> keys = pingGraphs.Keys;
-			int width = panel_Graphs.Width;
+			int widthAvailable = panel_Graphs.Width;
 			int timestampsHeight = pingGraphs[keys[0]].TimestampsHeight;
-			int height = panel_Graphs.Height - timestampsHeight;
-			int outerHeight = height / pingGraphs.Count;
-			int innerHeight = outerHeight - 1;
+			// Compute total height available for graphs.  Pretend there is 1 extra bottom border height available.  It is for the bottom graph's bottom border, which it will not use.
+			int heightAvailable = (panel_Graphs.Height - timestampsHeight) + bottomBorderSize;
+			int perGraphHeightIncludingBorder = heightAvailable / pingGraphs.Count;
+			// Number of pixels left-over after giving every graph an equal number of integer pixels. It will be assigned equally to the graphs as extra height.
+			// This is necessary because integer division rounds down, so there is often a remainder.
+			int leftoverSpace = (heightAvailable - (perGraphHeightIncludingBorder * keys.Count));
+			int[] heights = new int[keys.Count];
+			// Compute heights for each graph, since they will not be exactly equal.
+			for (int i = heights.Length - 1; i >= 0; i--)
+			{
+				heights[i] = perGraphHeightIncludingBorder;
+				if (i == heights.Length - 1)
+				{
+					// Bottom graph gets all the timestamp section height, because it needs that extra height to draw the timestamps.
+					heights[i] += timestampsHeight;
+				}
+				if (leftoverSpace > 0)
+				{
+					// There's some leftover space.  Assign one pixel of it to this graph (loop starts with bottom graph and iterates up).
+					heights[i] += 1;
+					leftoverSpace--;
+				}
+			}
+			int heightConsumed = 0;
 			for (int i = 0; i < keys.Count; i++)
 			{
+				int thisGraphHeight = heights[i]; // Height including 1px bottom border.
 				PingGraphControl graph = pingGraphs[keys[i]];
-				if (i == keys.Count - 1)
-				{
-					int leftoverSpace = (height - (outerHeight * keys.Count)) + timestampsHeight;
-					innerHeight += leftoverSpace + 1;
-				}
-				graph.SetBounds(0, i * outerHeight, width, innerHeight);
+				graph.SetBounds(0, heightConsumed, widthAvailable, thisGraphHeight - 1);
+				heightConsumed += thisGraphHeight;
 			}
 		}
 
 		#region Form input changed/clicked events
 
-		private void lblHost_Click(object sender, EventArgs e)
+		private void btnStart_Click(object sender, EventArgs e)
 		{
-			LoadHostHistory();
-			contextMenuStripHostHistory.Show(Cursor.Position);
-		}
-
-		private void rsitem_Click(object sender, EventArgs e)
-		{
-			if (isRunning)
+			if (this.InvokeRequired)
 			{
-				MessageBox.Show("Cannot load a stored host while pings are running." + Environment.NewLine + "Please stop the pings first.");
+				this.BeginInvoke((Action<object, EventArgs>)btnStart_Click, sender, e);
 				return;
 			}
+			btnStart.Enabled = false;
+			if (isRunning)
+			{
+				isRunning = false;
+				btnStart.Text = "Click to Start";
+				cbConfigurations.Enabled = true;
+				controllerWorker.CancelAsync();
+				UpdateStatus("Idle");
+				StoppedPinging.Invoke(sender, e);
+			}
+			else
+			{
+				if (currentConfiguration == null)
+				{
+					MessageBox.Show("No configuration is loaded. Please select a configuration first.");
+					btnStart.Enabled = true;
+					return;
+				}
+				isRunning = true;
+				btnStart.Text = "Click to Stop";
+				cbConfigurations.Enabled = false;
+				controllerWorker = new BackgroundWorker();
+				controllerWorker.WorkerSupportsCancellation = true;
+				controllerWorker.DoWork += ControllerWorker_DoWork;
+				controllerWorker.RunWorkerCompleted += ControllerWorker_RunWorkerCompleted;
 
-			ToolStripItem tsi = (ToolStripItem)sender;
-			HostSettings p = (HostSettings)tsi.Tag;
-			LoadProfileIntoUI(p);
+				string host = currentConfiguration.GetHostString();
+				bool traceRoute = currentConfiguration.doTraceRoute;
+				bool reverseDnsLookup = currentConfiguration.reverseDnsLookup;
+				bool preferIpv4 = currentConfiguration.GetPreferIPv4();
+
+				if (currentConfiguration.rate == 0)
+					pingDelay = 0;
+				else if (currentConfiguration.pingsPerSecond)
+					pingDelay = Math.Max(100, (int)(1000 / currentConfiguration.rate));
+				else
+					pingDelay = Math.Max(100, (int)(1000 * currentConfiguration.rate));
+
+				if (currentConfiguration.hosts != null && currentConfiguration.hosts.Count > 1)
+					traceRoute = false;
+
+				UpdateStatus("Starting...");
+				controllerWorker.RunWorkerAsync(new object[] { controllerWorker, host, traceRoute, reverseDnsLookup, preferIpv4 });
+				StartedPinging.Invoke(sender, e);
+			}
 		}
 
 		private void mi_snapshotGraphs_Click(object sender, EventArgs e)
@@ -748,296 +879,6 @@ namespace PingTracer
 			}
 		}
 
-		private void btnStart_Click(object sender, EventArgs e)
-		{
-			if (btnStart.InvokeRequired)
-			{
-				btnStart.BeginInvoke((Action<object, EventArgs>)btnStart_Click, sender, e);
-				return;
-			}
-			SaveProfileFromUI();
-			btnStart.Enabled = false;
-			if (isRunning)
-			{
-				isRunning = false;
-				btnStart.Text = "Click to Start";
-				btnStart.BackColor = Color.FromArgb(255, 128, 128);
-				controllerWorker.CancelAsync();
-				txtHost.Enabled = true;
-				cbTraceroute.Enabled = true;
-				cbReverseDNS.Enabled = true;
-				StoppedPinging.Invoke(sender, e);
-			}
-			else
-			{
-				isRunning = true;
-				btnStart.Text = "Click to Stop";
-				btnStart.BackColor = Color.FromArgb(128, 255, 128);
-				controllerWorker = new BackgroundWorker();
-				controllerWorker.WorkerSupportsCancellation = true;
-				controllerWorker.DoWork += ControllerWorker_DoWork;
-				controllerWorker.RunWorkerCompleted += ControllerWorker_RunWorkerCompleted;
-				controllerWorker.RunWorkerAsync(new object[] { controllerWorker, txtHost.Text, cbTraceroute.Checked, cbReverseDNS.Checked, cbPreferIpv4.Checked });
-				txtHost.Enabled = false;
-				cbTraceroute.Enabled = false;
-				cbReverseDNS.Enabled = false;
-				StartedPinging.Invoke(sender, e);
-			}
-		}
-
-		private void nudPingsPerSecond_ValueChanged(object sender, EventArgs e)
-		{
-			SaveProfileIfProfileAlreadyExists();
-			if (nudPingsPerSecond.Value == 0)
-				pingDelay = 0;
-			else if (selectPingsPerSecond.SelectedIndex == 0)
-				pingDelay = Math.Max(100, (int)(1000 / nudPingsPerSecond.Value));
-			else
-				pingDelay = Math.Max(100, (int)(1000 * nudPingsPerSecond.Value));
-		}
-
-		private void selectPingsPerSecond_SelectedIndexChanged(object sender, EventArgs e)
-		{
-			if (selectPingsPerSecond.SelectedIndex == 0)
-				nudPingsPerSecond.Maximum = 10;
-			else
-				nudPingsPerSecond.Maximum = 600;
-			nudPingsPerSecond_ValueChanged(sender, e);
-		}
-
-		private void cbAlwaysShowServerNames_CheckedChanged(object sender, EventArgs e)
-		{
-			SaveProfileIfProfileAlreadyExists();
-			try
-			{
-				IList<PingGraphControl> graphs = pingGraphs.Values;
-				foreach (PingGraphControl graph in graphs)
-				{
-					graph.AlwaysShowServerNames = cbAlwaysShowServerNames.Checked;
-					graph.Invalidate();
-				}
-			}
-			catch (Exception)
-			{
-			}
-		}
-
-		private void nudBadThreshold_ValueChanged(object sender, EventArgs e)
-		{
-			SaveProfileIfProfileAlreadyExists();
-			if (nudWorseThreshold.Value < nudBadThreshold.Value)
-				nudWorseThreshold.Value = nudBadThreshold.Value;
-			try
-			{
-				IList<PingGraphControl> graphs = pingGraphs.Values;
-				foreach (PingGraphControl graph in graphs)
-				{
-					graph.Threshold_Bad = (int)nudBadThreshold.Value;
-					graph.Invalidate();
-				}
-			}
-			catch (Exception)
-			{
-			}
-		}
-
-		private void nudWorseThreshold_ValueChanged(object sender, EventArgs e)
-		{
-			SaveProfileIfProfileAlreadyExists();
-			if (nudBadThreshold.Value > nudWorseThreshold.Value)
-				nudBadThreshold.Value = nudWorseThreshold.Value;
-			try
-			{
-				IList<PingGraphControl> graphs = pingGraphs.Values;
-				foreach (PingGraphControl graph in graphs)
-				{
-					graph.Threshold_Worse = (int)nudWorseThreshold.Value;
-					graph.Invalidate();
-				}
-			}
-			catch (Exception)
-			{
-			}
-		}
-
-		private void nudUpLimit_ValueChanged(object sender, EventArgs e)
-		{
-			if (nudUpLimit.Value <= nudLowLimit.Value)
-				nudLowLimit.Value = nudUpLimit.Value - 1;
-			SaveProfileIfProfileAlreadyExists();
-			try
-			{
-				IList<PingGraphControl> graphs = pingGraphs.Values;
-				foreach (PingGraphControl graph in graphs)
-				{
-					graph.upperLimit = (int)nudUpLimit.Value;
-					graph.Invalidate();
-				}
-			}
-			catch (Exception)
-			{
-			}
-		}
-
-		private void nudLowLimit_ValueChanged(object sender, EventArgs e)
-		{
-			if (nudLowLimit.Value >= nudUpLimit.Value)
-				nudUpLimit.Value = nudLowLimit.Value + 1;
-			SaveProfileIfProfileAlreadyExists();
-			try
-			{
-				IList<PingGraphControl> graphs = pingGraphs.Values;
-				foreach (PingGraphControl graph in graphs)
-				{
-					graph.lowerLimit = (int)nudLowLimit.Value;
-					graph.Invalidate();
-				}
-			}
-			catch (Exception)
-			{
-			}
-		}
-
-		private void cbLastPing_CheckedChanged(object sender, EventArgs e)
-		{
-			SaveProfileIfProfileAlreadyExists();
-			try
-			{
-				IList<PingGraphControl> graphs = pingGraphs.Values;
-				foreach (PingGraphControl graph in graphs)
-				{
-					graph.ShowLastPing = cbLastPing.Checked;
-					graph.Invalidate();
-				}
-			}
-			catch (Exception)
-			{
-			}
-		}
-
-		private void cbAverage_CheckedChanged(object sender, EventArgs e)
-		{
-			SaveProfileIfProfileAlreadyExists();
-			try
-			{
-				IList<PingGraphControl> graphs = pingGraphs.Values;
-				foreach (PingGraphControl graph in graphs)
-				{
-					graph.ShowAverage = cbAverage.Checked;
-					graph.Invalidate();
-				}
-			}
-			catch (Exception)
-			{
-			}
-		}
-		private void cbJitter_CheckedChanged(object sender, EventArgs e)
-		{
-			SaveProfileIfProfileAlreadyExists();
-			try
-			{
-				IList<PingGraphControl> graphs = pingGraphs.Values;
-				foreach (PingGraphControl graph in graphs)
-				{
-					graph.ShowJitter = cbJitter.Checked;
-					graph.Invalidate();
-				}
-			}
-			catch (Exception)
-			{
-			}
-		}
-		private void cbMinMax_CheckedChanged(object sender, EventArgs e)
-		{
-			SaveProfileIfProfileAlreadyExists();
-			try
-			{
-				IList<PingGraphControl> graphs = pingGraphs.Values;
-				foreach (PingGraphControl graph in graphs)
-				{
-					graph.ShowMinMax = cbMinMax.Checked;
-					graph.Invalidate();
-				}
-			}
-			catch (Exception)
-			{
-			}
-		}
-
-		private void cbPacketLoss_CheckedChanged(object sender, EventArgs e)
-		{
-			SaveProfileIfProfileAlreadyExists();
-			try
-			{
-				IList<PingGraphControl> graphs = pingGraphs.Values;
-				foreach (PingGraphControl graph in graphs)
-				{
-					graph.ShowPacketLoss = cbPacketLoss.Checked;
-					graph.Invalidate();
-				}
-			}
-			catch (Exception)
-			{
-			}
-		}
-
-		private void cbDrawLimits_CheckedChanged(object sender, EventArgs e)
-		{
-			SaveProfileIfProfileAlreadyExists();
-			try
-			{
-				IList<PingGraphControl> graphs = pingGraphs.Values;
-				foreach (PingGraphControl graph in graphs)
-				{
-					graph.DrawLimitText = cbDrawLimits.Checked;
-					graph.Invalidate();
-				}
-			}
-			catch (Exception)
-			{
-			}
-		}
-
-		private void cbTraceroute_CheckedChanged(object sender, EventArgs e)
-		{
-			SaveProfileIfProfileAlreadyExists();
-			SelectedHostChanged.Invoke(sender, e);
-		}
-
-		private void cbReverseDNS_CheckedChanged(object sender, EventArgs e)
-		{
-			SaveProfileIfProfileAlreadyExists();
-		}
-
-		private void txtDisplayName_TextChanged(object sender, EventArgs e)
-		{
-			SaveProfileIfProfileAlreadyExists();
-			SelectedHostChanged.Invoke(sender, e);
-		}
-
-		private void cbPreferIpv4_CheckedChanged(object sender, EventArgs e)
-		{
-			SaveProfileIfProfileAlreadyExists();
-			SelectedHostChanged.Invoke(sender, e);
-		}
-
-		private void cbLogFailures_CheckedChanged(object sender, EventArgs e)
-		{
-			_logFailures = cbLogFailures.Checked;
-			SaveProfileIfProfileAlreadyExists();
-		}
-
-		private void cbLogSuccesses_CheckedChanged(object sender, EventArgs e)
-		{
-			_logSuccesses = cbLogSuccesses.Checked;
-			SaveProfileIfProfileAlreadyExists();
-		}
-
-		private void txtHost_TextChanged(object sender, EventArgs e)
-		{
-			// This txtHost_TextChanged event handler was added on 2023-08-02, so it did not call SaveProfileIfProfileAlreadyExists(); like most other event handlers.
-			SelectedHostChanged.Invoke(sender, e);
-		}
 		#endregion
 
 		#region Mouse graph events
@@ -1169,7 +1010,7 @@ namespace PingTracer
 		}
 		private void panel_Graphs_Click(object sender, EventArgs e)
 		{
-			SetGraphsMaximizedState(panel_Graphs.Parent == splitContainer1.Panel2);
+			SetGraphsMaximizedState(!graphsMaximized);
 		}
 		private void SetGraphsMaximizedState(bool maximize)
 		{
@@ -1180,7 +1021,6 @@ namespace PingTracer
 				panelForm.Controls.Add(panel_Graphs);
 				panel_Graphs.Dock = DockStyle.Fill;
 				panelForm.Show();
-				//panelForm.SetBounds(this.Left, this.Top, this.Width, this.Height);
 				panelForm.SetBounds(this.Left + settings.osWindowLeftMargin, this.Top + settings.osWindowTopMargin, this.Width - (settings.osWindowLeftMargin + settings.osWindowRightMargin), this.Height - settings.osWindowBottomMargin);
 				this.Hide();
 				MaximizeGraphsChanged.Invoke(this, EventArgs.Empty);
@@ -1188,8 +1028,9 @@ namespace PingTracer
 			else
 			{
 				graphsMaximized = false;
-				splitContainer1.Panel2.Controls.Add(panel_Graphs);
-				panel_Graphs.Dock = DockStyle.Fill;
+				this.Controls.Add(panel_Graphs);
+				panel_Graphs.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+				panel_Graphs.SetBounds(0, 28, this.ClientSize.Width, this.ClientSize.Height - 28 - 20);
 				this.Show();
 				panelForm.Hide();
 				MaximizeGraphsChanged.Invoke(this, EventArgs.Empty);
@@ -1197,163 +1038,74 @@ namespace PingTracer
 		}
 		#endregion
 
-		#region Host History
+		#region Configuration
 
-		private void LoadHostHistory()
+		ConfigurationForm configForm = null;
+		/// <summary>
+		/// Opens the Configuration Editor form positioned adjacent to the MainForm.
+		/// </summary>
+		public void OpenConfigurationForm()
 		{
-			contextMenuStripHostHistory.Items.Clear();
-			bool first = true;
-			lock (settings.hostHistory)
-			{
-				foreach (HostSettings p in settings.hostHistory)
-				{
-					ToolStripItem item = new ToolStripMenuItem();
-					//Name that will appear on the menu
-					if (string.IsNullOrWhiteSpace(p.displayName))
-						item.Text = (p.preferIpv4 ? "" : "[ipv6] ") + p.host;
-					else
-						item.Text = (p.preferIpv4 ? "" : "[ipv6] ") + p.displayName + " [" + p.host + "]";
-					item.Tag = p;
-					item.Click += new EventHandler(rsitem_Click);
-
-					if (first)
-						item.Font = new Font(item.Font, FontStyle.Bold);
-					first = false;
-
-					//Add the submenu to the parent menu
-					contextMenuStripHostHistory.Items.Add(item);
-				}
-			}
-		}
-
-		private void LoadProfileIntoUI(HostSettings hs)
-		{
-			suppressHostSettingsSaveUntil = DateTime.Now.AddMilliseconds(100);
-
-			txtHost.Text = hs.host;
-			txtDisplayName.Text = hs.displayName;
-			selectPingsPerSecond.SelectedIndex = hs.pingsPerSecond ? 0 : 1;
-			nudPingsPerSecond.Value = hs.rate;
-			cbTraceroute.Checked = hs.doTraceRoute;
-			cbReverseDNS.Checked = hs.reverseDnsLookup;
-			cbAlwaysShowServerNames.Checked = hs.drawServerNames;
-			cbLastPing.Checked = hs.drawLastPing;
-			cbAverage.Checked = hs.drawAverage;
-			cbJitter.Checked = hs.drawJitter;
-			cbMinMax.Checked = hs.drawMinMax;
-			cbPacketLoss.Checked = hs.drawPacketLoss;
-			cbDrawLimits.Checked = hs.drawLimitText;
-			nudBadThreshold.Value = hs.badThreshold;
-			nudWorseThreshold.Value = hs.worseThreshold;
-			nudUpLimit.Value = hs.upperLimit;
-			nudLowLimit.Value = hs.lowerLimit;
-			ScalingMethod = (GraphScalingMethod)hs.ScalingMethodID;
-			cbPreferIpv4.Checked = hs.preferIpv4;
-			LogFailures = hs.logFailures;
-			LogSuccesses = hs.logSuccesses;
-
-
-			lock (settings.hostHistory)
-			{
-				for (int i = 1; i < settings.hostHistory.Count; i++)
-					if (settings.hostHistory[i].host == hs.host && settings.hostHistory[i].preferIpv4 == hs.preferIpv4)
-					{
-						HostSettings justLoaded = settings.hostHistory[i];
-						settings.hostHistory.RemoveAt(i);
-						settings.hostHistory.Insert(0, justLoaded);
-						break;
-					}
-			}
-		}
-
-		private void SaveProfileIfProfileAlreadyExists()
-		{
-			lock (settings.hostHistory)
-			{
-				bool hostExists = false;
-				foreach (HostSettings p in settings.hostHistory)
-					if (p.host == txtHost.Text && p.preferIpv4 == cbPreferIpv4.Checked)
-					{
-						hostExists = true;
-						break;
-					}
-				if (hostExists)
-					SaveProfileFromUI();
-			}
-		}
-		private void DeleteCurrentProfile()
-		{
-			lock (settings.hostHistory)
-			{
-				bool hostExisted = false;
-				for (int i = 0; i < settings.hostHistory.Count; i++)
-					if (settings.hostHistory[i].host == txtHost.Text && settings.hostHistory[i].preferIpv4 == cbPreferIpv4.Checked)
-					{
-						hostExisted = true;
-						settings.hostHistory.RemoveAt(i);
-						settings.Save();
-						break;
-					}
-				if (hostExisted)
-				{
-					if (settings.hostHistory.Count > 0)
-						LoadProfileIntoUI(settings.hostHistory[0]);
-				}
-			}
-		}
-		private HostSettings NewHostSettingsFromUi()
-		{
-			HostSettings p = new HostSettings();
-			p.host = txtHost.Text;
-			p.displayName = txtDisplayName.Text;
-			p.rate = (int)nudPingsPerSecond.Value;
-			p.pingsPerSecond = selectPingsPerSecond.SelectedIndex == 0;
-			p.doTraceRoute = cbTraceroute.Checked;
-			p.reverseDnsLookup = cbReverseDNS.Checked;
-			p.drawServerNames = cbAlwaysShowServerNames.Checked;
-			p.drawLastPing = cbLastPing.Checked;
-			p.drawAverage = cbAverage.Checked;
-			p.drawJitter = cbJitter.Checked;
-			p.drawMinMax = cbMinMax.Checked;
-			p.drawPacketLoss = cbPacketLoss.Checked;
-			p.drawLimitText = cbDrawLimits.Checked;
-			p.badThreshold = (int)nudBadThreshold.Value;
-			p.worseThreshold = (int)nudWorseThreshold.Value;
-			p.upperLimit = (int)nudUpLimit.Value;
-			p.lowerLimit = (int)nudLowLimit.Value;
-			p.ScalingMethodID = (int)ScalingMethod;
-			p.preferIpv4 = cbPreferIpv4.Checked;
-			p.logFailures = LogFailures;
-			p.logSuccesses = LogSuccesses;
-			return p;
+			OpenConfigurationForm(currentConfiguration?.guid);
 		}
 		/// <summary>
-		/// Adds the current profile to the profile list and saves it to disk. Only if the host field is defined.
+		/// Opens the Configuration Editor form positioned adjacent to the MainForm,
+		/// selecting the configuration with the given guid.
 		/// </summary>
-		private void SaveProfileFromUI()
+		public void OpenConfigurationForm(string selectGuid)
 		{
-			if (DateTime.Now < suppressHostSettingsSaveUntil)
-				return;
-			HostSettings p = NewHostSettingsFromUi();
-			if (!string.IsNullOrWhiteSpace(p.host))
+			if (configForm != null)
 			{
-				lock (settings.hostHistory)
-				{
-					if (settings.hostHistory.Count == 0)
-						settings.hostHistory.Add(p);
-					else
-					{
-						for (int i = 0; i < settings.hostHistory.Count; i++)
-							if (settings.hostHistory[i].host == p.host && settings.hostHistory[i].preferIpv4 == p.preferIpv4)
-							{
-								settings.hostHistory.RemoveAt(i);
-								break;
-							}
-						settings.hostHistory.Insert(0, p);
-					}
-					settings.Save();
-				}
+				if (selectGuid != null)
+					configForm.SelectConfiguration(selectGuid);
+				configForm.BringToFront();
+				return;
 			}
+			configForm = new ConfigurationForm(this);
+			this.AddOwnedForm(configForm);
+			configForm.ConfigurationLoaded += (cfg) =>
+			{
+				if (isRunning)
+				{
+					MessageBox.Show("Cannot load a configuration while pings are running." + Environment.NewLine + "Please stop the pings first.");
+					return;
+				}
+				ApplyConfiguration(cfg);
+				configForm.UpdateLoadButtonState();
+			};
+			configForm.ConfigurationSaved += (cfg) =>
+			{
+				// Live-apply settings that can safely change while running
+				ApplyLiveConfigChanges(cfg);
+			};
+			configForm.ConfigurationEdited += (cfg) =>
+			{
+				// Live-apply edited settings immediately (before save)
+				ApplyLiveConfigChanges(cfg);
+			};
+			configForm.ConfigurationEditDiscarded += (cfg) =>
+			{
+				// Revert MainForm to the saved state
+				ApplyLiveConfigChanges(cfg);
+			};
+			configForm.FormClosed += (sender2, e2) =>
+			{
+				this.RemoveOwnedForm(configForm);
+				configForm = null;
+				PopulateConfigDropdownFromDisk();
+			};
+			configForm.PositionAdjacentTo(this);
+			configForm.Show();
+			// Select the configuration AFTER Show so the tree is populated
+			if (selectGuid != null)
+				configForm.SelectConfiguration(selectGuid);
+			else if (currentConfiguration != null)
+				configForm.SelectConfiguration(currentConfiguration.guid);
+		}
+
+		private void mi_Configuration_Click(object sender, EventArgs e)
+		{
+			OpenConfigurationForm();
 		}
 
 		#endregion
@@ -1375,10 +1127,6 @@ namespace PingTracer
 			optionsForm.Show();
 		}
 
-		private void mi_deleteHost_Click(object sender, EventArgs e)
-		{
-			DeleteCurrentProfile();
-		}
 		private string GetTimestamp(DateTime time)
 		{
 			if (!string.IsNullOrWhiteSpace(settings.customTimeStr))
@@ -1403,7 +1151,12 @@ namespace PingTracer
 			if (cla_form == null)
 			{
 				cla_form = new CommandLineArgsForm(this);
-				cla_form.FormClosed += (sender2, e2) => { cla_form = null; };
+				this.AddOwnedForm(cla_form);
+				cla_form.FormClosed += (sender2, e2) =>
+				{
+					this.RemoveOwnedForm(cla_form);
+					cla_form = null;
+				};
 				cla_form.Show();
 			}
 			else
@@ -1430,12 +1183,8 @@ namespace PingTracer
 				this.Invoke((Action)_rememberCurrentPosition);
 			else
 			{
-				lock (settings.hostHistory)
-				{
-					settings.lastWindowParams = new WindowParams(this.Location.X, this.Location.Y, this.Size.Width, this.Size.Height);
-					settings.Save();
-				}
-				lblFailed.Text = (int.Parse(lblFailed.Text) + 1).ToString();
+				settings.lastWindowParams = new WindowParams(this.Location.X, this.Location.Y, this.Size.Width, this.Size.Height);
+				settings.Save();
 			}
 		}
 
@@ -1444,54 +1193,243 @@ namespace PingTracer
 			this.Size = defaultWindowSize;
 		}
 
-		private void SetScaleLimitFieldsEnabledState()
-		{
-			if (ScalingMethod == GraphScalingMethod.Classic || ScalingMethod == GraphScalingMethod.Zoom || ScalingMethod == GraphScalingMethod.Fixed)
-			{
-				nudUpLimit.Enabled = nudLowLimit.Enabled = true;
-			}
-			else
-			{
-				nudUpLimit.Enabled = nudLowLimit.Enabled = false;
-			}
-		}
+		#region ToolStrip Configuration Dropdown
+
 		/// <summary>
-		/// <para>Gets or sets the ID of the graph scaling method currently selected in the GUI.</para>
-		/// <para>IDs currently correspond exactly with the dropdown list item index:</para>
-		/// <para>0: Classic</para>
-		/// <para>1: Zoom</para>
-		/// <para>2: Zoom Unlimited</para>
-		/// <para>3: Fixed</para>
-		/// <para>This implementation is subject to change in the future.</para>
+		/// Populates the configuration dropdown from a loaded PingConfigurations object.
 		/// </summary>
-		public GraphScalingMethod ScalingMethod
+		private void PopulateConfigDropdown(PingConfigurations allConfigs)
 		{
-			get
+			suppressConfigDropdownEvents = true;
+			try
 			{
-				return (GraphScalingMethod)cbScalingMethod.SelectedIndex;
+				cbConfigurations.Items.Clear();
+				foreach (PingConfiguration cfg in allConfigs.configurations)
+					cbConfigurations.Items.Add(new ConfigDropdownItem(cfg.guid, cfg.displayName));
+
+				if (currentConfiguration != null)
+					SelectConfigInDropdown(currentConfiguration.guid);
 			}
-			set
+			finally
 			{
-				cbScalingMethod.SelectedIndex = (int)value;
+				suppressConfigDropdownEvents = false;
 			}
 		}
 
-		private void cbScalingMethod_SelectedIndexChanged(object sender, EventArgs e)
+		/// <summary>
+		/// Reloads configurations from disk and populates the dropdown.
+		/// </summary>
+		private void PopulateConfigDropdownFromDisk()
 		{
-			SetScaleLimitFieldsEnabledState();
-			SaveProfileIfProfileAlreadyExists();
+			PingConfigurations allConfigs = new PingConfigurations();
+			allConfigs.Load();
+			PopulateConfigDropdown(allConfigs);
+		}
+
+		private void SelectConfigInDropdown(string guid)
+		{
+			suppressConfigDropdownEvents = true;
 			try
 			{
-				IList<PingGraphControl> graphs = pingGraphs.Values;
-				foreach (PingGraphControl graph in graphs)
+				for (int i = 0; i < cbConfigurations.Items.Count; i++)
 				{
-					graph.ScalingMethod = ScalingMethod;
-					graph.Invalidate();
+					ConfigDropdownItem item = cbConfigurations.Items[i] as ConfigDropdownItem;
+					if (item != null && item.Guid == guid)
+					{
+						cbConfigurations.SelectedIndex = i;
+						return;
+					}
 				}
+			}
+			finally
+			{
+				suppressConfigDropdownEvents = false;
+			}
+		}
+
+		private void cbConfigurations_DropDown(object sender, EventArgs e)
+		{
+			// Refresh the list from disk every time the dropdown is expanded
+			PopulateConfigDropdownFromDisk();
+		}
+
+		private void cbConfigurations_SelectedIndexChanged(object sender, EventArgs e)
+		{
+			if (suppressConfigDropdownEvents)
+				return;
+			ConfigDropdownItem item = cbConfigurations.SelectedItem as ConfigDropdownItem;
+			if (item == null)
+				return;
+			// Load the selected configuration from disk
+			PingConfigurations allConfigs = new PingConfigurations();
+			allConfigs.Load();
+			PingConfiguration cfg = allConfigs.GetByGuid(item.Guid);
+			if (cfg != null)
+				ApplyConfiguration(cfg);
+		}
+
+		private void tsbEdit_Click(object sender, EventArgs e)
+		{
+			ConfigDropdownItem item = cbConfigurations.SelectedItem as ConfigDropdownItem;
+			string guid = item?.Guid ?? currentConfiguration?.guid;
+			OpenConfigurationForm(guid);
+		}
+
+		/// <summary>
+		/// Helper class for items in the configuration dropdown.
+		/// </summary>
+		private class ConfigDropdownItem
+		{
+			public string Guid { get; }
+			public string DisplayName { get; }
+			public ConfigDropdownItem(string guid, string displayName)
+			{
+				Guid = guid;
+				DisplayName = displayName;
+			}
+			public override string ToString() { return DisplayName; }
+		}
+
+		#endregion
+
+		#region Status Label
+
+		private void UpdateStatus(string status)
+		{
+			try
+			{
+				if (lblStatus.InvokeRequired)
+					lblStatus.Invoke(new Action<string>(UpdateStatus), status);
+				else
+					lblStatus.Text = status;
 			}
 			catch (Exception)
 			{
 			}
 		}
+
+		#endregion
+
+		#region Log Messages
+
+		private void mi_OutputLog_Click(object sender, EventArgs e)
+		{
+			ShowLogMessagesForm();
+		}
+
+		/// <summary>
+		/// Opens or brings to front the Log Messages form, centered on MainForm and nudged on-screen.
+		/// </summary>
+		private void ShowLogMessagesForm()
+		{
+			if (outputLogForm == null || outputLogForm.IsDisposed)
+			{
+				outputLogForm = new OutputLogForm();
+				this.AddOwnedForm(outputLogForm);
+				outputLogForm.FormClosed += OutputLogForm_FormClosed;
+				// Populate with existing log buffer
+				string[] snapshot;
+				lock (logBufferLock)
+				{
+					snapshot = logBuffer.ToArray();
+				}
+				outputLogForm.LoadLines(snapshot);
+				outputLogForm.PositionCenteredOn(this);
+				outputLogForm.Show();
+			}
+			else
+			{
+				outputLogForm.Show();
+				outputLogForm.BringToFront();
+			}
+		}
+
+		private void OutputLogForm_FormClosed(object sender, FormClosedEventArgs e)
+		{
+			this.RemoveOwnedForm(outputLogForm);
+			outputLogForm = null;
+		}
+
+		#endregion
+
+		#region Live Config Apply
+
+		/// <summary>
+		/// Applies configuration changes that can safely take effect while pinging is active.
+		/// This includes ping rate, graph options, and logging settings.
+		/// Also updates non-live properties (hosts, traceRoute, reverseDNS, preferIPv4) on 
+		/// currentConfiguration so they take effect if pinging is stopped and restarted.
+		/// </summary>
+		public void ApplyLiveConfigChanges(PingConfiguration cfg)
+		{
+			if (currentConfiguration == null || cfg.guid != currentConfiguration.guid)
+				return;
+
+			// Update ping rate
+			if (cfg.rate == 0)
+				pingDelay = 0;
+			else if (cfg.pingsPerSecond)
+				pingDelay = Math.Max(100, (int)(1000 / cfg.rate));
+			else
+				pingDelay = Math.Max(100, (int)(1000 * cfg.rate));
+
+			// Update logging flags
+			LogFailures = cfg.logFailures;
+			LogSuccesses = cfg.logSuccesses;
+			currentConfiguration.logFailures = cfg.logFailures;
+			currentConfiguration.logSuccesses = cfg.logSuccesses;
+
+			// Update ping rate in current config
+			currentConfiguration.rate = cfg.rate;
+			currentConfiguration.pingsPerSecond = cfg.pingsPerSecond;
+
+			// Update non-live properties (take effect on next start)
+			currentConfiguration.hosts = cfg.hosts;
+			currentConfiguration.doTraceRoute = cfg.doTraceRoute;
+			currentConfiguration.reverseDnsLookup = cfg.reverseDnsLookup;
+			currentConfiguration.preferIPv4 = cfg.preferIPv4;
+			currentConfiguration.displayName = cfg.displayName;
+
+			// Update graph options on all live graphs
+			currentConfiguration.drawServerNames = cfg.drawServerNames;
+			currentConfiguration.drawLastPing = cfg.drawLastPing;
+			currentConfiguration.drawAverage = cfg.drawAverage;
+			currentConfiguration.drawJitter = cfg.drawJitter;
+			currentConfiguration.drawMinMax = cfg.drawMinMax;
+			currentConfiguration.drawPacketLoss = cfg.drawPacketLoss;
+			currentConfiguration.drawLimitText = cfg.drawLimitText;
+			currentConfiguration.badThreshold = cfg.badThreshold;
+			currentConfiguration.worseThreshold = cfg.worseThreshold;
+			currentConfiguration.upperLimit = cfg.upperLimit;
+			currentConfiguration.lowerLimit = cfg.lowerLimit;
+			currentConfiguration.ScalingMethodID = cfg.ScalingMethodID;
+
+			foreach (PingGraphControl graph in pingGraphs.Values)
+			{
+				graph.AlwaysShowServerNames = cfg.drawServerNames;
+				graph.Threshold_Bad = cfg.badThreshold;
+				graph.Threshold_Worse = cfg.worseThreshold;
+				graph.upperLimit = cfg.upperLimit;
+				graph.lowerLimit = cfg.lowerLimit;
+				graph.ScalingMethod = (GraphScalingMethod)cfg.ScalingMethodID;
+				graph.ShowLastPing = cfg.drawLastPing;
+				graph.ShowAverage = cfg.drawAverage;
+				graph.ShowJitter = cfg.drawJitter;
+				graph.ShowMinMax = cfg.drawMinMax;
+				graph.ShowPacketLoss = cfg.drawPacketLoss;
+				graph.DrawLimitText = cfg.drawLimitText;
+				graph.InvalidateSync();
+			}
+
+			// Update title bar
+			string baseTitle = "Ping Tracer " + System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString();
+			if (!string.IsNullOrWhiteSpace(cfg.displayName))
+				this.Text = baseTitle + " - " + cfg.displayName;
+			else
+				this.Text = baseTitle;
+			panelForm.Text = this.Text;
+		}
+
+		#endregion
 	}
 }

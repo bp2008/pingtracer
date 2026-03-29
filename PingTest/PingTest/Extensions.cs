@@ -107,5 +107,52 @@ namespace PingTracer
 				form.Location = new Point(x, y);
 			}
 		}
+
+		/// <summary>
+		/// Nudges the proposed (x, y) position by the minimal amount needed so the form fits
+		/// entirely within the work area of the nearest screen.  If the form is larger than
+		/// the work area, it is placed at the top-left corner of that work area.
+		/// </summary>
+		/// <param name="form">The form whose Size is used for bounds checking.</param>
+		/// <param name="x">Proposed X coordinate (will be adjusted).</param>
+		/// <param name="y">Proposed Y coordinate (will be adjusted).</param>
+		/// <returns>The nudged location.</returns>
+		public static Point NudgeOnscreen(this Form form, int x, int y)
+		{
+			Screen nearest = Screen.FromPoint(new Point(x + form.Width / 2, y + form.Height / 2));
+			Rectangle wa = nearest.WorkingArea;
+
+			// If the form is larger than the work area, pin to top-left
+			if (form.Width > wa.Width || form.Height > wa.Height)
+				return new Point(wa.Left, wa.Top);
+
+			// Nudge right if extending past left edge
+			if (x < wa.Left)
+				x = wa.Left;
+			// Nudge left if extending past right edge
+			else if (x + form.Width > wa.Right)
+				x = wa.Right - form.Width;
+
+			// Nudge down if extending past top edge
+			if (y < wa.Top)
+				y = wa.Top;
+			// Nudge up if extending past bottom edge
+			else if (y + form.Height > wa.Bottom)
+				y = wa.Bottom - form.Height;
+
+			return new Point(x, y);
+		}
+
+		/// <summary>
+		/// Positions the form centered over the given owner form, then nudges it
+		/// the minimal amount needed to fit entirely on-screen.
+		/// </summary>
+		public static void PositionCenteredOn(this Form form, Form owner)
+		{
+			int x = owner.Left + (owner.Width - form.Width) / 2;
+			int y = owner.Top + (owner.Height - form.Height) / 2;
+			form.StartPosition = FormStartPosition.Manual;
+			form.Location = form.NudgeOnscreen(x, y);
+		}
 	}
 }

@@ -9,7 +9,7 @@ using System.Xml.Serialization;
 namespace PingTracer.Tracer
 {
 	/// <summary>
-	/// Defines host(s) to ping, along with various related options.
+	/// LEGACY OBJECT - Retained for migration purposes.  Defines host(s) to ping, along with various related options.
 	/// </summary>
 	public class HostSettings
 	{
