@@ -265,7 +265,8 @@ namespace PingTracer
 				this.Text = baseTitle;
 			panelForm.Text = this.Text;
 
-			// Sync dropdown selection
+			// Sync dropdown selection (reload from disk so newly saved configs are available)
+			PopulateConfigDropdownFromDisk();
 			SelectConfigInDropdown(cfg.guid);
 
 			UpdateStatus(isRunning ? "Pinging Active" : "Idle");
@@ -718,12 +719,30 @@ namespace PingTracer
 				if (outputLogForm != null)
 					outputLogForm.AppendLog(str);
 				if (settings.logTextOutputToFile)
-					File.AppendAllText("PingTracer_Output.txt", str + Environment.NewLine);
+				{
+					File.AppendAllText(LogFilePath, str + Environment.NewLine);
+				}
 			}
 			catch (Exception)
 			{
+				didCheckLogsDir = false;
 			}
 		}
+		/// <summary>
+		/// Gets the path to the log file appropriate for right now.  Named with year and month.
+		/// </summary>
+		private string LogFilePath
+		{
+			get
+			{
+				string folder = Path.Combine(Settings.SettingsFolderPath, "Logs");
+				if (!didCheckLogsDir && !Directory.Exists(folder))
+					Directory.CreateDirectory(folder);
+				didCheckLogsDir = true;
+				return Path.Combine(folder, "PingTracer-Log-" + DateTime.Now.ToString("yyyy-MM") + ".txt");
+			}
+		}
+		bool didCheckLogsDir = false;
 
 		private void UpdatePingCounts(long successful, long failed)
 		{

@@ -82,7 +82,7 @@ namespace PingTracer
 			this.Controls.Add(this.txtDocumentation);
 			this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedToolWindow;
 			this.Name = "CommandLineArgsForm";
-			this.Text = "CommandLineArgsForm";
+			this.Text = "Command Line Args - PingTracer";
 			this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.CommandLineArgsForm_FormClosing);
 			this.Load += new System.EventHandler(this.CommandLineArgsForm_Load);
 			this.ResumeLayout(false);

@@ -41,6 +41,9 @@
 			this.label3 = new System.Windows.Forms.Label();
 			this.nudGraphScrollMultiplier = new System.Windows.Forms.NumericUpDown();
 			this.cbShowDateInCorner = new System.Windows.Forms.CheckBox();
+			this.nudPingTimeoutRedLineHeight = new System.Windows.Forms.NumericUpDown();
+			this.label6 = new System.Windows.Forms.Label();
+			this.label7 = new System.Windows.Forms.Label();
 			this.label4 = new System.Windows.Forms.Label();
 			this.txtCustomTimeString = new System.Windows.Forms.TextBox();
 			this.customTimeStringHelp = new System.Windows.Forms.LinkLabel();
@@ -51,17 +54,14 @@
 			this.nudLeftMargin = new System.Windows.Forms.NumericUpDown();
 			this.nudTopMargin = new System.Windows.Forms.NumericUpDown();
 			this.label5 = new System.Windows.Forms.Label();
-			this.nudPingTimeoutRedLineHeight = new System.Windows.Forms.NumericUpDown();
-			this.label6 = new System.Windows.Forms.Label();
-			this.label7 = new System.Windows.Forms.Label();
 			((System.ComponentModel.ISupportInitialize)(this.nudPingResponsesToCache)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.nudGraphScrollMultiplier)).BeginInit();
+			((System.ComponentModel.ISupportInitialize)(this.nudPingTimeoutRedLineHeight)).BeginInit();
 			this.groupBoxFormMargins.SuspendLayout();
 			((System.ComponentModel.ISupportInitialize)(this.nudBottomMargin)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.nudRightMargin)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.nudLeftMargin)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.nudTopMargin)).BeginInit();
-			((System.ComponentModel.ISupportInitialize)(this.nudPingTimeoutRedLineHeight)).BeginInit();
 			this.SuspendLayout();
 			// 
 			// cbLogToFile
@@ -74,7 +74,7 @@
 			this.cbLogToFile.Size = new System.Drawing.Size(125, 17);
 			this.cbLogToFile.TabIndex = 1;
 			this.cbLogToFile.Text = "Log text output to file";
-			this.toolTip1.SetToolTip(this.cbLogToFile, "Output goes to PingTracer_Output.txt in the current working directory.");
+			this.toolTip1.SetToolTip(this.cbLogToFile, "Log output goes to the Logs subfolder in the AppData directory (see Tools menu).");
 			this.cbLogToFile.UseVisualStyleBackColor = true;
 			this.cbLogToFile.CheckedChanged += new System.EventHandler(this.cbLogToFile_CheckedChanged);
 			// 
@@ -222,6 +222,56 @@
 			this.cbShowDateInCorner.UseVisualStyleBackColor = true;
 			this.cbShowDateInCorner.CheckedChanged += new System.EventHandler(this.cbShowDateInCorner_CheckedChanged);
 			// 
+			// nudPingTimeoutRedLineHeight
+			// 
+			this.nudPingTimeoutRedLineHeight.Location = new System.Drawing.Point(160, 257);
+			this.nudPingTimeoutRedLineHeight.Maximum = new decimal(new int[] {
+            10000,
+            0,
+            0,
+            0});
+			this.nudPingTimeoutRedLineHeight.Minimum = new decimal(new int[] {
+            1,
+            0,
+            0,
+            0});
+			this.nudPingTimeoutRedLineHeight.Name = "nudPingTimeoutRedLineHeight";
+			this.nudPingTimeoutRedLineHeight.Size = new System.Drawing.Size(64, 20);
+			this.nudPingTimeoutRedLineHeight.TabIndex = 21;
+			this.toolTip1.SetToolTip(this.nudPingTimeoutRedLineHeight, "When a ping times out (gets no response), a red line is drawn \r\nup to this many p" +
+        "ixels tall in the graph. You can reduce this \r\nvalue to shrink the line that is " +
+        "drawn.");
+			this.nudPingTimeoutRedLineHeight.Value = new decimal(new int[] {
+            10000,
+            0,
+            0,
+            0});
+			this.nudPingTimeoutRedLineHeight.ValueChanged += new System.EventHandler(this.nudPingTimeoutRedLineHeight_ValueChanged);
+			// 
+			// label6
+			// 
+			this.label6.AutoSize = true;
+			this.label6.Location = new System.Drawing.Point(12, 259);
+			this.label6.Name = "label6";
+			this.label6.Size = new System.Drawing.Size(137, 13);
+			this.label6.TabIndex = 22;
+			this.label6.Text = "Ping timeout red line height:";
+			this.toolTip1.SetToolTip(this.label6, "When a ping times out (gets no response), a red line is drawn \r\nup to this many p" +
+        "ixels tall in the graph. You can reduce this \r\nvalue to shrink the line that is " +
+        "drawn.");
+			// 
+			// label7
+			// 
+			this.label7.AutoSize = true;
+			this.label7.Location = new System.Drawing.Point(232, 259);
+			this.label7.Name = "label7";
+			this.label7.Size = new System.Drawing.Size(39, 13);
+			this.label7.TabIndex = 23;
+			this.label7.Text = "(pixels)";
+			this.toolTip1.SetToolTip(this.label7, "When a ping times out (gets no response), a red line is drawn \r\nup to this many p" +
+        "ixels tall in the graph. You can reduce this \r\nvalue to shrink the line that is " +
+        "drawn.");
+			// 
 			// label4
 			// 
 			this.label4.AutoSize = true;
@@ -366,56 +416,6 @@
     "ar program window.  To correct this, the following margins will be subtracted fr" +
     "om the maximized graph view.";
 			// 
-			// nudPingTimeoutRedLineHeight
-			// 
-			this.nudPingTimeoutRedLineHeight.Location = new System.Drawing.Point(160, 257);
-			this.nudPingTimeoutRedLineHeight.Maximum = new decimal(new int[] {
-            10000,
-            0,
-            0,
-            0});
-			this.nudPingTimeoutRedLineHeight.Minimum = new decimal(new int[] {
-            1,
-            0,
-            0,
-            0});
-			this.nudPingTimeoutRedLineHeight.Name = "nudPingTimeoutRedLineHeight";
-			this.nudPingTimeoutRedLineHeight.Size = new System.Drawing.Size(64, 20);
-			this.nudPingTimeoutRedLineHeight.TabIndex = 21;
-			this.toolTip1.SetToolTip(this.nudPingTimeoutRedLineHeight, "When a ping times out (gets no response), a red line is drawn \r\nup to this many p" +
-        "ixels tall in the graph. You can reduce this \r\nvalue to shrink the line that is " +
-        "drawn.");
-			this.nudPingTimeoutRedLineHeight.Value = new decimal(new int[] {
-            10000,
-            0,
-            0,
-            0});
-			this.nudPingTimeoutRedLineHeight.ValueChanged += new System.EventHandler(this.nudPingTimeoutRedLineHeight_ValueChanged);
-			// 
-			// label6
-			// 
-			this.label6.AutoSize = true;
-			this.label6.Location = new System.Drawing.Point(12, 259);
-			this.label6.Name = "label6";
-			this.label6.Size = new System.Drawing.Size(137, 13);
-			this.label6.TabIndex = 22;
-			this.label6.Text = "Ping timeout red line height:";
-			this.toolTip1.SetToolTip(this.label6, "When a ping times out (gets no response), a red line is drawn \r\nup to this many p" +
-        "ixels tall in the graph. You can reduce this \r\nvalue to shrink the line that is " +
-        "drawn.");
-			// 
-			// label7
-			// 
-			this.label7.AutoSize = true;
-			this.label7.Location = new System.Drawing.Point(232, 259);
-			this.label7.Name = "label7";
-			this.label7.Size = new System.Drawing.Size(39, 13);
-			this.label7.TabIndex = 23;
-			this.label7.Text = "(pixels)";
-			this.toolTip1.SetToolTip(this.label7, "When a ping times out (gets no response), a red line is drawn \r\nup to this many p" +
-        "ixels tall in the graph. You can reduce this \r\nvalue to shrink the line that is " +
-        "drawn.");
-			// 
 			// OptionsForm
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -440,15 +440,15 @@
 			this.Controls.Add(this.cbLogToFile);
 			this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
 			this.Name = "OptionsForm";
-			this.Text = "Ping Tracer Options";
+			this.Text = "Options - PingTracer";
 			((System.ComponentModel.ISupportInitialize)(this.nudPingResponsesToCache)).EndInit();
 			((System.ComponentModel.ISupportInitialize)(this.nudGraphScrollMultiplier)).EndInit();
+			((System.ComponentModel.ISupportInitialize)(this.nudPingTimeoutRedLineHeight)).EndInit();
 			this.groupBoxFormMargins.ResumeLayout(false);
 			((System.ComponentModel.ISupportInitialize)(this.nudBottomMargin)).EndInit();
 			((System.ComponentModel.ISupportInitialize)(this.nudRightMargin)).EndInit();
 			((System.ComponentModel.ISupportInitialize)(this.nudLeftMargin)).EndInit();
 			((System.ComponentModel.ISupportInitialize)(this.nudTopMargin)).EndInit();
-			((System.ComponentModel.ISupportInitialize)(this.nudPingTimeoutRedLineHeight)).EndInit();
 			this.ResumeLayout(false);
 			this.PerformLayout();
 

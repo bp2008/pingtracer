@@ -150,6 +150,9 @@
     <EmbeddedResource Include="OptionsForm.resx">
       <DependentUpon>OptionsForm.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="OutputLogForm.resx">
+      <DependentUpon>OutputLogForm.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="PingGraphControl.resx">
       <DependentUpon>PingGraphControl.cs</DependentUpon>
     </EmbeddedResource>

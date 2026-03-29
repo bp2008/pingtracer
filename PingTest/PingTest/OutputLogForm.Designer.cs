@@ -45,9 +45,10 @@ namespace PingTracer
 			this.ClientSize = new System.Drawing.Size(584, 261);
 			this.Controls.Add(this.txtLog);
 			this.Name = "OutputLogForm";
-			this.Text = "Log Messages";
+			this.Text = "Log Messages - PingTracer";
 			this.ResumeLayout(false);
 			this.PerformLayout();
+
 		}
 
 		#endregion

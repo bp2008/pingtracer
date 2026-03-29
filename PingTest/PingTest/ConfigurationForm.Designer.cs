@@ -18,6 +18,7 @@
 		private void InitializeComponent()
 		{
 			this.components = new System.ComponentModel.Container();
+			System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(ConfigurationForm));
 			this.splitContainerMain = new System.Windows.Forms.SplitContainer();
 			this.treeConfigurations = new System.Windows.Forms.TreeView();
 			this.panelEditor = new System.Windows.Forms.Panel();
@@ -32,8 +33,8 @@
 			this.lblTracerouteWarning = new System.Windows.Forms.Label();
 			this.cbReverseDNS = new System.Windows.Forms.CheckBox();
 			this.lblRate = new System.Windows.Forms.Label();
-			this.trackBarRate = new System.Windows.Forms.TrackBar();
 			this.lblRateValue = new System.Windows.Forms.Label();
+			this.trackBarRate = new System.Windows.Forms.TrackBar();
 			this.grpGraphOptions = new System.Windows.Forms.GroupBox();
 			this.cbAlwaysShowServerNames = new System.Windows.Forms.CheckBox();
 			this.cbPacketLoss = new System.Windows.Forms.CheckBox();
@@ -59,8 +60,8 @@
 			this.btnDiscard = new System.Windows.Forms.Button();
 			this.btnDelete = new System.Windows.Forms.Button();
 			this.btnLoad = new System.Windows.Forms.Button();
-				this.btnClone = new System.Windows.Forms.Button();
-				this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
+			this.btnClone = new System.Windows.Forms.Button();
+			this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
 			((System.ComponentModel.ISupportInitialize)(this.splitContainerMain)).BeginInit();
 			this.splitContainerMain.Panel1.SuspendLayout();
 			this.splitContainerMain.Panel2.SuspendLayout();
@@ -262,6 +263,17 @@
 			this.lblRate.TabIndex = 3;
 			this.lblRate.Text = "Ping Rate:";
 			// 
+			// lblRateValue
+			// 
+			this.lblRateValue.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+			this.lblRateValue.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+			this.lblRateValue.Location = new System.Drawing.Point(258, 42);
+			this.lblRateValue.Name = "lblRateValue";
+			this.lblRateValue.Size = new System.Drawing.Size(76, 13);
+			this.lblRateValue.TabIndex = 5;
+			this.lblRateValue.Text = "1 ping/sec";
+			this.lblRateValue.TextAlign = System.Drawing.ContentAlignment.TopRight;
+			// 
 			// trackBarRate
 			// 
 			this.trackBarRate.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
@@ -274,17 +286,6 @@
         "econd is recommended for long-term monitoring.");
 			this.trackBarRate.Value = 1;
 			this.trackBarRate.ValueChanged += new System.EventHandler(this.trackBarRate_ValueChanged);
-			// 
-			// lblRateValue
-			// 
-			this.lblRateValue.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-			this.lblRateValue.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-			this.lblRateValue.Location = new System.Drawing.Point(258, 42);
-			this.lblRateValue.Name = "lblRateValue";
-			this.lblRateValue.Size = new System.Drawing.Size(76, 13);
-			this.lblRateValue.TabIndex = 5;
-			this.lblRateValue.Text = "1 ping/sec";
-			this.lblRateValue.TextAlign = System.Drawing.ContentAlignment.TopRight;
 			// 
 			// grpGraphOptions
 			// 
@@ -646,10 +647,11 @@
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
 			this.ClientSize = new System.Drawing.Size(804, 467);
 			this.Controls.Add(this.splitContainerMain);
+			this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
 			this.MinimumSize = new System.Drawing.Size(820, 441);
 			this.Name = "ConfigurationForm";
 			this.StartPosition = System.Windows.Forms.FormStartPosition.Manual;
-			this.Text = "Configuration Editor";
+			this.Text = "Configuration Editor - PingTracer";
 			this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.ConfigurationForm_FormClosing);
 			this.Load += new System.EventHandler(this.ConfigurationForm_Load);
 			this.splitContainerMain.Panel1.ResumeLayout(false);

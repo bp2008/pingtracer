@@ -222,7 +222,7 @@ namespace PingTracer
 			// menuItem_OpenSettingsFolder
 			// 
 			this.menuItem_OpenSettingsFolder.Index = 2;
-			this.menuItem_OpenSettingsFolder.Text = "Open &Settings Folder";
+			this.menuItem_OpenSettingsFolder.Text = "Open &AppData Folder";
 			this.menuItem_OpenSettingsFolder.Click += new System.EventHandler(this.menuItem_OpenSettingsFolder_Click);
 			// 
 			// menuItem_CommandLineArgs
@@ -241,7 +241,7 @@ namespace PingTracer
 			// 
 			this.cbConfigurations.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
 			this.cbConfigurations.FormattingEnabled = true;
-			this.cbConfigurations.Location = new System.Drawing.Point(6, 4);
+			this.cbConfigurations.Location = new System.Drawing.Point(5, 4);
 			this.cbConfigurations.Name = "cbConfigurations";
 			this.cbConfigurations.Size = new System.Drawing.Size(213, 21);
 			this.cbConfigurations.TabIndex = 17;
@@ -250,7 +250,7 @@ namespace PingTracer
 			// 
 			// btnEdit
 			// 
-			this.btnEdit.Location = new System.Drawing.Point(225, 2);
+			this.btnEdit.Location = new System.Drawing.Point(224, 2);
 			this.btnEdit.Name = "btnEdit";
 			this.btnEdit.Size = new System.Drawing.Size(58, 23);
 			this.btnEdit.TabIndex = 18;
@@ -261,7 +261,7 @@ namespace PingTracer
 			// btnStart
 			// 
 			this.btnStart.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-			this.btnStart.Location = new System.Drawing.Point(452, 2);
+			this.btnStart.Location = new System.Drawing.Point(460, 2);
 			this.btnStart.Name = "btnStart";
 			this.btnStart.Size = new System.Drawing.Size(120, 23);
 			this.btnStart.TabIndex = 19;
