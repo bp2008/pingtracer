@@ -19,9 +19,10 @@ namespace PingTracer.TraceRoute
 		/// <param name="MaxHops">The maximum number of hops to try.</param>
 		/// <param name="OnHostResult">Callback method which will be called with the result of each individual ping.</param>
 		/// <param name="PingTimeoutMs">Timeout in milliseconds after which the ping should be considered unsuccessful.</param>
-		public static void TraceRoute(SimpleThreadPool threadPool, object token, IPAddress Target, byte MaxHops, Action<TraceRouteHostResult> OnHostResult, int PingTimeoutMs = 5000)
+		/// <param name="pingPayloadSizeBytes">Size in bytes of the payload to send with pings.  0 works on most systems, but some systems fail to get responses with an empty payload.  32 is the default size for the traceroute program on Windows.</param>
+		public static void TraceRoute(SimpleThreadPool threadPool, object token, IPAddress Target, byte MaxHops, Action<TraceRouteHostResult> OnHostResult, int PingTimeoutMs = 5000, int pingPayloadSizeBytes = 32)
 		{
-			byte[] buffer = new byte[0];
+			byte[] buffer = new byte[pingPayloadSizeBytes];
 			for (byte ttl = 1; ttl <= MaxHops; ttl++)
 			{
 				object state = new

@@ -27,6 +27,7 @@ namespace PingTracer
 		public int osWindowRightMargin = 7;
 		public int osWindowBottomMargin = 7;
 		public int maxHeightOfPingTimeoutLine = 10000;
+		public int pingPayloadSizeBytes = 32;
 
 		public bool Save()
 		{

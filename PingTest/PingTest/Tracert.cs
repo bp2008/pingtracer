@@ -21,7 +21,9 @@ namespace PingTracer
 		/// </summary>
 		/// <param name="address">The IP address of the destination.</param>
 		/// <param name="maxHops">Max hops to be returned.</param>
-		public static IEnumerable<TracertEntry> Trace(IPAddress address, int maxHops, int timeout)
+		/// <param name="timeout">Timeout in milliseconds before considering a ping to have failed.</param>
+		/// <param name="pingPayloadSizeBytes">Size in bytes of the payload to send with pings.  0 works on most systems, but some systems fail to get responses with an empty payload.  32 is the default size for the traceroute program on Windows.</param>
+		public static IEnumerable<TracertEntry> Trace(IPAddress address, int maxHops, int timeout, int pingPayloadSizeBytes = 32)
 		{
 			// Max hops should be at least one or else there won't be any data to return.
 			if (maxHops < 1)
@@ -36,7 +38,7 @@ namespace PingTracer
 			PingOptions pingOptions = new PingOptions(1, true);
 			Stopwatch pingReplyTime = new Stopwatch();
 			PingReply reply;
-			byte[] buffer = new byte[0];
+			byte[] buffer = new byte[pingPayloadSizeBytes];
 			int consecutiveTimeouts = 0;
 			do
 			{

@@ -406,7 +406,7 @@ namespace PingTracer
 				{
 					CreateLogEntry("Tracing route ...");
 					target = StringToIp(addresses[0], preferIpv4, out string hostName);
-					foreach (TracertEntry entry in Tracert.Trace(target, 64, 5000))
+					foreach (TracertEntry entry in Tracert.Trace(target, 64, 5000, settings.pingPayloadSizeBytes))
 					{
 						if (self.CancellationPending)
 							break;
@@ -423,7 +423,7 @@ namespace PingTracer
 
 				CreateLogEntry("Now beginning pings");
 				Stopwatch sw = null;
-				byte[] buffer = new byte[0];
+				byte[] buffer = new byte[settings.pingPayloadSizeBytes];
 
 				long numberOfPingLoopIterations = 0;
 				DateTime tenPingsAt = DateTime.MinValue;
@@ -488,6 +488,8 @@ namespace PingTracer
 									long offset = graph.ClearNextOffset();
 									Ping pinger = PingInstancePool.Get();
 									pinger.PingCompleted += pinger_PingCompleted;
+									if (buffer.Length != settings.pingPayloadSizeBytes)
+										buffer = new byte[settings.pingPayloadSizeBytes];
 									pinger.SendAsync(targetMapping.Value, 5000, buffer, new object[] { lastPingAt, offset, graph, targetMapping.Key, targetMapping.Value, pinger });
 								}
 							}
