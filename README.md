@@ -1,10 +1,8 @@
 # Ping Tracer
 
-Ping Tracer continuously pings each network host between your computer and a given destination, helping identify the source of connectivity problems.
+Ping Tracer continuously pings each network host between your computer and a given destination, helping identify the source of connectivity problems.  The latency over time is shown on graphs, and each instance of packet loss is marked in red.
 
-![image](https://github.com/bp2008/pingtracer/assets/5639911/3eff5b0c-b025-49bb-a149-77b2cb4c55ae)
-
-This program helps to visually determine the origin of connection problems.  The latency over time is shown on graphs, and each instance of packet loss is marked in red.
+<img width="732" height="490" alt="image" src="https://github.com/user-attachments/assets/20b113da-c1c6-45e2-854a-f51284398560" />
 
 A common use for such a tool is to monitor your connection to a multiplayer game server so you know who to blame when you experience lag.  For example, if you experience a terrible moment of lag and you see that every node beyond your router is showing elevated latency or packet loss, then the lag was on your end.  Typically, a poorly performing node will affect your connection to every node after it.
 
@@ -23,6 +21,11 @@ Notes about PingTracer's "Trace Route" implementation:
 
 Just download the latest release from [the releases tab](https://github.com/bp2008/pingtracer/releases) and extract it wherever you like.
 
+## Configuration
+
+Since PingTracer 2.0, configuration is done in a separate window, keeping the main program window clean.
+
+<img width="1007" height="624" alt="image" src="https://github.com/user-attachments/assets/119afe3c-ef1b-464e-a086-9db7d041e063" />
 ## Keyboard shortcuts for the graphs
 Key | Alternate Key | action
 -:|-:|-
