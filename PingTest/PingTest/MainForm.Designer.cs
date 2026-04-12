@@ -28,264 +28,290 @@ namespace PingTracer
 		/// </summary>
 		private void InitializeComponent()
 		{
-			this.components = new System.ComponentModel.Container();
+			components = new System.ComponentModel.Container();
 			System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
-			this.panel_Graphs = new System.Windows.Forms.Panel();
-			this.label5 = new System.Windows.Forms.Label();
-			this.label4 = new System.Windows.Forms.Label();
-			this.lblSuccessful = new System.Windows.Forms.Label();
-			this.label7 = new System.Windows.Forms.Label();
-			this.lblFailed = new System.Windows.Forms.Label();
-			this.lblHoveredPingStatus = new System.Windows.Forms.Label();
-			this.lblStatus = new System.Windows.Forms.Label();
-			this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
-            this.mainMenu1 = new System.Windows.Forms.MenuStrip();
-			this.menuItem6 = new System.Windows.Forms.ToolStripMenuItem();
-			this.mi_Configuration = new System.Windows.Forms.ToolStripMenuItem();
-			this.mi_Exit = new System.Windows.Forms.ToolStripMenuItem();
-			this.menuItem1 = new System.Windows.Forms.ToolStripMenuItem();
-			this.mi_snapshotGraphs = new System.Windows.Forms.ToolStripMenuItem();
-			this.menuItem4 = new System.Windows.Forms.ToolStripMenuItem();
-			this.mi_Options = new System.Windows.Forms.ToolStripMenuItem();
-			this.mi_OutputLog = new System.Windows.Forms.ToolStripMenuItem();
-			this.menuItem_OpenSettingsFolder = new System.Windows.Forms.ToolStripMenuItem();
-			this.menuItem_CommandLineArgs = new System.Windows.Forms.ToolStripMenuItem();
-			this.menuItem_resetWindowSize = new System.Windows.Forms.ToolStripMenuItem();
-			this.cbConfigurations = new System.Windows.Forms.ComboBox();
-			this.btnEdit = new System.Windows.Forms.Button();
-			this.btnStart = new System.Windows.Forms.Button();
-			this.panel_Graphs.SuspendLayout();
-			this.SuspendLayout();
+			panel_Graphs = new System.Windows.Forms.Panel();
+			label5 = new System.Windows.Forms.Label();
+			label4 = new System.Windows.Forms.Label();
+			lblSuccessful = new System.Windows.Forms.Label();
+			label7 = new System.Windows.Forms.Label();
+			lblFailed = new System.Windows.Forms.Label();
+			lblHoveredPingStatus = new System.Windows.Forms.Label();
+			lblStatus = new System.Windows.Forms.Label();
+			toolTip1 = new System.Windows.Forms.ToolTip(components);
+			mainMenu1 = new System.Windows.Forms.MenuStrip();
+			menuItem6 = new System.Windows.Forms.ToolStripMenuItem();
+			mi_Configuration = new System.Windows.Forms.ToolStripMenuItem();
+			mi_Exit = new System.Windows.Forms.ToolStripMenuItem();
+			menuItem1 = new System.Windows.Forms.ToolStripMenuItem();
+			mi_snapshotGraphs = new System.Windows.Forms.ToolStripMenuItem();
+			menuItem4 = new System.Windows.Forms.ToolStripMenuItem();
+			mi_Options = new System.Windows.Forms.ToolStripMenuItem();
+			mi_OutputLog = new System.Windows.Forms.ToolStripMenuItem();
+			menuItem_OpenSettingsFolder = new System.Windows.Forms.ToolStripMenuItem();
+			menuItem_CommandLineArgs = new System.Windows.Forms.ToolStripMenuItem();
+			menuItem_resetWindowSize = new System.Windows.Forms.ToolStripMenuItem();
+			cbConfigurations = new System.Windows.Forms.ComboBox();
+			btnEdit = new System.Windows.Forms.Button();
+			btnStart = new System.Windows.Forms.Button();
+			panel_Graphs.SuspendLayout();
+			mainMenu1.SuspendLayout();
+			SuspendLayout();
 			// 
 			// panel_Graphs
 			// 
-			this.panel_Graphs.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-			this.panel_Graphs.BackColor = System.Drawing.SystemColors.Window;
-			this.panel_Graphs.Controls.Add(this.label5);
-			this.panel_Graphs.Location = new System.Drawing.Point(0, 31);
-			this.panel_Graphs.Name = "panel_Graphs";
-			this.panel_Graphs.Size = new System.Drawing.Size(584, 292);
-			this.panel_Graphs.TabIndex = 16;
-			this.panel_Graphs.Click += new System.EventHandler(this.panel_Graphs_Click);
-			this.panel_Graphs.Resize += new System.EventHandler(this.panel_Graphs_Resize);
+			panel_Graphs.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+			panel_Graphs.BackColor = System.Drawing.SystemColors.Window;
+			panel_Graphs.Controls.Add(label5);
+			panel_Graphs.Location = new System.Drawing.Point(0, 73);
+			panel_Graphs.Margin = new System.Windows.Forms.Padding(4, 5, 4, 5);
+			panel_Graphs.Name = "panel_Graphs";
+			panel_Graphs.Size = new System.Drawing.Size(779, 424);
+			panel_Graphs.TabIndex = 16;
+			panel_Graphs.Click += panel_Graphs_Click;
+			panel_Graphs.Resize += panel_Graphs_Resize;
 			// 
 			// label5
 			// 
-			this.label5.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-			this.label5.BackColor = System.Drawing.SystemColors.Window;
-			this.label5.Font = new System.Drawing.Font("Microsoft Sans Serif", 14F);
-			this.label5.ForeColor = System.Drawing.SystemColors.ControlText;
-			this.label5.Location = new System.Drawing.Point(2, 30);
-			this.label5.Name = "label5";
-			this.label5.Size = new System.Drawing.Size(579, 249);
-			this.label5.TabIndex = 0;
-			this.label5.Text = "Ping response graphs will appear here. \r\n\r\nClick the graph(s) to maximize them an" +
-    "d remove window borders.\r\n\r\nUse File > Configuration to set up ping targets.";
-			this.label5.TextAlign = System.Drawing.ContentAlignment.TopCenter;
-			this.label5.Click += new System.EventHandler(this.panel_Graphs_Click);
+			label5.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+			label5.BackColor = System.Drawing.SystemColors.Window;
+			label5.Font = new System.Drawing.Font("Microsoft Sans Serif", 14F);
+			label5.ForeColor = System.Drawing.SystemColors.ControlText;
+			label5.Location = new System.Drawing.Point(3, 46);
+			label5.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+			label5.Name = "label5";
+			label5.Size = new System.Drawing.Size(772, 358);
+			label5.TabIndex = 0;
+			label5.Text = "Ping response graphs will appear here. \r\n\r\nClick the graph(s) to maximize them and remove window borders.\r\n\r\nUse File > Configuration to set up ping targets.";
+			label5.TextAlign = System.Drawing.ContentAlignment.TopCenter;
+			label5.Click += panel_Graphs_Click;
 			// 
 			// label4
 			// 
-			this.label4.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-			this.label4.AutoSize = true;
-			this.label4.Location = new System.Drawing.Point(12, 326);
-			this.label4.Name = "label4";
-			this.label4.Size = new System.Drawing.Size(62, 13);
-			this.label4.TabIndex = 8;
-			this.label4.Text = "Successful:";
+			label4.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left;
+			label4.AutoSize = true;
+			label4.Location = new System.Drawing.Point(16, 502);
+			label4.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+			label4.Name = "label4";
+			label4.Size = new System.Drawing.Size(79, 20);
+			label4.TabIndex = 8;
+			label4.Text = "Successful:";
 			// 
 			// lblSuccessful
 			// 
-			this.lblSuccessful.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-			this.lblSuccessful.AutoSize = true;
-			this.lblSuccessful.Location = new System.Drawing.Point(80, 326);
-			this.lblSuccessful.Name = "lblSuccessful";
-			this.lblSuccessful.Size = new System.Drawing.Size(13, 13);
-			this.lblSuccessful.TabIndex = 9;
-			this.lblSuccessful.Text = "0";
+			lblSuccessful.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left;
+			lblSuccessful.AutoSize = true;
+			lblSuccessful.Location = new System.Drawing.Point(107, 502);
+			lblSuccessful.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+			lblSuccessful.Name = "lblSuccessful";
+			lblSuccessful.Size = new System.Drawing.Size(17, 20);
+			lblSuccessful.TabIndex = 9;
+			lblSuccessful.Text = "0";
 			// 
 			// label7
 			// 
-			this.label7.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-			this.label7.AutoSize = true;
-			this.label7.Location = new System.Drawing.Point(162, 326);
-			this.label7.Name = "label7";
-			this.label7.Size = new System.Drawing.Size(38, 13);
-			this.label7.TabIndex = 10;
-			this.label7.Text = "Failed:";
+			label7.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left;
+			label7.AutoSize = true;
+			label7.Location = new System.Drawing.Point(216, 502);
+			label7.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+			label7.Name = "label7";
+			label7.Size = new System.Drawing.Size(51, 20);
+			label7.TabIndex = 10;
+			label7.Text = "Failed:";
 			// 
 			// lblFailed
 			// 
-			this.lblFailed.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-			this.lblFailed.AutoSize = true;
-			this.lblFailed.Location = new System.Drawing.Point(206, 326);
-			this.lblFailed.Name = "lblFailed";
-			this.lblFailed.Size = new System.Drawing.Size(13, 13);
-			this.lblFailed.TabIndex = 11;
-			this.lblFailed.Text = "0";
+			lblFailed.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left;
+			lblFailed.AutoSize = true;
+			lblFailed.Location = new System.Drawing.Point(275, 502);
+			lblFailed.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+			lblFailed.Name = "lblFailed";
+			lblFailed.Size = new System.Drawing.Size(17, 20);
+			lblFailed.TabIndex = 11;
+			lblFailed.Text = "0";
 			// 
 			// lblHoveredPingStatus
 			// 
-			this.lblHoveredPingStatus.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-			this.lblHoveredPingStatus.AutoSize = true;
-			this.lblHoveredPingStatus.Location = new System.Drawing.Point(276, 326);
-			this.lblHoveredPingStatus.Name = "lblHoveredPingStatus";
-			this.lblHoveredPingStatus.Size = new System.Drawing.Size(7, 13);
-			this.lblHoveredPingStatus.TabIndex = 13;
-			this.lblHoveredPingStatus.Text = "\t";
+			lblHoveredPingStatus.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left;
+			lblHoveredPingStatus.AutoSize = true;
+			lblHoveredPingStatus.Location = new System.Drawing.Point(368, 502);
+			lblHoveredPingStatus.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+			lblHoveredPingStatus.Name = "lblHoveredPingStatus";
+			lblHoveredPingStatus.Size = new System.Drawing.Size(9, 20);
+			lblHoveredPingStatus.TabIndex = 13;
+			lblHoveredPingStatus.Text = "\t";
 			// 
 			// lblStatus
 			// 
-			this.lblStatus.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-			this.lblStatus.Location = new System.Drawing.Point(279, 326);
-			this.lblStatus.Name = "lblStatus";
-			this.lblStatus.Size = new System.Drawing.Size(297, 13);
-			this.lblStatus.TabIndex = 14;
-			this.lblStatus.Text = "Idle";
-			this.lblStatus.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
+			lblStatus.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+			lblStatus.Location = new System.Drawing.Point(372, 502);
+			lblStatus.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+			lblStatus.Name = "lblStatus";
+			lblStatus.Size = new System.Drawing.Size(396, 20);
+			lblStatus.TabIndex = 14;
+			lblStatus.Text = "Idle";
+			lblStatus.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
 			// 
 			// toolTip1
 			// 
-			this.toolTip1.AutomaticDelay = 250;
-			this.toolTip1.AutoPopDelay = 10000;
-			this.toolTip1.InitialDelay = 250;
-			this.toolTip1.ReshowDelay = 50;
+			toolTip1.AutomaticDelay = 250;
+			toolTip1.AutoPopDelay = 10000;
+			toolTip1.InitialDelay = 250;
+			toolTip1.ReshowDelay = 50;
 			// 
 			// mainMenu1
 			// 
-			this.mainMenu1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
-			this.menuItem6,
-			this.menuItem1,
-			this.menuItem4});
+			mainMenu1.ImageScalingSize = new System.Drawing.Size(20, 20);
+			mainMenu1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] { menuItem6, menuItem1, menuItem4 });
+			mainMenu1.Location = new System.Drawing.Point(0, 0);
+			mainMenu1.Name = "mainMenu1";
+			mainMenu1.Padding = new System.Windows.Forms.Padding(8, 3, 0, 3);
+			mainMenu1.Size = new System.Drawing.Size(779, 30);
+			mainMenu1.TabIndex = 20;
 			// 
 			// menuItem6
 			// 
-			this.menuItem6.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
-			this.mi_Configuration,
-			this.mi_Exit});
-			this.menuItem6.Text = "&File";
+			menuItem6.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] { mi_Configuration, mi_Exit });
+			menuItem6.Name = "menuItem6";
+			menuItem6.Size = new System.Drawing.Size(46, 24);
+			menuItem6.Text = "&File";
 			// 
 			// mi_Configuration
 			// 
-			this.mi_Configuration.Text = "&Configuration...";
-			this.mi_Configuration.Click += new System.EventHandler(this.mi_Configuration_Click);
+			mi_Configuration.Name = "mi_Configuration";
+			mi_Configuration.Size = new System.Drawing.Size(192, 26);
+			mi_Configuration.Text = "&Configuration...";
+			mi_Configuration.Click += mi_Configuration_Click;
 			// 
 			// mi_Exit
 			// 
-			this.mi_Exit.Text = "E&xit";
-			this.mi_Exit.Click += new System.EventHandler(this.mi_Exit_Click);
+			mi_Exit.Name = "mi_Exit";
+			mi_Exit.Size = new System.Drawing.Size(192, 26);
+			mi_Exit.Text = "E&xit";
+			mi_Exit.Click += mi_Exit_Click;
 			// 
 			// menuItem1
 			// 
-			this.menuItem1.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
-			this.mi_snapshotGraphs});
-			this.menuItem1.Text = "E&xport";
+			menuItem1.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] { mi_snapshotGraphs });
+			menuItem1.Name = "menuItem1";
+			menuItem1.Size = new System.Drawing.Size(66, 24);
+			menuItem1.Text = "E&xport";
 			// 
 			// mi_snapshotGraphs
 			// 
-			this.mi_snapshotGraphs.Text = "&Snapshot of graphs";
-			this.mi_snapshotGraphs.Click += new System.EventHandler(this.mi_snapshotGraphs_Click);
+			mi_snapshotGraphs.Name = "mi_snapshotGraphs";
+			mi_snapshotGraphs.Size = new System.Drawing.Size(220, 26);
+			mi_snapshotGraphs.Text = "&Snapshot of graphs";
+			mi_snapshotGraphs.Click += mi_snapshotGraphs_Click;
 			// 
 			// menuItem4
 			// 
-			this.menuItem4.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
-			this.mi_Options,
-			this.mi_OutputLog,
-			this.menuItem_OpenSettingsFolder,
-			this.menuItem_CommandLineArgs,
-			this.menuItem_resetWindowSize});
-			this.menuItem4.Text = "&Tools";
+			menuItem4.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] { mi_Options, mi_OutputLog, menuItem_OpenSettingsFolder, menuItem_CommandLineArgs, menuItem_resetWindowSize });
+			menuItem4.Name = "menuItem4";
+			menuItem4.Size = new System.Drawing.Size(58, 24);
+			menuItem4.Text = "&Tools";
 			// 
 			// mi_Options
 			// 
-			this.mi_Options.Text = "&Options";
-			this.mi_Options.Click += new System.EventHandler(this.mi_Options_Click);
+			mi_Options.Name = "mi_Options";
+			mi_Options.Size = new System.Drawing.Size(238, 26);
+			mi_Options.Text = "&Options";
+			mi_Options.Click += mi_Options_Click;
 			// 
 			// mi_OutputLog
 			// 
-			this.mi_OutputLog.Text = "&Log Messages";
-			this.mi_OutputLog.Click += new System.EventHandler(this.mi_OutputLog_Click);
+			mi_OutputLog.Name = "mi_OutputLog";
+			mi_OutputLog.Size = new System.Drawing.Size(238, 26);
+			mi_OutputLog.Text = "&Log Messages";
+			mi_OutputLog.Click += mi_OutputLog_Click;
 			// 
 			// menuItem_OpenSettingsFolder
 			// 
-			this.menuItem_OpenSettingsFolder.Text = "Open &AppData Folder";
-			this.menuItem_OpenSettingsFolder.Click += new System.EventHandler(this.menuItem_OpenSettingsFolder_Click);
+			menuItem_OpenSettingsFolder.Name = "menuItem_OpenSettingsFolder";
+			menuItem_OpenSettingsFolder.Size = new System.Drawing.Size(238, 26);
+			menuItem_OpenSettingsFolder.Text = "Open &AppData Folder";
+			menuItem_OpenSettingsFolder.Click += menuItem_OpenSettingsFolder_Click;
 			// 
 			// menuItem_CommandLineArgs
 			// 
-			this.menuItem_CommandLineArgs.Text = "&Command Line Args";
-			this.menuItem_CommandLineArgs.Click += new System.EventHandler(this.menuItem_CommandLineArgs_Click);
+			menuItem_CommandLineArgs.Name = "menuItem_CommandLineArgs";
+			menuItem_CommandLineArgs.Size = new System.Drawing.Size(238, 26);
+			menuItem_CommandLineArgs.Text = "&Command Line Args";
+			menuItem_CommandLineArgs.Click += menuItem_CommandLineArgs_Click;
 			// 
 			// menuItem_resetWindowSize
 			// 
-			this.menuItem_resetWindowSize.Text = "&Reset Window Size";
-			this.menuItem_resetWindowSize.Click += new System.EventHandler(this.menuItem_resetWindowSize_Click);
+			menuItem_resetWindowSize.Name = "menuItem_resetWindowSize";
+			menuItem_resetWindowSize.Size = new System.Drawing.Size(238, 26);
+			menuItem_resetWindowSize.Text = "&Reset Window Size";
+			menuItem_resetWindowSize.Click += menuItem_resetWindowSize_Click;
 			// 
 			// cbConfigurations
 			// 
-			this.cbConfigurations.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-			this.cbConfigurations.FormattingEnabled = true;
-			this.cbConfigurations.Location = new System.Drawing.Point(5, 4);
-			this.cbConfigurations.Name = "cbConfigurations";
-			this.cbConfigurations.Size = new System.Drawing.Size(213, 21);
-			this.cbConfigurations.TabIndex = 17;
-			this.cbConfigurations.DropDown += new System.EventHandler(this.cbConfigurations_DropDown);
-			this.cbConfigurations.SelectedIndexChanged += new System.EventHandler(this.cbConfigurations_SelectedIndexChanged);
+			cbConfigurations.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+			cbConfigurations.FormattingEnabled = true;
+			cbConfigurations.Location = new System.Drawing.Point(8, 38);
+			cbConfigurations.Margin = new System.Windows.Forms.Padding(4, 5, 4, 5);
+			cbConfigurations.Name = "cbConfigurations";
+			cbConfigurations.Size = new System.Drawing.Size(283, 28);
+			cbConfigurations.TabIndex = 17;
+			cbConfigurations.DropDown += cbConfigurations_DropDown;
+			cbConfigurations.SelectedIndexChanged += cbConfigurations_SelectedIndexChanged;
 			// 
 			// btnEdit
 			// 
-			this.btnEdit.Location = new System.Drawing.Point(224, 2);
-			this.btnEdit.Name = "btnEdit";
-			this.btnEdit.Size = new System.Drawing.Size(58, 23);
-			this.btnEdit.TabIndex = 18;
-			this.btnEdit.Text = "Edit";
-			this.btnEdit.UseVisualStyleBackColor = true;
-			this.btnEdit.Click += new System.EventHandler(this.tsbEdit_Click);
+			btnEdit.Location = new System.Drawing.Point(300, 35);
+			btnEdit.Margin = new System.Windows.Forms.Padding(4, 5, 4, 5);
+			btnEdit.Name = "btnEdit";
+			btnEdit.Size = new System.Drawing.Size(77, 35);
+			btnEdit.TabIndex = 18;
+			btnEdit.Text = "Edit";
+			btnEdit.UseVisualStyleBackColor = true;
+			btnEdit.Click += tsbEdit_Click;
 			// 
 			// btnStart
 			// 
-			this.btnStart.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-			this.btnStart.Location = new System.Drawing.Point(460, 2);
-			this.btnStart.Name = "btnStart";
-			this.btnStart.Size = new System.Drawing.Size(120, 23);
-			this.btnStart.TabIndex = 19;
-			this.btnStart.Tag = "Start";
-			this.btnStart.Text = "Click to Start";
-			this.btnStart.UseVisualStyleBackColor = true;
-			this.btnStart.Click += new System.EventHandler(this.btnStart_Click);
+			btnStart.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+			btnStart.Location = new System.Drawing.Point(614, 35);
+			btnStart.Margin = new System.Windows.Forms.Padding(4, 5, 4, 5);
+			btnStart.Name = "btnStart";
+			btnStart.Size = new System.Drawing.Size(160, 35);
+			btnStart.TabIndex = 19;
+			btnStart.Tag = "Start";
+			btnStart.Text = "Click to Start";
+			btnStart.UseVisualStyleBackColor = true;
+			btnStart.Click += btnStart_Click;
 			// 
 			// MainForm
 			// 
-			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
-			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-			this.ClientSize = new System.Drawing.Size(584, 340);
-			this.Controls.Add(this.btnStart);
-			this.Controls.Add(this.btnEdit);
-			this.Controls.Add(this.cbConfigurations);
-			this.Controls.Add(this.lblStatus);
-			this.Controls.Add(this.lblHoveredPingStatus);
-			this.Controls.Add(this.panel_Graphs);
-			this.Controls.Add(this.lblFailed);
-			this.Controls.Add(this.label7);
-			this.Controls.Add(this.lblSuccessful);
-			this.Controls.Add(this.label4);
-			this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
-			this.Controls.Add(this.mainMenu1);
-			this.MainMenuStrip = this.mainMenu1;
-			this.MinimumSize = new System.Drawing.Size(300, 198);
-			this.Name = "MainForm";
-			this.Text = "Ping Tracer";
-			this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.MainForm_FormClosing);
-			this.Load += new System.EventHandler(this.MainForm_Load);
-			this.Click += new System.EventHandler(this.MainForm_Click);
-			this.panel_Graphs.ResumeLayout(false);
-			this.ResumeLayout(false);
-			this.PerformLayout();
+			AutoScaleDimensions = new System.Drawing.SizeF(8F, 20F);
+			AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+			ClientSize = new System.Drawing.Size(779, 523);
+			Controls.Add(btnStart);
+			Controls.Add(btnEdit);
+			Controls.Add(cbConfigurations);
+			Controls.Add(lblStatus);
+			Controls.Add(lblHoveredPingStatus);
+			Controls.Add(panel_Graphs);
+			Controls.Add(lblFailed);
+			Controls.Add(label7);
+			Controls.Add(lblSuccessful);
+			Controls.Add(label4);
+			Controls.Add(mainMenu1);
+			Icon = (System.Drawing.Icon)resources.GetObject("$this.Icon");
+			MainMenuStrip = mainMenu1;
+			Margin = new System.Windows.Forms.Padding(4, 5, 4, 5);
+			MinimumSize = new System.Drawing.Size(394, 279);
+			Name = "MainForm";
+			Text = "Ping Tracer";
+			FormClosing += MainForm_FormClosing;
+			Load += MainForm_Load;
+			Click += MainForm_Click;
+			panel_Graphs.ResumeLayout(false);
+			mainMenu1.ResumeLayout(false);
+			mainMenu1.PerformLayout();
+			ResumeLayout(false);
+			PerformLayout();
 
 		}
 

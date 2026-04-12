@@ -1140,7 +1140,7 @@ namespace PingTracer
 				optionsForm.Dispose();
 			}
 			optionsForm = new OptionsForm(this);
-			outputLogForm.PositionCenteredOn(this);
+			optionsForm.PositionCenteredOn(this);
 			optionsForm.Show();
 		}
 

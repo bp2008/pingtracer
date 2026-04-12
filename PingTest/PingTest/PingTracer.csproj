@@ -1,21 +1,23 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
-    <RootNamespace>PingTracer</RootNamespace>
-    <AssemblyName>PingTracer</AssemblyName>
-    <UseWindowsForms>true</UseWindowsForms>
-    <ApplicationIcon>pingtracer.ico</ApplicationIcon>
-    <Version>2.0.1.0</Version>
-    <AssemblyVersion>2.0.1.0</AssemblyVersion>
-    <FileVersion>2.0.1.0</FileVersion>
-    <Copyright>Copyright Brian Pearce 2026</Copyright>
-    <Product>PingTracer</Product>
-  </PropertyGroup>
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<TargetFramework>net10.0-windows</TargetFramework>
+		<RootNamespace>PingTracer</RootNamespace>
+		<AssemblyName>PingTracer</AssemblyName>
+		<UseWindowsForms>true</UseWindowsForms>
+		<ApplicationIcon>pingtracer.ico</ApplicationIcon>
+		<Version>2.0.1.0</Version>
+		<AssemblyVersion>2.0.1.0</AssemblyVersion>
+		<FileVersion>2.0.1.0</FileVersion>
+		<Copyright>Copyright Brian Pearce 2026</Copyright>
+		<Product>PingTracer</Product>
+		<ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
+		<ForceDesignerDpiUnaware>true</ForceDesignerDpiUnaware>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="System.Configuration.ConfigurationManager" Version="10.0.0-preview.*" />
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="System.Configuration.ConfigurationManager" Version="10.0.0-preview.*" />
+	</ItemGroup>
 
 </Project>
