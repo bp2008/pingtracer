@@ -375,6 +375,7 @@ namespace PingTracer
 			bool traceRoute = (bool)args[2];
 			bool reverseDnsLookup = (bool)args[3];
 			bool preferIpv4 = (bool)args[4];
+			bool monitorUnresponsiveHops = (bool)args[5];
 
 			Invoke(self, () =>
 			{
@@ -496,7 +497,7 @@ namespace PingTracer
 					{
 						if (!clearedDeadHosts && tenPingsAt != DateTime.MinValue && tenPingsAt.AddSeconds(10) < DateTime.Now)
 						{
-							if (pingTargets.Count > 1)
+							if (pingTargets.Count > 1 && !monitorUnresponsiveHops)
 							{
 								IList<int> pingTargetIds = pingTargets.Keys;
 								foreach (int pingTargetId in pingTargetIds)
@@ -872,7 +873,7 @@ namespace PingTracer
 					traceRoute = false;
 
 				UpdateStatus("Starting...");
-				controllerWorker.RunWorkerAsync(new object[] { controllerWorker, host, traceRoute, reverseDnsLookup, preferIpv4 });
+				controllerWorker.RunWorkerAsync(new object[] { controllerWorker, host, traceRoute, reverseDnsLookup, preferIpv4, currentConfiguration.monitorUnresponsiveHops });
 				StartedPinging.Invoke(sender, e);
 			}
 		}
@@ -1137,6 +1138,7 @@ namespace PingTracer
 				optionsForm.Dispose();
 			}
 			optionsForm = new OptionsForm(this);
+			outputLogForm.PositionCenteredOn(this);
 			optionsForm.Show();
 		}
 
@@ -1401,6 +1403,7 @@ namespace PingTracer
 			currentConfiguration.doTraceRoute = cfg.doTraceRoute;
 			currentConfiguration.reverseDnsLookup = cfg.reverseDnsLookup;
 			currentConfiguration.preferIPv4 = cfg.preferIPv4;
+			currentConfiguration.monitorUnresponsiveHops = cfg.monitorUnresponsiveHops;
 			currentConfiguration.displayName = cfg.displayName;
 
 			// Update graph options on all live graphs

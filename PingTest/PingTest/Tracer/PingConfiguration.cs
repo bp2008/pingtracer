@@ -31,6 +31,10 @@ namespace PingTracer.Tracer
 		/// If true, prefer IPv4 addresses when DNS returns both IPv4 and IPv6. Applies to all hosts in this configuration.
 		/// </summary>
 		public bool preferIPv4 = true;
+		/// <summary>
+		/// If true, addresses that responded to the intial traceroute but refuse to respond to regular pings will continue to be monitored indefinitely.  If false, such addresses will be removed from monitoring after a timeout period.  This only applies to traceroute hops, not the main hosts being pinged.
+		/// </summary>
+		public bool monitorUnresponsiveHops = false;
 
 		// --- Graph display options ---
 

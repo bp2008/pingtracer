@@ -263,10 +263,11 @@ namespace PingTracer
 				cbPreferIPv4.Checked = cfg.preferIPv4;
 
 				// Monitoring
-					cbTraceroute.Checked = cfg.doTraceRoute;
-					cbReverseDNS.Checked = cfg.reverseDnsLookup;
-					trackBarRate.Value = PingRateToTrackBar(cfg.rate, cfg.pingsPerSecond);
-					UpdateRateLabel();
+				cbTraceroute.Checked = cfg.doTraceRoute;
+				cbReverseDNS.Checked = cfg.reverseDnsLookup;
+				trackBarRate.Value = PingRateToTrackBar(cfg.rate, cfg.pingsPerSecond);
+				cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.Checked = !cfg.monitorUnresponsiveHops;
+				UpdateRateLabel();
 
 				// Graph options
 				cbAlwaysShowServerNames.Checked = cfg.drawServerNames;
@@ -323,6 +324,7 @@ namespace PingTracer
 			cfg.preferIPv4 = cbPreferIPv4.Checked;
 			cfg.doTraceRoute = cbTraceroute.Checked;
 			cfg.reverseDnsLookup = cbReverseDNS.Checked;
+			cfg.monitorUnresponsiveHops = !cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.Checked;
 
 			int tbVal = trackBarRate.Value;
 			if (tbVal > 0)
@@ -372,6 +374,7 @@ namespace PingTracer
 				cbTraceroute.Checked,
 				cbReverseDNS.Checked,
 				trackBarRate.Value,
+				cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.Checked,
 				cbAlwaysShowServerNames.Checked,
 				cbLastPing.Checked,
 				cbAverage.Checked,
@@ -695,6 +698,16 @@ namespace PingTracer
 		}
 
 		private void cbTraceroute_CheckedChanged(object sender, EventArgs e)
+		{
+			if (!suppressEvents)
+			{
+				UpdateDiscardButton();
+				NotifyLiveEdit();
+			}
+			cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.Enabled = cbTraceroute.Checked;
+		}
+
+		private void cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings_CheckedChanged(object sender, EventArgs e)
 		{
 			if (!suppressEvents)
 			{

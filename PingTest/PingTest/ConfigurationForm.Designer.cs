@@ -29,6 +29,7 @@
 			this.txtHosts = new System.Windows.Forms.TextBox();
 			this.cbPreferIPv4 = new System.Windows.Forms.CheckBox();
 			this.grpMonitoring = new System.Windows.Forms.GroupBox();
+			this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings = new System.Windows.Forms.CheckBox();
 			this.cbTraceroute = new System.Windows.Forms.CheckBox();
 			this.lblTracerouteWarning = new System.Windows.Forms.Label();
 			this.cbReverseDNS = new System.Windows.Forms.CheckBox();
@@ -93,7 +94,7 @@
 			// 
 			this.splitContainerMain.Panel2.AutoScroll = true;
 			this.splitContainerMain.Panel2.Controls.Add(this.panelEditor);
-			this.splitContainerMain.Size = new System.Drawing.Size(804, 467);
+			this.splitContainerMain.Size = new System.Drawing.Size(804, 489);
 			this.splitContainerMain.SplitterDistance = 200;
 			this.splitContainerMain.TabIndex = 0;
 			// 
@@ -103,7 +104,7 @@
 			this.treeConfigurations.HideSelection = false;
 			this.treeConfigurations.Location = new System.Drawing.Point(0, 0);
 			this.treeConfigurations.Name = "treeConfigurations";
-			this.treeConfigurations.Size = new System.Drawing.Size(200, 467);
+			this.treeConfigurations.Size = new System.Drawing.Size(200, 489);
 			this.treeConfigurations.TabIndex = 0;
 			this.treeConfigurations.AfterSelect += new System.Windows.Forms.TreeViewEventHandler(this.treeConfigurations_AfterSelect);
 			// 
@@ -127,7 +128,7 @@
 			this.panelEditor.Dock = System.Windows.Forms.DockStyle.Fill;
 			this.panelEditor.Location = new System.Drawing.Point(0, 0);
 			this.panelEditor.Name = "panelEditor";
-			this.panelEditor.Size = new System.Drawing.Size(600, 467);
+			this.panelEditor.Size = new System.Drawing.Size(600, 489);
 			this.panelEditor.TabIndex = 0;
 			// 
 			// lblTitle
@@ -177,7 +178,7 @@
 			this.txtHosts.Multiline = true;
 			this.txtHosts.Name = "txtHosts";
 			this.txtHosts.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-			this.txtHosts.Size = new System.Drawing.Size(574, 118);
+			this.txtHosts.Size = new System.Drawing.Size(574, 116);
 			this.txtHosts.TabIndex = 4;
 			this.toolTip1.SetToolTip(this.txtHosts, "Enter host names or IP addresses, one per line.\r\nComma or space separated entries" +
         " are also accepted and will be normalized.");
@@ -191,7 +192,7 @@
 			this.cbPreferIPv4.AutoSize = true;
 			this.cbPreferIPv4.Checked = true;
 			this.cbPreferIPv4.CheckState = System.Windows.Forms.CheckState.Checked;
-			this.cbPreferIPv4.Location = new System.Drawing.Point(11, 174);
+			this.cbPreferIPv4.Location = new System.Drawing.Point(9, 173);
 			this.cbPreferIPv4.Name = "cbPreferIPv4";
 			this.cbPreferIPv4.Size = new System.Drawing.Size(79, 17);
 			this.cbPreferIPv4.TabIndex = 5;
@@ -205,22 +206,39 @@
 			// 
 			this.grpMonitoring.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
+			this.grpMonitoring.Controls.Add(this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings);
 			this.grpMonitoring.Controls.Add(this.cbTraceroute);
 			this.grpMonitoring.Controls.Add(this.lblTracerouteWarning);
 			this.grpMonitoring.Controls.Add(this.cbReverseDNS);
 			this.grpMonitoring.Controls.Add(this.lblRate);
 			this.grpMonitoring.Controls.Add(this.lblRateValue);
 			this.grpMonitoring.Controls.Add(this.trackBarRate);
-			this.grpMonitoring.Location = new System.Drawing.Point(8, 194);
+			this.grpMonitoring.Location = new System.Drawing.Point(8, 196);
 			this.grpMonitoring.Name = "grpMonitoring";
-			this.grpMonitoring.Size = new System.Drawing.Size(576, 70);
+			this.grpMonitoring.Size = new System.Drawing.Size(576, 91);
 			this.grpMonitoring.TabIndex = 6;
 			this.grpMonitoring.TabStop = false;
 			this.grpMonitoring.Text = "Monitoring Options";
 			// 
+			// cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings
+			// 
+			this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.AutoSize = true;
+			this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.Checked = true;
+			this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.CheckState = System.Windows.Forms.CheckState.Checked;
+			this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.Location = new System.Drawing.Point(10, 65);
+			this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.Name = "cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings";
+			this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.Size = new System.Drawing.Size(355, 17);
+			this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.TabIndex = 25;
+			this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.Text = "Stop monitoring intermediate hops that do not respond to regular pings";
+			this.toolTip1.SetToolTip(this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings, resources.GetString("cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.ToolTip"));
+			this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.UseVisualStyleBackColor = true;
+			this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.CheckedChanged += new System.EventHandler(this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings_CheckedChanged);
+			// 
 			// cbTraceroute
 			// 
 			this.cbTraceroute.AutoSize = true;
+			this.cbTraceroute.Checked = true;
+			this.cbTraceroute.CheckState = System.Windows.Forms.CheckState.Checked;
 			this.cbTraceroute.Location = new System.Drawing.Point(10, 19);
 			this.cbTraceroute.Name = "cbTraceroute";
 			this.cbTraceroute.Size = new System.Drawing.Size(86, 17);
@@ -243,6 +261,8 @@
 			// cbReverseDNS
 			// 
 			this.cbReverseDNS.AutoSize = true;
+			this.cbReverseDNS.Checked = true;
+			this.cbReverseDNS.CheckState = System.Windows.Forms.CheckState.Checked;
 			this.cbReverseDNS.Location = new System.Drawing.Point(10, 42);
 			this.cbReverseDNS.Name = "cbReverseDNS";
 			this.cbReverseDNS.Size = new System.Drawing.Size(131, 17);
@@ -308,7 +328,7 @@
 			this.grpGraphOptions.Controls.Add(this.nudLowLimit);
 			this.grpGraphOptions.Controls.Add(this.lblScalingMethod);
 			this.grpGraphOptions.Controls.Add(this.cbScalingMethod);
-			this.grpGraphOptions.Location = new System.Drawing.Point(8, 271);
+			this.grpGraphOptions.Location = new System.Drawing.Point(8, 293);
 			this.grpGraphOptions.Name = "grpGraphOptions";
 			this.grpGraphOptions.Size = new System.Drawing.Size(576, 100);
 			this.grpGraphOptions.TabIndex = 7;
@@ -547,7 +567,7 @@
             | System.Windows.Forms.AnchorStyles.Right)));
 			this.grpLogging.Controls.Add(this.cbLogFailures);
 			this.grpLogging.Controls.Add(this.cbLogSuccesses);
-			this.grpLogging.Location = new System.Drawing.Point(8, 376);
+			this.grpLogging.Location = new System.Drawing.Point(8, 398);
 			this.grpLogging.Name = "grpLogging";
 			this.grpLogging.Size = new System.Drawing.Size(576, 42);
 			this.grpLogging.TabIndex = 8;
@@ -579,7 +599,7 @@
 			// btnSave
 			// 
 			this.btnSave.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-			this.btnSave.Location = new System.Drawing.Point(8, 428);
+			this.btnSave.Location = new System.Drawing.Point(8, 450);
 			this.btnSave.Name = "btnSave";
 			this.btnSave.Size = new System.Drawing.Size(80, 28);
 			this.btnSave.TabIndex = 9;
@@ -591,7 +611,7 @@
 			// 
 			this.btnDiscard.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
 			this.btnDiscard.Enabled = false;
-			this.btnDiscard.Location = new System.Drawing.Point(94, 428);
+			this.btnDiscard.Location = new System.Drawing.Point(94, 450);
 			this.btnDiscard.Name = "btnDiscard";
 			this.btnDiscard.Size = new System.Drawing.Size(80, 28);
 			this.btnDiscard.TabIndex = 10;
@@ -603,7 +623,7 @@
 			// btnDelete
 			// 
 			this.btnDelete.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-			this.btnDelete.Location = new System.Drawing.Point(180, 428);
+			this.btnDelete.Location = new System.Drawing.Point(180, 450);
 			this.btnDelete.Name = "btnDelete";
 			this.btnDelete.Size = new System.Drawing.Size(80, 28);
 			this.btnDelete.TabIndex = 11;
@@ -614,7 +634,7 @@
 			// btnLoad
 			// 
 			this.btnLoad.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-			this.btnLoad.Location = new System.Drawing.Point(266, 428);
+			this.btnLoad.Location = new System.Drawing.Point(266, 450);
 			this.btnLoad.Name = "btnLoad";
 			this.btnLoad.Size = new System.Drawing.Size(220, 28);
 			this.btnLoad.TabIndex = 12;
@@ -625,7 +645,7 @@
 			// btnClone
 			// 
 			this.btnClone.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
-			this.btnClone.Location = new System.Drawing.Point(509, 428);
+			this.btnClone.Location = new System.Drawing.Point(509, 450);
 			this.btnClone.Name = "btnClone";
 			this.btnClone.Size = new System.Drawing.Size(75, 28);
 			this.btnClone.TabIndex = 13;
@@ -645,7 +665,7 @@
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-			this.ClientSize = new System.Drawing.Size(804, 467);
+			this.ClientSize = new System.Drawing.Size(804, 489);
 			this.Controls.Add(this.splitContainerMain);
 			this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
 			this.MinimumSize = new System.Drawing.Size(820, 441);
@@ -720,5 +740,6 @@
 		private System.Windows.Forms.Label lblRate;
 		private System.Windows.Forms.TrackBar trackBarRate;
 		private System.Windows.Forms.Label lblRateValue;
+		private System.Windows.Forms.CheckBox cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings;
 	}
 }

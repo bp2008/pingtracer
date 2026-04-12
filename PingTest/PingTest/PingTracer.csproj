@@ -73,12 +73,6 @@
     </Compile>
     <Compile Include="Extensions.cs" />
     <Compile Include="GraphScalingMethod.cs" />
-    <Compile Include="include\Tracer.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="include\Tracer.Designer.cs">
-      <DependentUpon>Tracer.cs</DependentUpon>
-    </Compile>
     <Compile Include="MainForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -140,9 +134,6 @@
     </EmbeddedResource>
     <EmbeddedResource Include="ConfigurationForm.resx">
       <DependentUpon>ConfigurationForm.cs</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="include\Tracer.resx">
-      <DependentUpon>Tracer.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="MainForm.resx">
       <DependentUpon>MainForm.cs</DependentUpon>
