@@ -109,6 +109,7 @@ namespace PingTracer
 		/// <summary>
 		/// Gets or sets the amount of pixels the graph has been scrolled to the left.  Scroll position is clamped between 0 and the <see cref="pings"/> buffer size.
 		/// </summary>
+		[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
 		public int ScrollXOffset
 		{
 			get

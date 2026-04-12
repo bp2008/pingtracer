@@ -75,7 +75,7 @@ namespace PingTracer
 		/// </summary>
 		public void OpenSettingsFolder()
 		{
-			Process.Start(SettingsFolderPath);
+			Process.Start(new ProcessStartInfo(SettingsFolderPath) { UseShellExecute = true });
 		}
 	}
 }
