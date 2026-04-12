@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<OutputType>WinExe</OutputType>
@@ -12,10 +12,14 @@
 		<Product>PingTracer</Product>
 		<ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
 		<ForceDesignerDpiUnaware>true</ForceDesignerDpiUnaware>
+
+		<!--<PublishSingleFile>true</PublishSingleFile>
+		<SelfContained>false</SelfContained>-->
+		<DebugType>embedded</DebugType>
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="System.Configuration.ConfigurationManager" Version="10.0.0-preview.*" />
+		<None Include="PingTest.csproj" />
 	</ItemGroup>
 
 </Project>

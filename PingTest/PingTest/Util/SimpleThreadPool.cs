@@ -60,7 +60,7 @@ namespace PingTracer
 		{
 			get
 			{
-				return Thread.VolatileRead(ref _currentLiveThreads);
+				return Volatile.Read(ref _currentLiveThreads);
 			}
 		}
 		/// <summary>
@@ -70,7 +70,7 @@ namespace PingTracer
 		{
 			get
 			{
-				return Thread.VolatileRead(ref _currentBusyThreads);
+				return Volatile.Read(ref _currentBusyThreads);
 			}
 		}
 		/// <summary>
@@ -80,7 +80,7 @@ namespace PingTracer
 		{
 			get
 			{
-				return Thread.VolatileRead(ref _currentMaxThreads);
+				return Volatile.Read(ref _currentMaxThreads);
 			}
 			set
 			{
@@ -96,7 +96,7 @@ namespace PingTracer
 		{
 			get
 			{
-				return Thread.VolatileRead(ref _currentMinThreads);
+				return Volatile.Read(ref _currentMinThreads);
 			}
 			set
 			{
