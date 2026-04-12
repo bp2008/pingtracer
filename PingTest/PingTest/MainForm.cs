@@ -1028,10 +1028,16 @@ namespace PingTracer
 		{
 			SetGraphsMaximizedState(!graphsMaximized);
 		}
+		private static int? graphsTopOffset = null;
+		private static int? graphsBottomOffset = null;
 		private void SetGraphsMaximizedState(bool maximize)
 		{
 			if (maximize)
 			{
+				if (graphsTopOffset == null)
+					graphsTopOffset = panel_Graphs.Bounds.Top;
+				if (graphsBottomOffset == null)
+					graphsBottomOffset = this.ClientSize.Height - panel_Graphs.Bounds.Bottom;
 				graphsMaximized = true;
 				panelForm.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
 				panelForm.Controls.Add(panel_Graphs);
@@ -1043,10 +1049,15 @@ namespace PingTracer
 			}
 			else
 			{
+				if (graphsTopOffset == null)
+					graphsTopOffset = 55;
+				if (graphsBottomOffset == null)
+					graphsBottomOffset = 19;
 				graphsMaximized = false;
+				panel_Graphs.Dock = DockStyle.None;
 				this.Controls.Add(panel_Graphs);
 				panel_Graphs.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-				panel_Graphs.SetBounds(0, 28, this.ClientSize.Width, this.ClientSize.Height - 28 - 20);
+				panel_Graphs.SetBounds(0, graphsTopOffset.Value, this.ClientSize.Width, this.ClientSize.Height - graphsTopOffset.Value - 20);
 				this.Show();
 				panelForm.Hide();
 				MaximizeGraphsChanged.Invoke(this, EventArgs.Empty);

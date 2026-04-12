@@ -63,10 +63,10 @@ namespace PingTracer
 			panel_Graphs.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
 			panel_Graphs.BackColor = System.Drawing.SystemColors.Window;
 			panel_Graphs.Controls.Add(label5);
-			panel_Graphs.Location = new System.Drawing.Point(0, 73);
-			panel_Graphs.Margin = new System.Windows.Forms.Padding(4, 5, 4, 5);
+			panel_Graphs.Location = new System.Drawing.Point(0, 55);
+			panel_Graphs.Margin = new System.Windows.Forms.Padding(4);
 			panel_Graphs.Name = "panel_Graphs";
-			panel_Graphs.Size = new System.Drawing.Size(779, 424);
+			panel_Graphs.Size = new System.Drawing.Size(682, 318);
 			panel_Graphs.TabIndex = 16;
 			panel_Graphs.Click += panel_Graphs_Click;
 			panel_Graphs.Resize += panel_Graphs_Resize;
@@ -77,10 +77,10 @@ namespace PingTracer
 			label5.BackColor = System.Drawing.SystemColors.Window;
 			label5.Font = new System.Drawing.Font("Microsoft Sans Serif", 14F);
 			label5.ForeColor = System.Drawing.SystemColors.ControlText;
-			label5.Location = new System.Drawing.Point(3, 46);
+			label5.Location = new System.Drawing.Point(3, 34);
 			label5.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
 			label5.Name = "label5";
-			label5.Size = new System.Drawing.Size(772, 358);
+			label5.Size = new System.Drawing.Size(676, 268);
 			label5.TabIndex = 0;
 			label5.Text = "Ping response graphs will appear here. \r\n\r\nClick the graph(s) to maximize them and remove window borders.\r\n\r\nUse File > Configuration to set up ping targets.";
 			label5.TextAlign = System.Drawing.ContentAlignment.TopCenter;
@@ -90,10 +90,10 @@ namespace PingTracer
 			// 
 			label4.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left;
 			label4.AutoSize = true;
-			label4.Location = new System.Drawing.Point(16, 502);
+			label4.Location = new System.Drawing.Point(14, 376);
 			label4.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
 			label4.Name = "label4";
-			label4.Size = new System.Drawing.Size(79, 20);
+			label4.Size = new System.Drawing.Size(65, 15);
 			label4.TabIndex = 8;
 			label4.Text = "Successful:";
 			// 
@@ -101,10 +101,10 @@ namespace PingTracer
 			// 
 			lblSuccessful.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left;
 			lblSuccessful.AutoSize = true;
-			lblSuccessful.Location = new System.Drawing.Point(107, 502);
+			lblSuccessful.Location = new System.Drawing.Point(94, 376);
 			lblSuccessful.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
 			lblSuccessful.Name = "lblSuccessful";
-			lblSuccessful.Size = new System.Drawing.Size(17, 20);
+			lblSuccessful.Size = new System.Drawing.Size(13, 15);
 			lblSuccessful.TabIndex = 9;
 			lblSuccessful.Text = "0";
 			// 
@@ -112,10 +112,10 @@ namespace PingTracer
 			// 
 			label7.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left;
 			label7.AutoSize = true;
-			label7.Location = new System.Drawing.Point(216, 502);
+			label7.Location = new System.Drawing.Point(189, 376);
 			label7.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
 			label7.Name = "label7";
-			label7.Size = new System.Drawing.Size(51, 20);
+			label7.Size = new System.Drawing.Size(41, 15);
 			label7.TabIndex = 10;
 			label7.Text = "Failed:";
 			// 
@@ -123,10 +123,10 @@ namespace PingTracer
 			// 
 			lblFailed.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left;
 			lblFailed.AutoSize = true;
-			lblFailed.Location = new System.Drawing.Point(275, 502);
+			lblFailed.Location = new System.Drawing.Point(241, 376);
 			lblFailed.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
 			lblFailed.Name = "lblFailed";
-			lblFailed.Size = new System.Drawing.Size(17, 20);
+			lblFailed.Size = new System.Drawing.Size(13, 15);
 			lblFailed.TabIndex = 11;
 			lblFailed.Text = "0";
 			// 
@@ -134,20 +134,20 @@ namespace PingTracer
 			// 
 			lblHoveredPingStatus.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left;
 			lblHoveredPingStatus.AutoSize = true;
-			lblHoveredPingStatus.Location = new System.Drawing.Point(368, 502);
+			lblHoveredPingStatus.Location = new System.Drawing.Point(322, 376);
 			lblHoveredPingStatus.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
 			lblHoveredPingStatus.Name = "lblHoveredPingStatus";
-			lblHoveredPingStatus.Size = new System.Drawing.Size(9, 20);
+			lblHoveredPingStatus.Size = new System.Drawing.Size(7, 15);
 			lblHoveredPingStatus.TabIndex = 13;
 			lblHoveredPingStatus.Text = "\t";
 			// 
 			// lblStatus
 			// 
 			lblStatus.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
-			lblStatus.Location = new System.Drawing.Point(372, 502);
+			lblStatus.Location = new System.Drawing.Point(326, 376);
 			lblStatus.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
 			lblStatus.Name = "lblStatus";
-			lblStatus.Size = new System.Drawing.Size(396, 20);
+			lblStatus.Size = new System.Drawing.Size(346, 15);
 			lblStatus.TabIndex = 14;
 			lblStatus.Text = "Idle";
 			lblStatus.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
@@ -165,28 +165,28 @@ namespace PingTracer
 			mainMenu1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] { menuItem6, menuItem1, menuItem4 });
 			mainMenu1.Location = new System.Drawing.Point(0, 0);
 			mainMenu1.Name = "mainMenu1";
-			mainMenu1.Padding = new System.Windows.Forms.Padding(8, 3, 0, 3);
-			mainMenu1.Size = new System.Drawing.Size(779, 30);
+			mainMenu1.Padding = new System.Windows.Forms.Padding(7, 2, 0, 2);
+			mainMenu1.Size = new System.Drawing.Size(682, 24);
 			mainMenu1.TabIndex = 20;
 			// 
 			// menuItem6
 			// 
 			menuItem6.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] { mi_Configuration, mi_Exit });
 			menuItem6.Name = "menuItem6";
-			menuItem6.Size = new System.Drawing.Size(46, 24);
+			menuItem6.Size = new System.Drawing.Size(37, 20);
 			menuItem6.Text = "&File";
 			// 
 			// mi_Configuration
 			// 
 			mi_Configuration.Name = "mi_Configuration";
-			mi_Configuration.Size = new System.Drawing.Size(192, 26);
+			mi_Configuration.Size = new System.Drawing.Size(157, 22);
 			mi_Configuration.Text = "&Configuration...";
 			mi_Configuration.Click += mi_Configuration_Click;
 			// 
 			// mi_Exit
 			// 
 			mi_Exit.Name = "mi_Exit";
-			mi_Exit.Size = new System.Drawing.Size(192, 26);
+			mi_Exit.Size = new System.Drawing.Size(157, 22);
 			mi_Exit.Text = "E&xit";
 			mi_Exit.Click += mi_Exit_Click;
 			// 
@@ -194,13 +194,13 @@ namespace PingTracer
 			// 
 			menuItem1.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] { mi_snapshotGraphs });
 			menuItem1.Name = "menuItem1";
-			menuItem1.Size = new System.Drawing.Size(66, 24);
+			menuItem1.Size = new System.Drawing.Size(52, 20);
 			menuItem1.Text = "E&xport";
 			// 
 			// mi_snapshotGraphs
 			// 
 			mi_snapshotGraphs.Name = "mi_snapshotGraphs";
-			mi_snapshotGraphs.Size = new System.Drawing.Size(220, 26);
+			mi_snapshotGraphs.Size = new System.Drawing.Size(176, 22);
 			mi_snapshotGraphs.Text = "&Snapshot of graphs";
 			mi_snapshotGraphs.Click += mi_snapshotGraphs_Click;
 			// 
@@ -208,41 +208,41 @@ namespace PingTracer
 			// 
 			menuItem4.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] { mi_Options, mi_OutputLog, menuItem_OpenSettingsFolder, menuItem_CommandLineArgs, menuItem_resetWindowSize });
 			menuItem4.Name = "menuItem4";
-			menuItem4.Size = new System.Drawing.Size(58, 24);
+			menuItem4.Size = new System.Drawing.Size(47, 20);
 			menuItem4.Text = "&Tools";
 			// 
 			// mi_Options
 			// 
 			mi_Options.Name = "mi_Options";
-			mi_Options.Size = new System.Drawing.Size(238, 26);
+			mi_Options.Size = new System.Drawing.Size(188, 22);
 			mi_Options.Text = "&Options";
 			mi_Options.Click += mi_Options_Click;
 			// 
 			// mi_OutputLog
 			// 
 			mi_OutputLog.Name = "mi_OutputLog";
-			mi_OutputLog.Size = new System.Drawing.Size(238, 26);
+			mi_OutputLog.Size = new System.Drawing.Size(188, 22);
 			mi_OutputLog.Text = "&Log Messages";
 			mi_OutputLog.Click += mi_OutputLog_Click;
 			// 
 			// menuItem_OpenSettingsFolder
 			// 
 			menuItem_OpenSettingsFolder.Name = "menuItem_OpenSettingsFolder";
-			menuItem_OpenSettingsFolder.Size = new System.Drawing.Size(238, 26);
+			menuItem_OpenSettingsFolder.Size = new System.Drawing.Size(188, 22);
 			menuItem_OpenSettingsFolder.Text = "Open &AppData Folder";
 			menuItem_OpenSettingsFolder.Click += menuItem_OpenSettingsFolder_Click;
 			// 
 			// menuItem_CommandLineArgs
 			// 
 			menuItem_CommandLineArgs.Name = "menuItem_CommandLineArgs";
-			menuItem_CommandLineArgs.Size = new System.Drawing.Size(238, 26);
+			menuItem_CommandLineArgs.Size = new System.Drawing.Size(188, 22);
 			menuItem_CommandLineArgs.Text = "&Command Line Args";
 			menuItem_CommandLineArgs.Click += menuItem_CommandLineArgs_Click;
 			// 
 			// menuItem_resetWindowSize
 			// 
 			menuItem_resetWindowSize.Name = "menuItem_resetWindowSize";
-			menuItem_resetWindowSize.Size = new System.Drawing.Size(238, 26);
+			menuItem_resetWindowSize.Size = new System.Drawing.Size(188, 22);
 			menuItem_resetWindowSize.Text = "&Reset Window Size";
 			menuItem_resetWindowSize.Click += menuItem_resetWindowSize_Click;
 			// 
@@ -250,20 +250,20 @@ namespace PingTracer
 			// 
 			cbConfigurations.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
 			cbConfigurations.FormattingEnabled = true;
-			cbConfigurations.Location = new System.Drawing.Point(8, 38);
-			cbConfigurations.Margin = new System.Windows.Forms.Padding(4, 5, 4, 5);
+			cbConfigurations.Location = new System.Drawing.Point(7, 28);
+			cbConfigurations.Margin = new System.Windows.Forms.Padding(4);
 			cbConfigurations.Name = "cbConfigurations";
-			cbConfigurations.Size = new System.Drawing.Size(283, 28);
+			cbConfigurations.Size = new System.Drawing.Size(248, 23);
 			cbConfigurations.TabIndex = 17;
 			cbConfigurations.DropDown += cbConfigurations_DropDown;
 			cbConfigurations.SelectedIndexChanged += cbConfigurations_SelectedIndexChanged;
 			// 
 			// btnEdit
 			// 
-			btnEdit.Location = new System.Drawing.Point(300, 35);
-			btnEdit.Margin = new System.Windows.Forms.Padding(4, 5, 4, 5);
+			btnEdit.Location = new System.Drawing.Point(262, 26);
+			btnEdit.Margin = new System.Windows.Forms.Padding(4);
 			btnEdit.Name = "btnEdit";
-			btnEdit.Size = new System.Drawing.Size(77, 35);
+			btnEdit.Size = new System.Drawing.Size(67, 26);
 			btnEdit.TabIndex = 18;
 			btnEdit.Text = "Edit";
 			btnEdit.UseVisualStyleBackColor = true;
@@ -272,10 +272,10 @@ namespace PingTracer
 			// btnStart
 			// 
 			btnStart.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
-			btnStart.Location = new System.Drawing.Point(614, 35);
-			btnStart.Margin = new System.Windows.Forms.Padding(4, 5, 4, 5);
+			btnStart.Location = new System.Drawing.Point(537, 26);
+			btnStart.Margin = new System.Windows.Forms.Padding(4);
 			btnStart.Name = "btnStart";
-			btnStart.Size = new System.Drawing.Size(160, 35);
+			btnStart.Size = new System.Drawing.Size(140, 26);
 			btnStart.TabIndex = 19;
 			btnStart.Tag = "Start";
 			btnStart.Text = "Click to Start";
@@ -284,9 +284,9 @@ namespace PingTracer
 			// 
 			// MainForm
 			// 
-			AutoScaleDimensions = new System.Drawing.SizeF(8F, 20F);
+			AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
 			AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-			ClientSize = new System.Drawing.Size(779, 523);
+			ClientSize = new System.Drawing.Size(682, 392);
 			Controls.Add(btnStart);
 			Controls.Add(btnEdit);
 			Controls.Add(cbConfigurations);
@@ -300,8 +300,8 @@ namespace PingTracer
 			Controls.Add(mainMenu1);
 			Icon = (System.Drawing.Icon)resources.GetObject("$this.Icon");
 			MainMenuStrip = mainMenu1;
-			Margin = new System.Windows.Forms.Padding(4, 5, 4, 5);
-			MinimumSize = new System.Drawing.Size(394, 279);
+			Margin = new System.Windows.Forms.Padding(4);
+			MinimumSize = new System.Drawing.Size(347, 219);
 			Name = "MainForm";
 			Text = "Ping Tracer";
 			FormClosing += MainForm_FormClosing;
