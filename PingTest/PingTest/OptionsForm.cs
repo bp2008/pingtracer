@@ -82,7 +82,7 @@ namespace PingTracer
 
 		private void customTimeStringHelp_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
 		{
-			Process.Start("https://docs.microsoft.com/en-us/dotnet/standard/base-types/standard-date-and-time-format-strings");
+			Process.Start(new ProcessStartInfo("https://docs.microsoft.com/en-us/dotnet/standard/base-types/standard-date-and-time-format-strings") { UseShellExecute = true });
 		}
 
 		private void txtCustomTimeStringGraphs_TextChanged(object sender, EventArgs e)

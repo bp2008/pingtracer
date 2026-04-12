@@ -95,11 +95,13 @@ namespace PingTracer
 		/// <summary>
 		/// Gets or sets a value indicating whether failures should be logged for the current configuration.
 		/// </summary>
+		[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
 		public bool LogFailures { get; set; } = false;
 
 		/// <summary>
 		/// Gets or sets a value indicating whether successes should be logged for the current configuration.
 		/// </summary>
+		[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
 		public bool LogSuccesses { get; set; } = false;
 		/// <summary>
 		/// Assigned during MainForm construction, this field remembers the default window size.
