@@ -13,6 +13,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using PingTracer.Util;
 
 namespace PingTracer
 {
@@ -489,7 +490,6 @@ namespace PingTracer
 				CreateLogEntry("Now beginning pings");
 				UpdateStatus("Pinging Active" + statusNote);
 				Stopwatch sw = null;
-				byte[] buffer = new byte[settings.pingPayloadSizeBytes];
 
 				long numberOfPingLoopIterations = 0;
 				DateTime tenPingsAt = DateTime.MinValue;
@@ -554,9 +554,7 @@ namespace PingTracer
 									long offset = graph.ClearNextOffset();
 									Ping pinger = PingInstancePool.Get();
 									pinger.PingCompleted += pinger_PingCompleted;
-									if (buffer.Length != settings.pingPayloadSizeBytes)
-										buffer = new byte[settings.pingPayloadSizeBytes];
-									pinger.SendAsync(targetMapping.Value, 5000, buffer, new object[] { lastPingAt, offset, graph, targetMapping.Key, targetMapping.Value, pinger });
+									pinger.SendAsync(targetMapping.Value, 5000, PingBufferStatic.GetBuffer(settings.pingPayloadSizeBytes), new object[] { lastPingAt, offset, graph, targetMapping.Key, targetMapping.Value, pinger });
 								}
 							}
 						}

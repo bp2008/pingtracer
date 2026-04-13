@@ -18,6 +18,12 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+	  <Compile Remove="pingtracer-web\node_modules\**" />
+	  <EmbeddedResource Remove="pingtracer-web\node_modules\**" />
+	  <None Remove="pingtracer-web\node_modules\**" />
+	</ItemGroup>
+
+	<ItemGroup>
 	  <ProjectReference Include="..\..\..\BPUtil\BPUtil\BPUtil.csproj" />
 	</ItemGroup>
 
@@ -25,6 +31,10 @@
 	  <Reference Include="SmartPing">
 	    <HintPath>include\SmartPing.dll</HintPath>
 	  </Reference>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="www\" />
 	</ItemGroup>
 
 </Project>
