@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
-using System.Net.NetworkInformation;
+using SmartPing;
 using System.Text;
 
 namespace PingTracer.TraceRoute
@@ -60,7 +60,7 @@ namespace PingTracer.TraceRoute
 			sw.Stop();
 
 			bool Success = reply.Status == IPStatus.Success || reply.Status == IPStatus.TtlExpired;
-			long RoundTripTime = reply.RoundtripTime * 10000 + sw.ElapsedMilliseconds;
+			long RoundTripTime = reply.RoundtripTime;// * 10000 + sw.ElapsedMilliseconds;
 			IPAddress ReplyFrom = Success ? reply.Address : IPAddress.Any;
 
 			PingInstancePool.Recycle(ping);

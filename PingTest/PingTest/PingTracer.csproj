@@ -17,4 +17,14 @@
 		<DebugType>embedded</DebugType>
 	</PropertyGroup>
 
+	<ItemGroup>
+	  <ProjectReference Include="..\..\..\BPUtil\BPUtil\BPUtil.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Reference Include="SmartPing">
+	    <HintPath>include\SmartPing.dll</HintPath>
+	  </Reference>
+	</ItemGroup>
+
 </Project>

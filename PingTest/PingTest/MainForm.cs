@@ -8,7 +8,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Net.NetworkInformation;
+using SmartPing;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -561,10 +561,6 @@ namespace PingTracer
 							}
 						}
 					}
-					catch (ThreadAbortException ex)
-					{
-						throw ex;
-					}
 					catch (Exception)
 					{
 					}
@@ -575,8 +571,7 @@ namespace PingTracer
 			}
 			catch (Exception ex)
 			{
-				if (!(ex.InnerException is ThreadAbortException))
-					CreateLogEntry("(" + GetTimestamp(DateTime.Now) + "): Error during ping operation: " + ex.Message);
+				CreateLogEntry("(" + GetTimestamp(DateTime.Now) + "): Error during ping operation: " + ex.Message);
 			}
 			finally
 			{
@@ -671,8 +666,7 @@ namespace PingTracer
 			}
 			catch (Exception ex)
 			{
-				if (!(ex.InnerException is ThreadAbortException))
-					CreateLogEntry(ex.ToString());
+				CreateLogEntry(ex.ToString());
 			}
 		}
 		private void AddEventHandlers(PingGraphControl graph)

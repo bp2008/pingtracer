@@ -47,7 +47,6 @@ namespace PingTracer
 					}
 					return true;
 				}
-				catch (ThreadAbortException) { throw; }
 				catch (Exception)
 				{
 					if (tries >= 5)
@@ -90,7 +89,6 @@ namespace PingTracer
 									if (targetField != null && targetField.MemberType == sourceField.MemberType)
 										targetField.SetValue(this, sourceField.GetValue(obj));
 								}
-								catch (ThreadAbortException) { throw; }
 								catch (Exception) { }
 							}
 							if (obj.GetType().GetCustomAttributes(typeof(SerializeProperties), false).FirstOrDefault() != null)
@@ -103,7 +101,6 @@ namespace PingTracer
 										if (targetProperty != null && targetProperty.MemberType == sourceProperty.MemberType)
 											targetProperty.SetValue(this, sourceProperty.GetValue(obj));
 									}
-									catch (ThreadAbortException) { throw; }
 									catch (Exception) { }
 								}
 							}
@@ -111,7 +108,6 @@ namespace PingTracer
 					}
 					return true;
 				}
-				catch (ThreadAbortException) { throw; }
 				catch (Exception)
 				{
 					if (tries >= 5)

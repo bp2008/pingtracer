@@ -7,13 +7,14 @@ using System.Drawing;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace PingTracer
 {
 	public partial class TestForm : Form
 	{
-		const byte maxTtl = 64;
+		const byte maxTtl = 20;
 		SimpleThreadPool threadPool = new SimpleThreadPool("Ping Test", maxTtl, maxTtl);
 		List<TraceRouteHostResult> results = new List<TraceRouteHostResult>();
 		IPAddress addr;
@@ -22,15 +23,20 @@ namespace PingTracer
 			this.addr = addr;
 			InitializeComponent();
 		}
-
-		private void TestForm_Load(object sender, EventArgs e)
+		static char traceMethod = 'A';
+		private async void TestForm_Load(object sender, EventArgs e)
 		{
 			try
 			{
 				results = new List<TraceRouteHostResult>();
-				//RouteTracerMethodA.TraceRoute(null, addr, maxTtl, HandlePingResponse);
-				//RouteTracerMethodB.TraceRoute(null, addr, maxTtl, HandlePingResponse);
-				RouteTracerMethodC.TraceRoute(threadPool, null, addr, maxTtl, HandlePingResponse);
+				if (traceMethod == 'A')
+					RouteTracerMethodA.TraceRoute(null, addr, maxTtl, HandlePingResponse);
+				else if (traceMethod == 'B')
+					await RouteTracerMethodB.TraceRoute(null, addr, maxTtl, HandlePingResponse).ConfigureAwait(false);
+				else if (traceMethod == 'C')
+					RouteTracerMethodC.TraceRoute(threadPool, null, addr, maxTtl, HandlePingResponse);
+				else
+					WriteLine("Unsupported traceMethod '" + traceMethod + "'");
 			}
 			catch (Exception ex)
 			{

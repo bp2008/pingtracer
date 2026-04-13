@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
-using System.Net.NetworkInformation;
+using SmartPing;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -19,7 +19,7 @@ namespace PingTracer.TraceRoute
 		/// <param name="MaxHops">The maximum number of hops to try.</param>
 		/// <param name="OnHostResult">Callback method which will be called with the result of each individual ping.</param>
 		/// <param name="PingTimeoutMs">Timeout in milliseconds after which the ping should be considered unsuccessful.</param>
-		public static void TraceRoute(object token, IPAddress Target, byte MaxHops, Action<TraceRouteHostResult> OnHostResult, int PingTimeoutMs = 5000)
+		public static async Task TraceRoute(object token, IPAddress Target, byte MaxHops, Action<TraceRouteHostResult> OnHostResult, int PingTimeoutMs = 5000)
 		{
 			List<Task> tasks = new List<Task>();
 			byte[] buffer = new byte[0];
@@ -36,7 +36,7 @@ namespace PingTracer.TraceRoute
 					buffer
 				}));
 			}
-			Task.WaitAll(tasks.ToArray());
+			await Task.WhenAll(tasks.ToArray()).ConfigureAwait(false);
 		}
 
 		private static async Task PingAsync(dynamic state)

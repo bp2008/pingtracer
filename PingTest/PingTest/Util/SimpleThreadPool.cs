@@ -179,7 +179,6 @@ namespace PingTracer
 					{
 						pt.Cancel();
 					}
-					catch (ThreadAbortException) { throw; }
 					catch (Exception) { }
 			}
 		}
@@ -256,7 +255,6 @@ namespace PingTracer
 							{
 								action();
 							}
-							catch (ThreadAbortException) { throw; }
 							catch (Exception) { }
 						}
 					}
@@ -272,7 +270,6 @@ namespace PingTracer
 				}
 			}
 			catch (OperationCanceledException) { }
-			catch (ThreadAbortException) { }
 			catch (Exception) { }
 			lock (threadLock)
 			{

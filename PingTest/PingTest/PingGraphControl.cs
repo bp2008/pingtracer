@@ -6,7 +6,7 @@ using System.Data;
 using System.Text;
 using System.Windows.Forms;
 using System.Threading;
-using System.Net.NetworkInformation;
+using SmartPing;
 using System.Linq;
 using System.Net;
 
