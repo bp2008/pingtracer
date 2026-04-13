@@ -214,6 +214,9 @@ namespace PingTracer
 				btnClone.Enabled = true;
 				UpdateLoadButtonState();
 			}
+
+			// Force the editor panel to recalculate layout now 
+			Invalidate();
 		}
 
 		/// <summary>

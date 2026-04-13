@@ -12,6 +12,7 @@ namespace PingTracer
 		[STAThread]
 		static void Main(string[] args)
 		{
+			Application.SetHighDpiMode(HighDpiMode.DpiUnawareGdiScaled);
 			Application.EnableVisualStyles();
 			Application.SetCompatibleTextRenderingDefault(false);
 			Application.Run(new MainForm(args));

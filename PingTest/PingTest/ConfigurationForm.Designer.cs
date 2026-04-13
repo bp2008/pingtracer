@@ -17,681 +17,632 @@
 
 		private void InitializeComponent()
 		{
-			this.components = new System.ComponentModel.Container();
+			components = new System.ComponentModel.Container();
 			System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(ConfigurationForm));
-			this.splitContainerMain = new System.Windows.Forms.SplitContainer();
-			this.treeConfigurations = new System.Windows.Forms.TreeView();
-			this.panelEditor = new System.Windows.Forms.Panel();
-			this.lblTitle = new System.Windows.Forms.Label();
-			this.txtDisplayName = new System.Windows.Forms.TextBox();
-			this.lblUniqueWarning = new System.Windows.Forms.Label();
-			this.lblHosts = new System.Windows.Forms.Label();
-			this.txtHosts = new System.Windows.Forms.TextBox();
-			this.cbPreferIPv4 = new System.Windows.Forms.CheckBox();
-			this.grpMonitoring = new System.Windows.Forms.GroupBox();
-			this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings = new System.Windows.Forms.CheckBox();
-			this.cbTraceroute = new System.Windows.Forms.CheckBox();
-			this.lblTracerouteWarning = new System.Windows.Forms.Label();
-			this.cbReverseDNS = new System.Windows.Forms.CheckBox();
-			this.lblRate = new System.Windows.Forms.Label();
-			this.lblRateValue = new System.Windows.Forms.Label();
-			this.trackBarRate = new System.Windows.Forms.TrackBar();
-			this.grpGraphOptions = new System.Windows.Forms.GroupBox();
-			this.cbAlwaysShowServerNames = new System.Windows.Forms.CheckBox();
-			this.cbPacketLoss = new System.Windows.Forms.CheckBox();
-			this.cbDrawLimits = new System.Windows.Forms.CheckBox();
-			this.cbLastPing = new System.Windows.Forms.CheckBox();
-			this.cbAverage = new System.Windows.Forms.CheckBox();
-			this.cbJitter = new System.Windows.Forms.CheckBox();
-			this.cbMinMax = new System.Windows.Forms.CheckBox();
-			this.lblBadThreshold = new System.Windows.Forms.Label();
-			this.nudBadThreshold = new System.Windows.Forms.NumericUpDown();
-			this.lblWorseThreshold = new System.Windows.Forms.Label();
-			this.nudWorseThreshold = new System.Windows.Forms.NumericUpDown();
-			this.lblUpperLimit = new System.Windows.Forms.Label();
-			this.nudUpLimit = new System.Windows.Forms.NumericUpDown();
-			this.lblLowerLimit = new System.Windows.Forms.Label();
-			this.nudLowLimit = new System.Windows.Forms.NumericUpDown();
-			this.lblScalingMethod = new System.Windows.Forms.Label();
-			this.cbScalingMethod = new System.Windows.Forms.ComboBox();
-			this.grpLogging = new System.Windows.Forms.GroupBox();
-			this.cbLogFailures = new System.Windows.Forms.CheckBox();
-			this.cbLogSuccesses = new System.Windows.Forms.CheckBox();
-			this.btnSave = new System.Windows.Forms.Button();
-			this.btnDiscard = new System.Windows.Forms.Button();
-			this.btnDelete = new System.Windows.Forms.Button();
-			this.btnLoad = new System.Windows.Forms.Button();
-			this.btnClone = new System.Windows.Forms.Button();
-			this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
-			((System.ComponentModel.ISupportInitialize)(this.splitContainerMain)).BeginInit();
-			this.splitContainerMain.Panel1.SuspendLayout();
-			this.splitContainerMain.Panel2.SuspendLayout();
-			this.splitContainerMain.SuspendLayout();
-			this.panelEditor.SuspendLayout();
-			this.grpMonitoring.SuspendLayout();
-			((System.ComponentModel.ISupportInitialize)(this.trackBarRate)).BeginInit();
-			this.grpGraphOptions.SuspendLayout();
-			((System.ComponentModel.ISupportInitialize)(this.nudBadThreshold)).BeginInit();
-			((System.ComponentModel.ISupportInitialize)(this.nudWorseThreshold)).BeginInit();
-			((System.ComponentModel.ISupportInitialize)(this.nudUpLimit)).BeginInit();
-			((System.ComponentModel.ISupportInitialize)(this.nudLowLimit)).BeginInit();
-			this.grpLogging.SuspendLayout();
-			this.SuspendLayout();
+			splitContainerMain = new System.Windows.Forms.SplitContainer();
+			treeConfigurations = new System.Windows.Forms.TreeView();
+			panelEditor = new System.Windows.Forms.Panel();
+			lblTitle = new System.Windows.Forms.Label();
+			txtDisplayName = new System.Windows.Forms.TextBox();
+			lblUniqueWarning = new System.Windows.Forms.Label();
+			lblHosts = new System.Windows.Forms.Label();
+			txtHosts = new System.Windows.Forms.TextBox();
+			cbPreferIPv4 = new System.Windows.Forms.CheckBox();
+			grpMonitoring = new System.Windows.Forms.GroupBox();
+			cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings = new System.Windows.Forms.CheckBox();
+			cbTraceroute = new System.Windows.Forms.CheckBox();
+			lblTracerouteWarning = new System.Windows.Forms.Label();
+			cbReverseDNS = new System.Windows.Forms.CheckBox();
+			lblRate = new System.Windows.Forms.Label();
+			lblRateValue = new System.Windows.Forms.Label();
+			trackBarRate = new System.Windows.Forms.TrackBar();
+			grpGraphOptions = new System.Windows.Forms.GroupBox();
+			cbAlwaysShowServerNames = new System.Windows.Forms.CheckBox();
+			cbPacketLoss = new System.Windows.Forms.CheckBox();
+			cbDrawLimits = new System.Windows.Forms.CheckBox();
+			cbLastPing = new System.Windows.Forms.CheckBox();
+			cbAverage = new System.Windows.Forms.CheckBox();
+			cbJitter = new System.Windows.Forms.CheckBox();
+			cbMinMax = new System.Windows.Forms.CheckBox();
+			lblBadThreshold = new System.Windows.Forms.Label();
+			nudBadThreshold = new System.Windows.Forms.NumericUpDown();
+			lblWorseThreshold = new System.Windows.Forms.Label();
+			nudWorseThreshold = new System.Windows.Forms.NumericUpDown();
+			lblUpperLimit = new System.Windows.Forms.Label();
+			nudUpLimit = new System.Windows.Forms.NumericUpDown();
+			lblLowerLimit = new System.Windows.Forms.Label();
+			nudLowLimit = new System.Windows.Forms.NumericUpDown();
+			lblScalingMethod = new System.Windows.Forms.Label();
+			cbScalingMethod = new System.Windows.Forms.ComboBox();
+			grpLogging = new System.Windows.Forms.GroupBox();
+			cbLogFailures = new System.Windows.Forms.CheckBox();
+			cbLogSuccesses = new System.Windows.Forms.CheckBox();
+			btnSave = new System.Windows.Forms.Button();
+			btnDiscard = new System.Windows.Forms.Button();
+			btnDelete = new System.Windows.Forms.Button();
+			btnLoad = new System.Windows.Forms.Button();
+			btnClone = new System.Windows.Forms.Button();
+			toolTip1 = new System.Windows.Forms.ToolTip(components);
+			((System.ComponentModel.ISupportInitialize)splitContainerMain).BeginInit();
+			splitContainerMain.Panel1.SuspendLayout();
+			splitContainerMain.Panel2.SuspendLayout();
+			splitContainerMain.SuspendLayout();
+			panelEditor.SuspendLayout();
+			grpMonitoring.SuspendLayout();
+			((System.ComponentModel.ISupportInitialize)trackBarRate).BeginInit();
+			grpGraphOptions.SuspendLayout();
+			((System.ComponentModel.ISupportInitialize)nudBadThreshold).BeginInit();
+			((System.ComponentModel.ISupportInitialize)nudWorseThreshold).BeginInit();
+			((System.ComponentModel.ISupportInitialize)nudUpLimit).BeginInit();
+			((System.ComponentModel.ISupportInitialize)nudLowLimit).BeginInit();
+			grpLogging.SuspendLayout();
+			SuspendLayout();
 			// 
 			// splitContainerMain
 			// 
-			this.splitContainerMain.Dock = System.Windows.Forms.DockStyle.Fill;
-			this.splitContainerMain.FixedPanel = System.Windows.Forms.FixedPanel.Panel1;
-			this.splitContainerMain.Location = new System.Drawing.Point(0, 0);
-			this.splitContainerMain.Name = "splitContainerMain";
+			splitContainerMain.Dock = System.Windows.Forms.DockStyle.Fill;
+			splitContainerMain.FixedPanel = System.Windows.Forms.FixedPanel.Panel1;
+			splitContainerMain.Location = new System.Drawing.Point(0, 0);
+			splitContainerMain.Name = "splitContainerMain";
 			// 
 			// splitContainerMain.Panel1
 			// 
-			this.splitContainerMain.Panel1.Controls.Add(this.treeConfigurations);
-			this.splitContainerMain.Panel1MinSize = 150;
+			splitContainerMain.Panel1.Controls.Add(treeConfigurations);
+			splitContainerMain.Panel1MinSize = 150;
 			// 
 			// splitContainerMain.Panel2
 			// 
-			this.splitContainerMain.Panel2.AutoScroll = true;
-			this.splitContainerMain.Panel2.Controls.Add(this.panelEditor);
-			this.splitContainerMain.Size = new System.Drawing.Size(804, 489);
-			this.splitContainerMain.SplitterDistance = 200;
-			this.splitContainerMain.TabIndex = 0;
+			splitContainerMain.Panel2.AutoScroll = true;
+			splitContainerMain.Panel2.Controls.Add(panelEditor);
+			splitContainerMain.Size = new System.Drawing.Size(840, 489);
+			splitContainerMain.SplitterDistance = 200;
+			splitContainerMain.TabIndex = 0;
 			// 
 			// treeConfigurations
 			// 
-			this.treeConfigurations.Dock = System.Windows.Forms.DockStyle.Fill;
-			this.treeConfigurations.HideSelection = false;
-			this.treeConfigurations.Location = new System.Drawing.Point(0, 0);
-			this.treeConfigurations.Name = "treeConfigurations";
-			this.treeConfigurations.Size = new System.Drawing.Size(200, 489);
-			this.treeConfigurations.TabIndex = 0;
-			this.treeConfigurations.AfterSelect += new System.Windows.Forms.TreeViewEventHandler(this.treeConfigurations_AfterSelect);
+			treeConfigurations.Dock = System.Windows.Forms.DockStyle.Fill;
+			treeConfigurations.HideSelection = false;
+			treeConfigurations.Location = new System.Drawing.Point(0, 0);
+			treeConfigurations.Name = "treeConfigurations";
+			treeConfigurations.Size = new System.Drawing.Size(200, 489);
+			treeConfigurations.TabIndex = 0;
+			treeConfigurations.AfterSelect += treeConfigurations_AfterSelect;
 			// 
 			// panelEditor
 			// 
-			this.panelEditor.AutoScroll = true;
-			this.panelEditor.Controls.Add(this.lblTitle);
-			this.panelEditor.Controls.Add(this.txtDisplayName);
-			this.panelEditor.Controls.Add(this.lblUniqueWarning);
-			this.panelEditor.Controls.Add(this.lblHosts);
-			this.panelEditor.Controls.Add(this.txtHosts);
-			this.panelEditor.Controls.Add(this.cbPreferIPv4);
-			this.panelEditor.Controls.Add(this.grpMonitoring);
-			this.panelEditor.Controls.Add(this.grpGraphOptions);
-			this.panelEditor.Controls.Add(this.grpLogging);
-			this.panelEditor.Controls.Add(this.btnSave);
-			this.panelEditor.Controls.Add(this.btnDiscard);
-			this.panelEditor.Controls.Add(this.btnDelete);
-			this.panelEditor.Controls.Add(this.btnLoad);
-			this.panelEditor.Controls.Add(this.btnClone);
-			this.panelEditor.Dock = System.Windows.Forms.DockStyle.Fill;
-			this.panelEditor.Location = new System.Drawing.Point(0, 0);
-			this.panelEditor.Name = "panelEditor";
-			this.panelEditor.Size = new System.Drawing.Size(600, 489);
-			this.panelEditor.TabIndex = 0;
+			panelEditor.AutoScroll = true;
+			panelEditor.Controls.Add(lblTitle);
+			panelEditor.Controls.Add(txtDisplayName);
+			panelEditor.Controls.Add(lblUniqueWarning);
+			panelEditor.Controls.Add(lblHosts);
+			panelEditor.Controls.Add(txtHosts);
+			panelEditor.Controls.Add(cbPreferIPv4);
+			panelEditor.Controls.Add(grpMonitoring);
+			panelEditor.Controls.Add(grpGraphOptions);
+			panelEditor.Controls.Add(grpLogging);
+			panelEditor.Controls.Add(btnSave);
+			panelEditor.Controls.Add(btnDiscard);
+			panelEditor.Controls.Add(btnDelete);
+			panelEditor.Controls.Add(btnLoad);
+			panelEditor.Controls.Add(btnClone);
+			panelEditor.Dock = System.Windows.Forms.DockStyle.Fill;
+			panelEditor.Location = new System.Drawing.Point(0, 0);
+			panelEditor.Name = "panelEditor";
+			panelEditor.Size = new System.Drawing.Size(636, 489);
+			panelEditor.TabIndex = 0;
 			// 
 			// lblTitle
 			// 
-			this.lblTitle.AutoSize = true;
-			this.lblTitle.Location = new System.Drawing.Point(8, 11);
-			this.lblTitle.Name = "lblTitle";
-			this.lblTitle.Size = new System.Drawing.Size(75, 13);
-			this.lblTitle.TabIndex = 0;
-			this.lblTitle.Text = "Display Name:";
+			lblTitle.AutoSize = true;
+			lblTitle.Location = new System.Drawing.Point(8, 11);
+			lblTitle.Name = "lblTitle";
+			lblTitle.Size = new System.Drawing.Size(83, 15);
+			lblTitle.TabIndex = 0;
+			lblTitle.Text = "Display Name:";
 			// 
 			// txtDisplayName
 			// 
-			this.txtDisplayName.Location = new System.Drawing.Point(92, 8);
-			this.txtDisplayName.Name = "txtDisplayName";
-			this.txtDisplayName.Size = new System.Drawing.Size(250, 20);
-			this.txtDisplayName.TabIndex = 1;
-			this.toolTip1.SetToolTip(this.txtDisplayName, "A unique name to identify this configuration.");
-			this.txtDisplayName.TextChanged += new System.EventHandler(this.txtDisplayName_TextChanged);
+			txtDisplayName.Location = new System.Drawing.Point(92, 8);
+			txtDisplayName.Name = "txtDisplayName";
+			txtDisplayName.Size = new System.Drawing.Size(250, 23);
+			txtDisplayName.TabIndex = 1;
+			toolTip1.SetToolTip(txtDisplayName, "A unique name to identify this configuration.");
+			txtDisplayName.TextChanged += txtDisplayName_TextChanged;
 			// 
 			// lblUniqueWarning
 			// 
-			this.lblUniqueWarning.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-			this.lblUniqueWarning.ForeColor = System.Drawing.Color.Red;
-			this.lblUniqueWarning.Location = new System.Drawing.Point(348, 11);
-			this.lblUniqueWarning.Name = "lblUniqueWarning";
-			this.lblUniqueWarning.Size = new System.Drawing.Size(236, 15);
-			this.lblUniqueWarning.TabIndex = 2;
+			lblUniqueWarning.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+			lblUniqueWarning.ForeColor = System.Drawing.Color.Red;
+			lblUniqueWarning.Location = new System.Drawing.Point(348, 11);
+			lblUniqueWarning.Name = "lblUniqueWarning";
+			lblUniqueWarning.Size = new System.Drawing.Size(272, 15);
+			lblUniqueWarning.TabIndex = 2;
 			// 
 			// lblHosts
 			// 
-			this.lblHosts.AutoSize = true;
-			this.lblHosts.Location = new System.Drawing.Point(8, 35);
-			this.lblHosts.Name = "lblHosts";
-			this.lblHosts.Size = new System.Drawing.Size(101, 13);
-			this.lblHosts.TabIndex = 3;
-			this.lblHosts.Text = "Hosts (one per line):";
+			lblHosts.AutoSize = true;
+			lblHosts.Location = new System.Drawing.Point(8, 35);
+			lblHosts.Name = "lblHosts";
+			lblHosts.Size = new System.Drawing.Size(113, 15);
+			lblHosts.TabIndex = 3;
+			lblHosts.Text = "Hosts (one per line):";
 			// 
 			// txtHosts
 			// 
-			this.txtHosts.AcceptsReturn = true;
-			this.txtHosts.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-			this.txtHosts.Location = new System.Drawing.Point(11, 51);
-			this.txtHosts.Multiline = true;
-			this.txtHosts.Name = "txtHosts";
-			this.txtHosts.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-			this.txtHosts.Size = new System.Drawing.Size(574, 116);
-			this.txtHosts.TabIndex = 4;
-			this.toolTip1.SetToolTip(this.txtHosts, "Enter host names or IP addresses, one per line.\r\nComma or space separated entries" +
-        " are also accepted and will be normalized.");
-			this.txtHosts.WordWrap = false;
-			this.txtHosts.TextChanged += new System.EventHandler(this.txtHosts_TextChanged);
-			this.txtHosts.Leave += new System.EventHandler(this.txtHosts_Leave);
+			txtHosts.AcceptsReturn = true;
+			txtHosts.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+			txtHosts.Location = new System.Drawing.Point(11, 51);
+			txtHosts.Multiline = true;
+			txtHosts.Name = "txtHosts";
+			txtHosts.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
+			txtHosts.Size = new System.Drawing.Size(610, 116);
+			txtHosts.TabIndex = 4;
+			toolTip1.SetToolTip(txtHosts, "Enter host names or IP addresses, one per line.\r\nComma or space separated entries are also accepted and will be normalized.");
+			txtHosts.WordWrap = false;
+			txtHosts.TextChanged += txtHosts_TextChanged;
+			txtHosts.Leave += txtHosts_Leave;
 			// 
 			// cbPreferIPv4
 			// 
-			this.cbPreferIPv4.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-			this.cbPreferIPv4.AutoSize = true;
-			this.cbPreferIPv4.Checked = true;
-			this.cbPreferIPv4.CheckState = System.Windows.Forms.CheckState.Checked;
-			this.cbPreferIPv4.Location = new System.Drawing.Point(9, 173);
-			this.cbPreferIPv4.Name = "cbPreferIPv4";
-			this.cbPreferIPv4.Size = new System.Drawing.Size(79, 17);
-			this.cbPreferIPv4.TabIndex = 5;
-			this.cbPreferIPv4.Text = "Prefer IPv4";
-			this.toolTip1.SetToolTip(this.cbPreferIPv4, "If checked and DNS returns both IPv4 and IPv6 addresses, the IPv4 address will be" +
-        " used.");
-			this.cbPreferIPv4.UseVisualStyleBackColor = true;
-			this.cbPreferIPv4.CheckedChanged += new System.EventHandler(this.AnyControl_Changed);
+			cbPreferIPv4.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left;
+			cbPreferIPv4.AutoSize = true;
+			cbPreferIPv4.Checked = true;
+			cbPreferIPv4.CheckState = System.Windows.Forms.CheckState.Checked;
+			cbPreferIPv4.Location = new System.Drawing.Point(9, 171);
+			cbPreferIPv4.Name = "cbPreferIPv4";
+			cbPreferIPv4.Size = new System.Drawing.Size(82, 19);
+			cbPreferIPv4.TabIndex = 5;
+			cbPreferIPv4.Text = "Prefer IPv4";
+			toolTip1.SetToolTip(cbPreferIPv4, "If checked and DNS returns both IPv4 and IPv6 addresses, the IPv4 address will be used.");
+			cbPreferIPv4.UseVisualStyleBackColor = true;
+			cbPreferIPv4.CheckedChanged += AnyControl_Changed;
 			// 
 			// grpMonitoring
 			// 
-			this.grpMonitoring.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-			this.grpMonitoring.Controls.Add(this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings);
-			this.grpMonitoring.Controls.Add(this.cbTraceroute);
-			this.grpMonitoring.Controls.Add(this.lblTracerouteWarning);
-			this.grpMonitoring.Controls.Add(this.cbReverseDNS);
-			this.grpMonitoring.Controls.Add(this.lblRate);
-			this.grpMonitoring.Controls.Add(this.lblRateValue);
-			this.grpMonitoring.Controls.Add(this.trackBarRate);
-			this.grpMonitoring.Location = new System.Drawing.Point(8, 196);
-			this.grpMonitoring.Name = "grpMonitoring";
-			this.grpMonitoring.Size = new System.Drawing.Size(576, 91);
-			this.grpMonitoring.TabIndex = 6;
-			this.grpMonitoring.TabStop = false;
-			this.grpMonitoring.Text = "Monitoring Options";
+			grpMonitoring.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+			grpMonitoring.Controls.Add(cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings);
+			grpMonitoring.Controls.Add(cbTraceroute);
+			grpMonitoring.Controls.Add(lblTracerouteWarning);
+			grpMonitoring.Controls.Add(cbReverseDNS);
+			grpMonitoring.Controls.Add(lblRate);
+			grpMonitoring.Controls.Add(lblRateValue);
+			grpMonitoring.Controls.Add(trackBarRate);
+			grpMonitoring.Location = new System.Drawing.Point(8, 196);
+			grpMonitoring.Name = "grpMonitoring";
+			grpMonitoring.Size = new System.Drawing.Size(612, 91);
+			grpMonitoring.TabIndex = 6;
+			grpMonitoring.TabStop = false;
+			grpMonitoring.Text = "Monitoring Options";
 			// 
 			// cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings
 			// 
-			this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.AutoSize = true;
-			this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.Checked = true;
-			this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.CheckState = System.Windows.Forms.CheckState.Checked;
-			this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.Location = new System.Drawing.Point(10, 65);
-			this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.Name = "cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings";
-			this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.Size = new System.Drawing.Size(355, 17);
-			this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.TabIndex = 25;
-			this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.Text = "Stop monitoring intermediate hops that do not respond to regular pings";
-			this.toolTip1.SetToolTip(this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings, resources.GetString("cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.ToolTip"));
-			this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.UseVisualStyleBackColor = true;
-			this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.CheckedChanged += new System.EventHandler(this.cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings_CheckedChanged);
+			cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.AutoSize = true;
+			cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.Checked = true;
+			cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.CheckState = System.Windows.Forms.CheckState.Checked;
+			cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.Location = new System.Drawing.Point(10, 65);
+			cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.Name = "cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings";
+			cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.Size = new System.Drawing.Size(406, 19);
+			cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.TabIndex = 25;
+			cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.Text = "Stop monitoring intermediate hops that do not respond to regular pings";
+			toolTip1.SetToolTip(cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings, resources.GetString("cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.ToolTip"));
+			cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.UseVisualStyleBackColor = true;
+			cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.CheckedChanged += cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings_CheckedChanged;
 			// 
 			// cbTraceroute
 			// 
-			this.cbTraceroute.AutoSize = true;
-			this.cbTraceroute.Checked = true;
-			this.cbTraceroute.CheckState = System.Windows.Forms.CheckState.Checked;
-			this.cbTraceroute.Location = new System.Drawing.Point(10, 19);
-			this.cbTraceroute.Name = "cbTraceroute";
-			this.cbTraceroute.Size = new System.Drawing.Size(86, 17);
-			this.cbTraceroute.TabIndex = 0;
-			this.cbTraceroute.Text = "Trace Route";
-			this.toolTip1.SetToolTip(this.cbTraceroute, "If checked, a traceroute operation will be performed\r\nand each hop along the rout" +
-        "e will be monitored.\r\nDisabled when multiple hosts are entered.");
-			this.cbTraceroute.UseVisualStyleBackColor = true;
-			this.cbTraceroute.CheckedChanged += new System.EventHandler(this.cbTraceroute_CheckedChanged);
+			cbTraceroute.AutoSize = true;
+			cbTraceroute.Checked = true;
+			cbTraceroute.CheckState = System.Windows.Forms.CheckState.Checked;
+			cbTraceroute.Location = new System.Drawing.Point(10, 19);
+			cbTraceroute.Name = "cbTraceroute";
+			cbTraceroute.Size = new System.Drawing.Size(88, 19);
+			cbTraceroute.TabIndex = 0;
+			cbTraceroute.Text = "Trace Route";
+			toolTip1.SetToolTip(cbTraceroute, "If checked, a traceroute operation will be performed\r\nand each hop along the route will be monitored.\r\nDisabled when multiple hosts are entered.");
+			cbTraceroute.UseVisualStyleBackColor = true;
+			cbTraceroute.CheckedChanged += cbTraceroute_CheckedChanged;
 			// 
 			// lblTracerouteWarning
 			// 
-			this.lblTracerouteWarning.AutoSize = true;
-			this.lblTracerouteWarning.ForeColor = System.Drawing.Color.Gray;
-			this.lblTracerouteWarning.Location = new System.Drawing.Point(100, 20);
-			this.lblTracerouteWarning.Name = "lblTracerouteWarning";
-			this.lblTracerouteWarning.Size = new System.Drawing.Size(0, 13);
-			this.lblTracerouteWarning.TabIndex = 1;
+			lblTracerouteWarning.AutoSize = true;
+			lblTracerouteWarning.ForeColor = System.Drawing.Color.Gray;
+			lblTracerouteWarning.Location = new System.Drawing.Point(100, 20);
+			lblTracerouteWarning.Name = "lblTracerouteWarning";
+			lblTracerouteWarning.Size = new System.Drawing.Size(0, 15);
+			lblTracerouteWarning.TabIndex = 1;
 			// 
 			// cbReverseDNS
 			// 
-			this.cbReverseDNS.AutoSize = true;
-			this.cbReverseDNS.Checked = true;
-			this.cbReverseDNS.CheckState = System.Windows.Forms.CheckState.Checked;
-			this.cbReverseDNS.Location = new System.Drawing.Point(10, 42);
-			this.cbReverseDNS.Name = "cbReverseDNS";
-			this.cbReverseDNS.Size = new System.Drawing.Size(131, 17);
-			this.cbReverseDNS.TabIndex = 2;
-			this.cbReverseDNS.Text = "Reverse DNS Lookup";
-			this.toolTip1.SetToolTip(this.cbReverseDNS, "If checked, reverse DNS lookups are performed on each IP address to find the host" +
-        " name.");
-			this.cbReverseDNS.UseVisualStyleBackColor = true;
-			this.cbReverseDNS.CheckedChanged += new System.EventHandler(this.AnyControl_Changed);
+			cbReverseDNS.AutoSize = true;
+			cbReverseDNS.Checked = true;
+			cbReverseDNS.CheckState = System.Windows.Forms.CheckState.Checked;
+			cbReverseDNS.Location = new System.Drawing.Point(10, 42);
+			cbReverseDNS.Name = "cbReverseDNS";
+			cbReverseDNS.Size = new System.Drawing.Size(135, 19);
+			cbReverseDNS.TabIndex = 2;
+			cbReverseDNS.Text = "Reverse DNS Lookup";
+			toolTip1.SetToolTip(cbReverseDNS, "If checked, reverse DNS lookups are performed on each IP address to find the host name.");
+			cbReverseDNS.UseVisualStyleBackColor = true;
+			cbReverseDNS.CheckedChanged += AnyControl_Changed;
 			// 
 			// lblRate
 			// 
-			this.lblRate.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-			this.lblRate.AutoSize = true;
-			this.lblRate.Location = new System.Drawing.Point(277, 20);
-			this.lblRate.Name = "lblRate";
-			this.lblRate.Size = new System.Drawing.Size(57, 13);
-			this.lblRate.TabIndex = 3;
-			this.lblRate.Text = "Ping Rate:";
+			lblRate.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+			lblRate.AutoSize = true;
+			lblRate.Location = new System.Drawing.Point(313, 20);
+			lblRate.Name = "lblRate";
+			lblRate.Size = new System.Drawing.Size(60, 15);
+			lblRate.TabIndex = 3;
+			lblRate.Text = "Ping Rate:";
 			// 
 			// lblRateValue
 			// 
-			this.lblRateValue.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-			this.lblRateValue.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-			this.lblRateValue.Location = new System.Drawing.Point(258, 42);
-			this.lblRateValue.Name = "lblRateValue";
-			this.lblRateValue.Size = new System.Drawing.Size(76, 13);
-			this.lblRateValue.TabIndex = 5;
-			this.lblRateValue.Text = "1 ping/sec";
-			this.lblRateValue.TextAlign = System.Drawing.ContentAlignment.TopRight;
+			lblRateValue.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+			lblRateValue.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 0);
+			lblRateValue.Location = new System.Drawing.Point(294, 42);
+			lblRateValue.Name = "lblRateValue";
+			lblRateValue.Size = new System.Drawing.Size(76, 13);
+			lblRateValue.TabIndex = 5;
+			lblRateValue.Text = "1 ping/sec";
+			lblRateValue.TextAlign = System.Drawing.ContentAlignment.TopRight;
 			// 
 			// trackBarRate
 			// 
-			this.trackBarRate.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-			this.trackBarRate.Location = new System.Drawing.Point(340, 14);
-			this.trackBarRate.Minimum = -10;
-			this.trackBarRate.Name = "trackBarRate";
-			this.trackBarRate.Size = new System.Drawing.Size(230, 45);
-			this.trackBarRate.TabIndex = 4;
-			this.toolTip1.SetToolTip(this.trackBarRate, "Positive = pings/sec, Negative = sec/ping, Zero = paused.\r\nA rate of 1 ping per s" +
-        "econd is recommended for long-term monitoring.");
-			this.trackBarRate.Value = 1;
-			this.trackBarRate.ValueChanged += new System.EventHandler(this.trackBarRate_ValueChanged);
+			trackBarRate.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+			trackBarRate.Location = new System.Drawing.Point(376, 14);
+			trackBarRate.Minimum = -10;
+			trackBarRate.Name = "trackBarRate";
+			trackBarRate.Size = new System.Drawing.Size(230, 45);
+			trackBarRate.TabIndex = 4;
+			toolTip1.SetToolTip(trackBarRate, "Positive = pings/sec, Negative = sec/ping, Zero = paused.\r\nA rate of 1 ping per second is recommended for long-term monitoring.");
+			trackBarRate.Value = 1;
+			trackBarRate.ValueChanged += trackBarRate_ValueChanged;
 			// 
 			// grpGraphOptions
 			// 
-			this.grpGraphOptions.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-			this.grpGraphOptions.Controls.Add(this.cbAlwaysShowServerNames);
-			this.grpGraphOptions.Controls.Add(this.cbPacketLoss);
-			this.grpGraphOptions.Controls.Add(this.cbDrawLimits);
-			this.grpGraphOptions.Controls.Add(this.cbLastPing);
-			this.grpGraphOptions.Controls.Add(this.cbAverage);
-			this.grpGraphOptions.Controls.Add(this.cbJitter);
-			this.grpGraphOptions.Controls.Add(this.cbMinMax);
-			this.grpGraphOptions.Controls.Add(this.lblBadThreshold);
-			this.grpGraphOptions.Controls.Add(this.nudBadThreshold);
-			this.grpGraphOptions.Controls.Add(this.lblWorseThreshold);
-			this.grpGraphOptions.Controls.Add(this.nudWorseThreshold);
-			this.grpGraphOptions.Controls.Add(this.lblUpperLimit);
-			this.grpGraphOptions.Controls.Add(this.nudUpLimit);
-			this.grpGraphOptions.Controls.Add(this.lblLowerLimit);
-			this.grpGraphOptions.Controls.Add(this.nudLowLimit);
-			this.grpGraphOptions.Controls.Add(this.lblScalingMethod);
-			this.grpGraphOptions.Controls.Add(this.cbScalingMethod);
-			this.grpGraphOptions.Location = new System.Drawing.Point(8, 293);
-			this.grpGraphOptions.Name = "grpGraphOptions";
-			this.grpGraphOptions.Size = new System.Drawing.Size(576, 100);
-			this.grpGraphOptions.TabIndex = 7;
-			this.grpGraphOptions.TabStop = false;
-			this.grpGraphOptions.Text = "Graph Options";
+			grpGraphOptions.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+			grpGraphOptions.Controls.Add(cbAlwaysShowServerNames);
+			grpGraphOptions.Controls.Add(cbPacketLoss);
+			grpGraphOptions.Controls.Add(cbDrawLimits);
+			grpGraphOptions.Controls.Add(cbLastPing);
+			grpGraphOptions.Controls.Add(cbAverage);
+			grpGraphOptions.Controls.Add(cbJitter);
+			grpGraphOptions.Controls.Add(cbMinMax);
+			grpGraphOptions.Controls.Add(lblBadThreshold);
+			grpGraphOptions.Controls.Add(nudBadThreshold);
+			grpGraphOptions.Controls.Add(lblWorseThreshold);
+			grpGraphOptions.Controls.Add(nudWorseThreshold);
+			grpGraphOptions.Controls.Add(lblUpperLimit);
+			grpGraphOptions.Controls.Add(nudUpLimit);
+			grpGraphOptions.Controls.Add(lblLowerLimit);
+			grpGraphOptions.Controls.Add(nudLowLimit);
+			grpGraphOptions.Controls.Add(lblScalingMethod);
+			grpGraphOptions.Controls.Add(cbScalingMethod);
+			grpGraphOptions.Location = new System.Drawing.Point(8, 293);
+			grpGraphOptions.Name = "grpGraphOptions";
+			grpGraphOptions.Size = new System.Drawing.Size(612, 100);
+			grpGraphOptions.TabIndex = 7;
+			grpGraphOptions.TabStop = false;
+			grpGraphOptions.Text = "Graph Options";
 			// 
 			// cbAlwaysShowServerNames
 			// 
-			this.cbAlwaysShowServerNames.AutoSize = true;
-			this.cbAlwaysShowServerNames.Checked = true;
-			this.cbAlwaysShowServerNames.CheckState = System.Windows.Forms.CheckState.Checked;
-			this.cbAlwaysShowServerNames.Location = new System.Drawing.Point(10, 19);
-			this.cbAlwaysShowServerNames.Name = "cbAlwaysShowServerNames";
-			this.cbAlwaysShowServerNames.Size = new System.Drawing.Size(93, 17);
-			this.cbAlwaysShowServerNames.TabIndex = 0;
-			this.cbAlwaysShowServerNames.Text = "Server Names";
-			this.toolTip1.SetToolTip(this.cbAlwaysShowServerNames, "If checked, each server\'s name/address is overlaid on its graph.");
-			this.cbAlwaysShowServerNames.UseVisualStyleBackColor = true;
-			this.cbAlwaysShowServerNames.CheckedChanged += new System.EventHandler(this.AnyControl_Changed);
+			cbAlwaysShowServerNames.AutoSize = true;
+			cbAlwaysShowServerNames.Checked = true;
+			cbAlwaysShowServerNames.CheckState = System.Windows.Forms.CheckState.Checked;
+			cbAlwaysShowServerNames.Location = new System.Drawing.Point(10, 19);
+			cbAlwaysShowServerNames.Name = "cbAlwaysShowServerNames";
+			cbAlwaysShowServerNames.Size = new System.Drawing.Size(98, 19);
+			cbAlwaysShowServerNames.TabIndex = 0;
+			cbAlwaysShowServerNames.Text = "Server Names";
+			toolTip1.SetToolTip(cbAlwaysShowServerNames, "If checked, each server's name/address is overlaid on its graph.");
+			cbAlwaysShowServerNames.UseVisualStyleBackColor = true;
+			cbAlwaysShowServerNames.CheckedChanged += AnyControl_Changed;
 			// 
 			// cbPacketLoss
 			// 
-			this.cbPacketLoss.AutoSize = true;
-			this.cbPacketLoss.Checked = true;
-			this.cbPacketLoss.CheckState = System.Windows.Forms.CheckState.Checked;
-			this.cbPacketLoss.Location = new System.Drawing.Point(110, 19);
-			this.cbPacketLoss.Name = "cbPacketLoss";
-			this.cbPacketLoss.Size = new System.Drawing.Size(96, 17);
-			this.cbPacketLoss.TabIndex = 1;
-			this.cbPacketLoss.Text = "Packet Loss %";
-			this.toolTip1.SetToolTip(this.cbPacketLoss, "If checked, each graph\'s visible packet loss is overlaid as a percentage.");
-			this.cbPacketLoss.UseVisualStyleBackColor = true;
-			this.cbPacketLoss.CheckedChanged += new System.EventHandler(this.AnyControl_Changed);
+			cbPacketLoss.AutoSize = true;
+			cbPacketLoss.Checked = true;
+			cbPacketLoss.CheckState = System.Windows.Forms.CheckState.Checked;
+			cbPacketLoss.Location = new System.Drawing.Point(114, 19);
+			cbPacketLoss.Name = "cbPacketLoss";
+			cbPacketLoss.Size = new System.Drawing.Size(100, 19);
+			cbPacketLoss.TabIndex = 1;
+			cbPacketLoss.Text = "Packet Loss %";
+			toolTip1.SetToolTip(cbPacketLoss, "If checked, each graph's visible packet loss is overlaid as a percentage.");
+			cbPacketLoss.UseVisualStyleBackColor = true;
+			cbPacketLoss.CheckedChanged += AnyControl_Changed;
 			// 
 			// cbDrawLimits
 			// 
-			this.cbDrawLimits.AutoSize = true;
-			this.cbDrawLimits.Location = new System.Drawing.Point(213, 19);
-			this.cbDrawLimits.Name = "cbDrawLimits";
-			this.cbDrawLimits.Size = new System.Drawing.Size(52, 17);
-			this.cbDrawLimits.TabIndex = 2;
-			this.cbDrawLimits.Text = "Limits";
-			this.toolTip1.SetToolTip(this.cbDrawLimits, "If checked, each graph\'s vertical limits are drawn on the right side.");
-			this.cbDrawLimits.UseVisualStyleBackColor = true;
-			this.cbDrawLimits.CheckedChanged += new System.EventHandler(this.AnyControl_Changed);
+			cbDrawLimits.AutoSize = true;
+			cbDrawLimits.Location = new System.Drawing.Point(220, 19);
+			cbDrawLimits.Name = "cbDrawLimits";
+			cbDrawLimits.Size = new System.Drawing.Size(58, 19);
+			cbDrawLimits.TabIndex = 2;
+			cbDrawLimits.Text = "Limits";
+			toolTip1.SetToolTip(cbDrawLimits, "If checked, each graph's vertical limits are drawn on the right side.");
+			cbDrawLimits.UseVisualStyleBackColor = true;
+			cbDrawLimits.CheckedChanged += AnyControl_Changed;
 			// 
 			// cbLastPing
 			// 
-			this.cbLastPing.AutoSize = true;
-			this.cbLastPing.Checked = true;
-			this.cbLastPing.CheckState = System.Windows.Forms.CheckState.Checked;
-			this.cbLastPing.Location = new System.Drawing.Point(10, 42);
-			this.cbLastPing.Name = "cbLastPing";
-			this.cbLastPing.Size = new System.Drawing.Size(70, 17);
-			this.cbLastPing.TabIndex = 3;
-			this.cbLastPing.Text = "Last Ping";
-			this.toolTip1.SetToolTip(this.cbLastPing, "If checked, the most recent ping response time is overlaid in text form.");
-			this.cbLastPing.UseVisualStyleBackColor = true;
-			this.cbLastPing.CheckedChanged += new System.EventHandler(this.AnyControl_Changed);
+			cbLastPing.AutoSize = true;
+			cbLastPing.Checked = true;
+			cbLastPing.CheckState = System.Windows.Forms.CheckState.Checked;
+			cbLastPing.Location = new System.Drawing.Point(10, 42);
+			cbLastPing.Name = "cbLastPing";
+			cbLastPing.Size = new System.Drawing.Size(74, 19);
+			cbLastPing.TabIndex = 3;
+			cbLastPing.Text = "Last Ping";
+			toolTip1.SetToolTip(cbLastPing, "If checked, the most recent ping response time is overlaid in text form.");
+			cbLastPing.UseVisualStyleBackColor = true;
+			cbLastPing.CheckedChanged += AnyControl_Changed;
 			// 
 			// cbAverage
 			// 
-			this.cbAverage.AutoSize = true;
-			this.cbAverage.Checked = true;
-			this.cbAverage.CheckState = System.Windows.Forms.CheckState.Checked;
-			this.cbAverage.Location = new System.Drawing.Point(87, 42);
-			this.cbAverage.Name = "cbAverage";
-			this.cbAverage.Size = new System.Drawing.Size(66, 17);
-			this.cbAverage.TabIndex = 4;
-			this.cbAverage.Text = "Average";
-			this.toolTip1.SetToolTip(this.cbAverage, "If checked, the average response time (of visible ping times) is overlaid in text" +
-        " form.");
-			this.cbAverage.UseVisualStyleBackColor = true;
-			this.cbAverage.CheckedChanged += new System.EventHandler(this.AnyControl_Changed);
+			cbAverage.AutoSize = true;
+			cbAverage.Checked = true;
+			cbAverage.CheckState = System.Windows.Forms.CheckState.Checked;
+			cbAverage.Location = new System.Drawing.Point(90, 42);
+			cbAverage.Name = "cbAverage";
+			cbAverage.Size = new System.Drawing.Size(69, 19);
+			cbAverage.TabIndex = 4;
+			cbAverage.Text = "Average";
+			toolTip1.SetToolTip(cbAverage, "If checked, the average response time (of visible ping times) is overlaid in text form.");
+			cbAverage.UseVisualStyleBackColor = true;
+			cbAverage.CheckedChanged += AnyControl_Changed;
 			// 
 			// cbJitter
 			// 
-			this.cbJitter.AutoSize = true;
-			this.cbJitter.Location = new System.Drawing.Point(160, 42);
-			this.cbJitter.Name = "cbJitter";
-			this.cbJitter.Size = new System.Drawing.Size(48, 17);
-			this.cbJitter.TabIndex = 5;
-			this.cbJitter.Text = "Jitter";
-			this.toolTip1.SetToolTip(this.cbJitter, "If checked, the jitter (across visible ping times) is overlaid in text form.");
-			this.cbJitter.UseVisualStyleBackColor = true;
-			this.cbJitter.CheckedChanged += new System.EventHandler(this.AnyControl_Changed);
+			cbJitter.AutoSize = true;
+			cbJitter.Location = new System.Drawing.Point(165, 42);
+			cbJitter.Name = "cbJitter";
+			cbJitter.Size = new System.Drawing.Size(51, 19);
+			cbJitter.TabIndex = 5;
+			cbJitter.Text = "Jitter";
+			toolTip1.SetToolTip(cbJitter, "If checked, the jitter (across visible ping times) is overlaid in text form.");
+			cbJitter.UseVisualStyleBackColor = true;
+			cbJitter.CheckedChanged += AnyControl_Changed;
 			// 
 			// cbMinMax
 			// 
-			this.cbMinMax.AutoSize = true;
-			this.cbMinMax.Location = new System.Drawing.Point(215, 42);
-			this.cbMinMax.Name = "cbMinMax";
-			this.cbMinMax.Size = new System.Drawing.Size(74, 17);
-			this.cbMinMax.TabIndex = 6;
-			this.cbMinMax.Text = "Min / Max";
-			this.toolTip1.SetToolTip(this.cbMinMax, "If checked, the shortest and longest visible ping times are overlaid in text form" +
-        ".");
-			this.cbMinMax.UseVisualStyleBackColor = true;
-			this.cbMinMax.CheckedChanged += new System.EventHandler(this.AnyControl_Changed);
+			cbMinMax.AutoSize = true;
+			cbMinMax.Location = new System.Drawing.Point(222, 42);
+			cbMinMax.Name = "cbMinMax";
+			cbMinMax.Size = new System.Drawing.Size(80, 19);
+			cbMinMax.TabIndex = 6;
+			cbMinMax.Text = "Min / Max";
+			toolTip1.SetToolTip(cbMinMax, "If checked, the shortest and longest visible ping times are overlaid in text form.");
+			cbMinMax.UseVisualStyleBackColor = true;
+			cbMinMax.CheckedChanged += AnyControl_Changed;
 			// 
 			// lblBadThreshold
 			// 
-			this.lblBadThreshold.AutoSize = true;
-			this.lblBadThreshold.Location = new System.Drawing.Point(299, 20);
-			this.lblBadThreshold.Name = "lblBadThreshold";
-			this.lblBadThreshold.Size = new System.Drawing.Size(75, 13);
-			this.lblBadThreshold.TabIndex = 7;
-			this.lblBadThreshold.Text = "Bad threshold:";
+			lblBadThreshold.AutoSize = true;
+			lblBadThreshold.Location = new System.Drawing.Point(308, 20);
+			lblBadThreshold.Name = "lblBadThreshold";
+			lblBadThreshold.Size = new System.Drawing.Size(83, 15);
+			lblBadThreshold.TabIndex = 7;
+			lblBadThreshold.Text = "Bad threshold:";
 			// 
 			// nudBadThreshold
 			// 
-			this.nudBadThreshold.Location = new System.Drawing.Point(380, 18);
-			this.nudBadThreshold.Maximum = new decimal(new int[] {
-            9999,
-            0,
-            0,
-            0});
-			this.nudBadThreshold.Name = "nudBadThreshold";
-			this.nudBadThreshold.Size = new System.Drawing.Size(56, 20);
-			this.nudBadThreshold.TabIndex = 8;
-			this.nudBadThreshold.Value = new decimal(new int[] {
-            100,
-            0,
-            0,
-            0});
-			this.nudBadThreshold.ValueChanged += new System.EventHandler(this.AnyControl_Changed);
+			nudBadThreshold.Location = new System.Drawing.Point(410, 18);
+			nudBadThreshold.Maximum = new decimal(new int[] { 9999, 0, 0, 0 });
+			nudBadThreshold.Name = "nudBadThreshold";
+			nudBadThreshold.Size = new System.Drawing.Size(56, 23);
+			nudBadThreshold.TabIndex = 8;
+			nudBadThreshold.Value = new decimal(new int[] { 100, 0, 0, 0 });
+			nudBadThreshold.ValueChanged += AnyControl_Changed;
 			// 
 			// lblWorseThreshold
 			// 
-			this.lblWorseThreshold.AutoSize = true;
-			this.lblWorseThreshold.Location = new System.Drawing.Point(287, 44);
-			this.lblWorseThreshold.Name = "lblWorseThreshold";
-			this.lblWorseThreshold.Size = new System.Drawing.Size(87, 13);
-			this.lblWorseThreshold.TabIndex = 9;
-			this.lblWorseThreshold.Text = "Worse threshold:";
+			lblWorseThreshold.AutoSize = true;
+			lblWorseThreshold.Location = new System.Drawing.Point(308, 43);
+			lblWorseThreshold.Name = "lblWorseThreshold";
+			lblWorseThreshold.Size = new System.Drawing.Size(96, 15);
+			lblWorseThreshold.TabIndex = 9;
+			lblWorseThreshold.Text = "Worse threshold:";
 			// 
 			// nudWorseThreshold
 			// 
-			this.nudWorseThreshold.Location = new System.Drawing.Point(380, 42);
-			this.nudWorseThreshold.Maximum = new decimal(new int[] {
-            9999,
-            0,
-            0,
-            0});
-			this.nudWorseThreshold.Name = "nudWorseThreshold";
-			this.nudWorseThreshold.Size = new System.Drawing.Size(56, 20);
-			this.nudWorseThreshold.TabIndex = 10;
-			this.nudWorseThreshold.Value = new decimal(new int[] {
-            200,
-            0,
-            0,
-            0});
-			this.nudWorseThreshold.ValueChanged += new System.EventHandler(this.AnyControl_Changed);
+			nudWorseThreshold.Location = new System.Drawing.Point(410, 41);
+			nudWorseThreshold.Maximum = new decimal(new int[] { 9999, 0, 0, 0 });
+			nudWorseThreshold.Name = "nudWorseThreshold";
+			nudWorseThreshold.Size = new System.Drawing.Size(56, 23);
+			nudWorseThreshold.TabIndex = 10;
+			nudWorseThreshold.Value = new decimal(new int[] { 200, 0, 0, 0 });
+			nudWorseThreshold.ValueChanged += AnyControl_Changed;
 			// 
 			// lblUpperLimit
 			// 
-			this.lblUpperLimit.AutoSize = true;
-			this.lblUpperLimit.Location = new System.Drawing.Point(442, 20);
-			this.lblUpperLimit.Name = "lblUpperLimit";
-			this.lblUpperLimit.Size = new System.Drawing.Size(63, 13);
-			this.lblUpperLimit.TabIndex = 11;
-			this.lblUpperLimit.Text = "Upper Limit:";
+			lblUpperLimit.AutoSize = true;
+			lblUpperLimit.Location = new System.Drawing.Point(472, 20);
+			lblUpperLimit.Name = "lblUpperLimit";
+			lblUpperLimit.Size = new System.Drawing.Size(72, 15);
+			lblUpperLimit.TabIndex = 11;
+			lblUpperLimit.Text = "Upper Limit:";
 			// 
 			// nudUpLimit
 			// 
-			this.nudUpLimit.Location = new System.Drawing.Point(511, 18);
-			this.nudUpLimit.Maximum = new decimal(new int[] {
-            10000,
-            0,
-            0,
-            0});
-			this.nudUpLimit.Name = "nudUpLimit";
-			this.nudUpLimit.Size = new System.Drawing.Size(56, 20);
-			this.nudUpLimit.TabIndex = 12;
-			this.nudUpLimit.Value = new decimal(new int[] {
-            300,
-            0,
-            0,
-            0});
-			this.nudUpLimit.ValueChanged += new System.EventHandler(this.AnyControl_Changed);
+			nudUpLimit.Location = new System.Drawing.Point(550, 18);
+			nudUpLimit.Maximum = new decimal(new int[] { 10000, 0, 0, 0 });
+			nudUpLimit.Name = "nudUpLimit";
+			nudUpLimit.Size = new System.Drawing.Size(56, 23);
+			nudUpLimit.TabIndex = 12;
+			nudUpLimit.Value = new decimal(new int[] { 300, 0, 0, 0 });
+			nudUpLimit.ValueChanged += AnyControl_Changed;
 			// 
 			// lblLowerLimit
 			// 
-			this.lblLowerLimit.AutoSize = true;
-			this.lblLowerLimit.Location = new System.Drawing.Point(442, 44);
-			this.lblLowerLimit.Name = "lblLowerLimit";
-			this.lblLowerLimit.Size = new System.Drawing.Size(63, 13);
-			this.lblLowerLimit.TabIndex = 13;
-			this.lblLowerLimit.Text = "Lower Limit:";
+			lblLowerLimit.AutoSize = true;
+			lblLowerLimit.Location = new System.Drawing.Point(472, 43);
+			lblLowerLimit.Name = "lblLowerLimit";
+			lblLowerLimit.Size = new System.Drawing.Size(72, 15);
+			lblLowerLimit.TabIndex = 13;
+			lblLowerLimit.Text = "Lower Limit:";
 			// 
 			// nudLowLimit
 			// 
-			this.nudLowLimit.Location = new System.Drawing.Point(511, 42);
-			this.nudLowLimit.Maximum = new decimal(new int[] {
-            9999,
-            0,
-            0,
-            0});
-			this.nudLowLimit.Minimum = new decimal(new int[] {
-            10,
-            0,
-            0,
-            -2147483648});
-			this.nudLowLimit.Name = "nudLowLimit";
-			this.nudLowLimit.Size = new System.Drawing.Size(56, 20);
-			this.nudLowLimit.TabIndex = 14;
-			this.nudLowLimit.ValueChanged += new System.EventHandler(this.AnyControl_Changed);
+			nudLowLimit.Location = new System.Drawing.Point(550, 41);
+			nudLowLimit.Maximum = new decimal(new int[] { 9999, 0, 0, 0 });
+			nudLowLimit.Minimum = new decimal(new int[] { 10, 0, 0, int.MinValue });
+			nudLowLimit.Name = "nudLowLimit";
+			nudLowLimit.Size = new System.Drawing.Size(56, 23);
+			nudLowLimit.TabIndex = 14;
+			nudLowLimit.ValueChanged += AnyControl_Changed;
 			// 
 			// lblScalingMethod
 			// 
-			this.lblScalingMethod.AutoSize = true;
-			this.lblScalingMethod.Location = new System.Drawing.Point(10, 72);
-			this.lblScalingMethod.Name = "lblScalingMethod";
-			this.lblScalingMethod.Size = new System.Drawing.Size(84, 13);
-			this.lblScalingMethod.TabIndex = 15;
-			this.lblScalingMethod.Text = "Scaling Method:";
+			lblScalingMethod.AutoSize = true;
+			lblScalingMethod.Location = new System.Drawing.Point(10, 72);
+			lblScalingMethod.Name = "lblScalingMethod";
+			lblScalingMethod.Size = new System.Drawing.Size(93, 15);
+			lblScalingMethod.TabIndex = 15;
+			lblScalingMethod.Text = "Scaling Method:";
 			// 
 			// cbScalingMethod
 			// 
-			this.cbScalingMethod.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-			this.cbScalingMethod.FormattingEnabled = true;
-			this.cbScalingMethod.Items.AddRange(new object[] {
-            "Classic",
-            "Zoom",
-            "Zoom Unlimited",
-            "Fixed"});
-			this.cbScalingMethod.Location = new System.Drawing.Point(100, 69);
-			this.cbScalingMethod.Name = "cbScalingMethod";
-			this.cbScalingMethod.Size = new System.Drawing.Size(121, 21);
-			this.cbScalingMethod.TabIndex = 16;
-			this.cbScalingMethod.SelectedIndexChanged += new System.EventHandler(this.AnyControl_Changed);
+			cbScalingMethod.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+			cbScalingMethod.FormattingEnabled = true;
+			cbScalingMethod.Items.AddRange(new object[] { "Classic", "Zoom", "Zoom Unlimited", "Fixed" });
+			cbScalingMethod.Location = new System.Drawing.Point(110, 69);
+			cbScalingMethod.Name = "cbScalingMethod";
+			cbScalingMethod.Size = new System.Drawing.Size(121, 23);
+			cbScalingMethod.TabIndex = 16;
+			cbScalingMethod.SelectedIndexChanged += AnyControl_Changed;
 			// 
 			// grpLogging
 			// 
-			this.grpLogging.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-			this.grpLogging.Controls.Add(this.cbLogFailures);
-			this.grpLogging.Controls.Add(this.cbLogSuccesses);
-			this.grpLogging.Location = new System.Drawing.Point(8, 398);
-			this.grpLogging.Name = "grpLogging";
-			this.grpLogging.Size = new System.Drawing.Size(576, 42);
-			this.grpLogging.TabIndex = 8;
-			this.grpLogging.TabStop = false;
-			this.grpLogging.Text = "Logging";
+			grpLogging.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+			grpLogging.Controls.Add(cbLogFailures);
+			grpLogging.Controls.Add(cbLogSuccesses);
+			grpLogging.Location = new System.Drawing.Point(8, 398);
+			grpLogging.Name = "grpLogging";
+			grpLogging.Size = new System.Drawing.Size(612, 46);
+			grpLogging.TabIndex = 8;
+			grpLogging.TabStop = false;
+			grpLogging.Text = "Logging";
 			// 
 			// cbLogFailures
 			// 
-			this.cbLogFailures.AutoSize = true;
-			this.cbLogFailures.Location = new System.Drawing.Point(10, 19);
-			this.cbLogFailures.Name = "cbLogFailures";
-			this.cbLogFailures.Size = new System.Drawing.Size(83, 17);
-			this.cbLogFailures.TabIndex = 0;
-			this.cbLogFailures.Text = "Log Failures";
-			this.cbLogFailures.UseVisualStyleBackColor = true;
-			this.cbLogFailures.CheckedChanged += new System.EventHandler(this.AnyControl_Changed);
+			cbLogFailures.AutoSize = true;
+			cbLogFailures.Location = new System.Drawing.Point(10, 19);
+			cbLogFailures.Name = "cbLogFailures";
+			cbLogFailures.Size = new System.Drawing.Size(89, 19);
+			cbLogFailures.TabIndex = 0;
+			cbLogFailures.Text = "Log Failures";
+			cbLogFailures.UseVisualStyleBackColor = true;
+			cbLogFailures.CheckedChanged += AnyControl_Changed;
 			// 
 			// cbLogSuccesses
 			// 
-			this.cbLogSuccesses.AutoSize = true;
-			this.cbLogSuccesses.Location = new System.Drawing.Point(110, 19);
-			this.cbLogSuccesses.Name = "cbLogSuccesses";
-			this.cbLogSuccesses.Size = new System.Drawing.Size(99, 17);
-			this.cbLogSuccesses.TabIndex = 1;
-			this.cbLogSuccesses.Text = "Log Successes";
-			this.cbLogSuccesses.UseVisualStyleBackColor = true;
-			this.cbLogSuccesses.CheckedChanged += new System.EventHandler(this.AnyControl_Changed);
+			cbLogSuccesses.AutoSize = true;
+			cbLogSuccesses.Location = new System.Drawing.Point(110, 19);
+			cbLogSuccesses.Name = "cbLogSuccesses";
+			cbLogSuccesses.Size = new System.Drawing.Size(101, 19);
+			cbLogSuccesses.TabIndex = 1;
+			cbLogSuccesses.Text = "Log Successes";
+			cbLogSuccesses.UseVisualStyleBackColor = true;
+			cbLogSuccesses.CheckedChanged += AnyControl_Changed;
 			// 
 			// btnSave
 			// 
-			this.btnSave.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-			this.btnSave.Location = new System.Drawing.Point(8, 450);
-			this.btnSave.Name = "btnSave";
-			this.btnSave.Size = new System.Drawing.Size(80, 28);
-			this.btnSave.TabIndex = 9;
-			this.btnSave.Text = "Save";
-			this.btnSave.UseVisualStyleBackColor = true;
-			this.btnSave.Click += new System.EventHandler(this.btnSave_Click);
+			btnSave.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left;
+			btnSave.Location = new System.Drawing.Point(8, 450);
+			btnSave.Name = "btnSave";
+			btnSave.Size = new System.Drawing.Size(80, 28);
+			btnSave.TabIndex = 9;
+			btnSave.Text = "Save";
+			btnSave.UseVisualStyleBackColor = true;
+			btnSave.Click += btnSave_Click;
 			// 
 			// btnDiscard
 			// 
-			this.btnDiscard.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-			this.btnDiscard.Enabled = false;
-			this.btnDiscard.Location = new System.Drawing.Point(94, 450);
-			this.btnDiscard.Name = "btnDiscard";
-			this.btnDiscard.Size = new System.Drawing.Size(80, 28);
-			this.btnDiscard.TabIndex = 10;
-			this.btnDiscard.Text = "Discard";
-			this.toolTip1.SetToolTip(this.btnDiscard, "Discard unsaved changes and reload from disk.");
-			this.btnDiscard.UseVisualStyleBackColor = true;
-			this.btnDiscard.Click += new System.EventHandler(this.btnDiscard_Click);
+			btnDiscard.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left;
+			btnDiscard.Enabled = false;
+			btnDiscard.Location = new System.Drawing.Point(94, 450);
+			btnDiscard.Name = "btnDiscard";
+			btnDiscard.Size = new System.Drawing.Size(80, 28);
+			btnDiscard.TabIndex = 10;
+			btnDiscard.Text = "Discard";
+			toolTip1.SetToolTip(btnDiscard, "Discard unsaved changes and reload from disk.");
+			btnDiscard.UseVisualStyleBackColor = true;
+			btnDiscard.Click += btnDiscard_Click;
 			// 
 			// btnDelete
 			// 
-			this.btnDelete.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-			this.btnDelete.Location = new System.Drawing.Point(180, 450);
-			this.btnDelete.Name = "btnDelete";
-			this.btnDelete.Size = new System.Drawing.Size(80, 28);
-			this.btnDelete.TabIndex = 11;
-			this.btnDelete.Text = "Delete";
-			this.btnDelete.UseVisualStyleBackColor = true;
-			this.btnDelete.Click += new System.EventHandler(this.btnDelete_Click);
+			btnDelete.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left;
+			btnDelete.Location = new System.Drawing.Point(180, 450);
+			btnDelete.Name = "btnDelete";
+			btnDelete.Size = new System.Drawing.Size(80, 28);
+			btnDelete.TabIndex = 11;
+			btnDelete.Text = "Delete";
+			btnDelete.UseVisualStyleBackColor = true;
+			btnDelete.Click += btnDelete_Click;
 			// 
 			// btnLoad
 			// 
-			this.btnLoad.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-			this.btnLoad.Location = new System.Drawing.Point(266, 450);
-			this.btnLoad.Name = "btnLoad";
-			this.btnLoad.Size = new System.Drawing.Size(220, 28);
-			this.btnLoad.TabIndex = 12;
-			this.btnLoad.Text = "Load Configuration in Main Window";
-			this.btnLoad.UseVisualStyleBackColor = true;
-			this.btnLoad.Click += new System.EventHandler(this.btnLoad_Click);
+			btnLoad.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left;
+			btnLoad.Location = new System.Drawing.Point(266, 450);
+			btnLoad.Name = "btnLoad";
+			btnLoad.Size = new System.Drawing.Size(220, 28);
+			btnLoad.TabIndex = 12;
+			btnLoad.Text = "Load Configuration in Main Window";
+			btnLoad.UseVisualStyleBackColor = true;
+			btnLoad.Click += btnLoad_Click;
 			// 
 			// btnClone
 			// 
-			this.btnClone.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
-			this.btnClone.Location = new System.Drawing.Point(509, 450);
-			this.btnClone.Name = "btnClone";
-			this.btnClone.Size = new System.Drawing.Size(75, 28);
-			this.btnClone.TabIndex = 13;
-			this.btnClone.Text = "Duplicate";
-			this.toolTip1.SetToolTip(this.btnClone, "Create a duplicate of the selected configuration.");
-			this.btnClone.UseVisualStyleBackColor = true;
-			this.btnClone.Click += new System.EventHandler(this.btnClone_Click);
+			btnClone.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right;
+			btnClone.Location = new System.Drawing.Point(545, 450);
+			btnClone.Name = "btnClone";
+			btnClone.Size = new System.Drawing.Size(75, 28);
+			btnClone.TabIndex = 13;
+			btnClone.Text = "Duplicate";
+			toolTip1.SetToolTip(btnClone, "Create a duplicate of the selected configuration.");
+			btnClone.UseVisualStyleBackColor = true;
+			btnClone.Click += btnClone_Click;
 			// 
 			// toolTip1
 			// 
-			this.toolTip1.AutomaticDelay = 250;
-			this.toolTip1.AutoPopDelay = 10000;
-			this.toolTip1.InitialDelay = 250;
-			this.toolTip1.ReshowDelay = 50;
+			toolTip1.AutomaticDelay = 250;
+			toolTip1.AutoPopDelay = 10000;
+			toolTip1.InitialDelay = 250;
+			toolTip1.ReshowDelay = 50;
 			// 
 			// ConfigurationForm
 			// 
-			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
-			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-			this.ClientSize = new System.Drawing.Size(804, 489);
-			this.Controls.Add(this.splitContainerMain);
-			this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
-			this.MinimumSize = new System.Drawing.Size(820, 441);
-			this.Name = "ConfigurationForm";
-			this.StartPosition = System.Windows.Forms.FormStartPosition.Manual;
-			this.Text = "Configuration Editor - PingTracer";
-			this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.ConfigurationForm_FormClosing);
-			this.Load += new System.EventHandler(this.ConfigurationForm_Load);
-			this.splitContainerMain.Panel1.ResumeLayout(false);
-			this.splitContainerMain.Panel2.ResumeLayout(false);
-			((System.ComponentModel.ISupportInitialize)(this.splitContainerMain)).EndInit();
-			this.splitContainerMain.ResumeLayout(false);
-			this.panelEditor.ResumeLayout(false);
-			this.panelEditor.PerformLayout();
-			this.grpMonitoring.ResumeLayout(false);
-			this.grpMonitoring.PerformLayout();
-			((System.ComponentModel.ISupportInitialize)(this.trackBarRate)).EndInit();
-			this.grpGraphOptions.ResumeLayout(false);
-			this.grpGraphOptions.PerformLayout();
-			((System.ComponentModel.ISupportInitialize)(this.nudBadThreshold)).EndInit();
-			((System.ComponentModel.ISupportInitialize)(this.nudWorseThreshold)).EndInit();
-			((System.ComponentModel.ISupportInitialize)(this.nudUpLimit)).EndInit();
-			((System.ComponentModel.ISupportInitialize)(this.nudLowLimit)).EndInit();
-			this.grpLogging.ResumeLayout(false);
-			this.grpLogging.PerformLayout();
-			this.ResumeLayout(false);
+			AutoScaleDimensions = new System.Drawing.SizeF(96F, 96F);
+			AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi;
+			ClientSize = new System.Drawing.Size(840, 489);
+			Controls.Add(splitContainerMain);
+			Icon = (System.Drawing.Icon)resources.GetObject("$this.Icon");
+			MinimumSize = new System.Drawing.Size(856, 450);
+			Name = "ConfigurationForm";
+			StartPosition = System.Windows.Forms.FormStartPosition.Manual;
+			Text = "Configuration Editor - PingTracer";
+			FormClosing += ConfigurationForm_FormClosing;
+			Load += ConfigurationForm_Load;
+			splitContainerMain.Panel1.ResumeLayout(false);
+			splitContainerMain.Panel2.ResumeLayout(false);
+			((System.ComponentModel.ISupportInitialize)splitContainerMain).EndInit();
+			splitContainerMain.ResumeLayout(false);
+			panelEditor.ResumeLayout(false);
+			panelEditor.PerformLayout();
+			grpMonitoring.ResumeLayout(false);
+			grpMonitoring.PerformLayout();
+			((System.ComponentModel.ISupportInitialize)trackBarRate).EndInit();
+			grpGraphOptions.ResumeLayout(false);
+			grpGraphOptions.PerformLayout();
+			((System.ComponentModel.ISupportInitialize)nudBadThreshold).EndInit();
+			((System.ComponentModel.ISupportInitialize)nudWorseThreshold).EndInit();
+			((System.ComponentModel.ISupportInitialize)nudUpLimit).EndInit();
+			((System.ComponentModel.ISupportInitialize)nudLowLimit).EndInit();
+			grpLogging.ResumeLayout(false);
+			grpLogging.PerformLayout();
+			ResumeLayout(false);
 
 		}
 

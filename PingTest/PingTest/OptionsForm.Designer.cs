@@ -28,429 +28,345 @@
 		/// </summary>
 		private void InitializeComponent()
 		{
-			this.components = new System.ComponentModel.Container();
+			components = new System.ComponentModel.Container();
 			System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(OptionsForm));
-			this.cbLogToFile = new System.Windows.Forms.CheckBox();
-			this.cbDelayMostRecentPing = new System.Windows.Forms.CheckBox();
-			this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
-			this.cbWarnGraphNotLive = new System.Windows.Forms.CheckBox();
-			this.label1 = new System.Windows.Forms.Label();
-			this.nudPingResponsesToCache = new System.Windows.Forms.NumericUpDown();
-			this.label2 = new System.Windows.Forms.Label();
-			this.cbFastRefreshScrollingGraphs = new System.Windows.Forms.CheckBox();
-			this.label3 = new System.Windows.Forms.Label();
-			this.nudGraphScrollMultiplier = new System.Windows.Forms.NumericUpDown();
-			this.cbShowDateInCorner = new System.Windows.Forms.CheckBox();
-			this.nudPingTimeoutRedLineHeight = new System.Windows.Forms.NumericUpDown();
-			this.label6 = new System.Windows.Forms.Label();
-			this.label7 = new System.Windows.Forms.Label();
-			this.label4 = new System.Windows.Forms.Label();
-			this.txtCustomTimeString = new System.Windows.Forms.TextBox();
-			this.customTimeStringHelp = new System.Windows.Forms.LinkLabel();
-			this.panel1 = new System.Windows.Forms.Panel();
-			this.groupBoxFormMargins = new System.Windows.Forms.GroupBox();
-			this.nudBottomMargin = new System.Windows.Forms.NumericUpDown();
-			this.nudRightMargin = new System.Windows.Forms.NumericUpDown();
-			this.nudLeftMargin = new System.Windows.Forms.NumericUpDown();
-			this.nudTopMargin = new System.Windows.Forms.NumericUpDown();
-			this.label5 = new System.Windows.Forms.Label();
-			((System.ComponentModel.ISupportInitialize)(this.nudPingResponsesToCache)).BeginInit();
-			((System.ComponentModel.ISupportInitialize)(this.nudGraphScrollMultiplier)).BeginInit();
-			((System.ComponentModel.ISupportInitialize)(this.nudPingTimeoutRedLineHeight)).BeginInit();
-			this.groupBoxFormMargins.SuspendLayout();
-			((System.ComponentModel.ISupportInitialize)(this.nudBottomMargin)).BeginInit();
-			((System.ComponentModel.ISupportInitialize)(this.nudRightMargin)).BeginInit();
-			((System.ComponentModel.ISupportInitialize)(this.nudLeftMargin)).BeginInit();
-			((System.ComponentModel.ISupportInitialize)(this.nudTopMargin)).BeginInit();
-			this.SuspendLayout();
+			cbLogToFile = new System.Windows.Forms.CheckBox();
+			cbDelayMostRecentPing = new System.Windows.Forms.CheckBox();
+			toolTip1 = new System.Windows.Forms.ToolTip(components);
+			cbWarnGraphNotLive = new System.Windows.Forms.CheckBox();
+			label1 = new System.Windows.Forms.Label();
+			nudPingResponsesToCache = new System.Windows.Forms.NumericUpDown();
+			label2 = new System.Windows.Forms.Label();
+			cbFastRefreshScrollingGraphs = new System.Windows.Forms.CheckBox();
+			label3 = new System.Windows.Forms.Label();
+			nudGraphScrollMultiplier = new System.Windows.Forms.NumericUpDown();
+			cbShowDateInCorner = new System.Windows.Forms.CheckBox();
+			nudPingTimeoutRedLineHeight = new System.Windows.Forms.NumericUpDown();
+			label6 = new System.Windows.Forms.Label();
+			label7 = new System.Windows.Forms.Label();
+			label4 = new System.Windows.Forms.Label();
+			txtCustomTimeString = new System.Windows.Forms.TextBox();
+			customTimeStringHelp = new System.Windows.Forms.LinkLabel();
+			panel1 = new System.Windows.Forms.Panel();
+			groupBoxFormMargins = new System.Windows.Forms.GroupBox();
+			nudBottomMargin = new System.Windows.Forms.NumericUpDown();
+			nudRightMargin = new System.Windows.Forms.NumericUpDown();
+			nudLeftMargin = new System.Windows.Forms.NumericUpDown();
+			nudTopMargin = new System.Windows.Forms.NumericUpDown();
+			label5 = new System.Windows.Forms.Label();
+			((System.ComponentModel.ISupportInitialize)nudPingResponsesToCache).BeginInit();
+			((System.ComponentModel.ISupportInitialize)nudGraphScrollMultiplier).BeginInit();
+			((System.ComponentModel.ISupportInitialize)nudPingTimeoutRedLineHeight).BeginInit();
+			groupBoxFormMargins.SuspendLayout();
+			((System.ComponentModel.ISupportInitialize)nudBottomMargin).BeginInit();
+			((System.ComponentModel.ISupportInitialize)nudRightMargin).BeginInit();
+			((System.ComponentModel.ISupportInitialize)nudLeftMargin).BeginInit();
+			((System.ComponentModel.ISupportInitialize)nudTopMargin).BeginInit();
+			SuspendLayout();
 			// 
 			// cbLogToFile
 			// 
-			this.cbLogToFile.AutoSize = true;
-			this.cbLogToFile.Checked = true;
-			this.cbLogToFile.CheckState = System.Windows.Forms.CheckState.Checked;
-			this.cbLogToFile.Location = new System.Drawing.Point(12, 12);
-			this.cbLogToFile.Name = "cbLogToFile";
-			this.cbLogToFile.Size = new System.Drawing.Size(125, 17);
-			this.cbLogToFile.TabIndex = 1;
-			this.cbLogToFile.Text = "Log text output to file";
-			this.toolTip1.SetToolTip(this.cbLogToFile, "Log output goes to the Logs subfolder in the AppData directory (see Tools menu).");
-			this.cbLogToFile.UseVisualStyleBackColor = true;
-			this.cbLogToFile.CheckedChanged += new System.EventHandler(this.cbLogToFile_CheckedChanged);
+			cbLogToFile.AutoSize = true;
+			cbLogToFile.Checked = true;
+			cbLogToFile.CheckState = System.Windows.Forms.CheckState.Checked;
+			cbLogToFile.Location = new System.Drawing.Point(12, 12);
+			cbLogToFile.Name = "cbLogToFile";
+			cbLogToFile.Size = new System.Drawing.Size(140, 19);
+			cbLogToFile.TabIndex = 1;
+			cbLogToFile.Text = "Log text output to file";
+			toolTip1.SetToolTip(cbLogToFile, "Log output goes to the Logs subfolder in the AppData directory (see Tools menu).");
+			cbLogToFile.UseVisualStyleBackColor = true;
+			cbLogToFile.CheckedChanged += cbLogToFile_CheckedChanged;
 			// 
 			// cbDelayMostRecentPing
 			// 
-			this.cbDelayMostRecentPing.Checked = true;
-			this.cbDelayMostRecentPing.CheckState = System.Windows.Forms.CheckState.Checked;
-			this.cbDelayMostRecentPing.Location = new System.Drawing.Point(12, 35);
-			this.cbDelayMostRecentPing.Name = "cbDelayMostRecentPing";
-			this.cbDelayMostRecentPing.Size = new System.Drawing.Size(259, 34);
-			this.cbDelayMostRecentPing.TabIndex = 2;
-			this.cbDelayMostRecentPing.Text = "Delay ping graphing by one ping interval\r\n(reduces visual flickering)";
-			this.toolTip1.SetToolTip(this.cbDelayMostRecentPing, "(Checked by default)\r\n\r\nIf unchecked, each wave of pings will appear early, \r\nlik" +
-        "ely before the ping response has arrived, causing \r\na visual flickering effect w" +
-        "hen the response arrives.");
-			this.cbDelayMostRecentPing.UseVisualStyleBackColor = true;
-			this.cbDelayMostRecentPing.CheckedChanged += new System.EventHandler(this.cbDelayMostRecentPing_CheckedChanged);
+			cbDelayMostRecentPing.Checked = true;
+			cbDelayMostRecentPing.CheckState = System.Windows.Forms.CheckState.Checked;
+			cbDelayMostRecentPing.Location = new System.Drawing.Point(12, 35);
+			cbDelayMostRecentPing.Name = "cbDelayMostRecentPing";
+			cbDelayMostRecentPing.Size = new System.Drawing.Size(259, 34);
+			cbDelayMostRecentPing.TabIndex = 2;
+			cbDelayMostRecentPing.Text = "Delay ping graphing by one ping interval\r\n(reduces visual flickering)";
+			toolTip1.SetToolTip(cbDelayMostRecentPing, "(Checked by default)\r\n\r\nIf unchecked, each wave of pings will appear early, \r\nlikely before the ping response has arrived, causing \r\na visual flickering effect when the response arrives.");
+			cbDelayMostRecentPing.UseVisualStyleBackColor = true;
+			cbDelayMostRecentPing.CheckedChanged += cbDelayMostRecentPing_CheckedChanged;
 			// 
 			// toolTip1
 			// 
-			this.toolTip1.AutomaticDelay = 250;
-			this.toolTip1.AutoPopDelay = 10000;
-			this.toolTip1.InitialDelay = 250;
-			this.toolTip1.ReshowDelay = 50;
+			toolTip1.AutomaticDelay = 250;
+			toolTip1.AutoPopDelay = 10000;
+			toolTip1.InitialDelay = 250;
+			toolTip1.ReshowDelay = 50;
 			// 
 			// cbWarnGraphNotLive
 			// 
-			this.cbWarnGraphNotLive.AutoSize = true;
-			this.cbWarnGraphNotLive.Checked = true;
-			this.cbWarnGraphNotLive.CheckState = System.Windows.Forms.CheckState.Checked;
-			this.cbWarnGraphNotLive.Location = new System.Drawing.Point(12, 75);
-			this.cbWarnGraphNotLive.Name = "cbWarnGraphNotLive";
-			this.cbWarnGraphNotLive.Size = new System.Drawing.Size(290, 17);
-			this.cbWarnGraphNotLive.TabIndex = 3;
-			this.cbWarnGraphNotLive.Text = "Warn when graph has been scrolled and is \"NOT LIVE\"";
-			this.toolTip1.SetToolTip(this.cbWarnGraphNotLive, "(Checked by default)\r\n\r\nIf checked, \"NOT LIVE\" text will appear \r\nwhen you scroll" +
-        " the graph to the side.");
-			this.cbWarnGraphNotLive.UseVisualStyleBackColor = true;
-			this.cbWarnGraphNotLive.CheckedChanged += new System.EventHandler(this.cbWarnGraphNotLive_CheckedChanged);
+			cbWarnGraphNotLive.AutoSize = true;
+			cbWarnGraphNotLive.Checked = true;
+			cbWarnGraphNotLive.CheckState = System.Windows.Forms.CheckState.Checked;
+			cbWarnGraphNotLive.Location = new System.Drawing.Point(12, 75);
+			cbWarnGraphNotLive.Name = "cbWarnGraphNotLive";
+			cbWarnGraphNotLive.Size = new System.Drawing.Size(310, 19);
+			cbWarnGraphNotLive.TabIndex = 3;
+			cbWarnGraphNotLive.Text = "Warn when graph has been scrolled and is \"NOT LIVE\"";
+			toolTip1.SetToolTip(cbWarnGraphNotLive, "(Checked by default)\r\n\r\nIf checked, \"NOT LIVE\" text will appear \r\nwhen you scroll the graph to the side.");
+			cbWarnGraphNotLive.UseVisualStyleBackColor = true;
+			cbWarnGraphNotLive.CheckedChanged += cbWarnGraphNotLive_CheckedChanged;
 			// 
 			// label1
 			// 
-			this.label1.AutoSize = true;
-			this.label1.Location = new System.Drawing.Point(12, 181);
-			this.label1.Name = "label1";
-			this.label1.Size = new System.Drawing.Size(293, 13);
-			this.label1.TabIndex = 11;
-			this.label1.Text = "Number of ping responses to cache in memory for each host:";
-			this.toolTip1.SetToolTip(this.label1, resources.GetString("label1.ToolTip"));
+			label1.AutoSize = true;
+			label1.Location = new System.Drawing.Point(12, 181);
+			label1.Name = "label1";
+			label1.Size = new System.Drawing.Size(331, 15);
+			label1.TabIndex = 11;
+			label1.Text = "Number of ping responses to cache in memory for each host:";
+			toolTip1.SetToolTip(label1, resources.GetString("label1.ToolTip"));
 			// 
 			// nudPingResponsesToCache
 			// 
-			this.nudPingResponsesToCache.Location = new System.Drawing.Point(12, 200);
-			this.nudPingResponsesToCache.Maximum = new decimal(new int[] {
-            10000000,
-            0,
-            0,
-            0});
-			this.nudPingResponsesToCache.Minimum = new decimal(new int[] {
-            10000,
-            0,
-            0,
-            0});
-			this.nudPingResponsesToCache.Name = "nudPingResponsesToCache";
-			this.nudPingResponsesToCache.Size = new System.Drawing.Size(102, 20);
-			this.nudPingResponsesToCache.TabIndex = 7;
-			this.toolTip1.SetToolTip(this.nudPingResponsesToCache, resources.GetString("nudPingResponsesToCache.ToolTip"));
-			this.nudPingResponsesToCache.Value = new decimal(new int[] {
-            360000,
-            0,
-            0,
-            0});
-			this.nudPingResponsesToCache.ValueChanged += new System.EventHandler(this.nudPingResponsesToCache_ValueChanged);
+			nudPingResponsesToCache.Location = new System.Drawing.Point(12, 200);
+			nudPingResponsesToCache.Maximum = new decimal(new int[] { 10000000, 0, 0, 0 });
+			nudPingResponsesToCache.Minimum = new decimal(new int[] { 10000, 0, 0, 0 });
+			nudPingResponsesToCache.Name = "nudPingResponsesToCache";
+			nudPingResponsesToCache.Size = new System.Drawing.Size(102, 23);
+			nudPingResponsesToCache.TabIndex = 7;
+			toolTip1.SetToolTip(nudPingResponsesToCache, resources.GetString("nudPingResponsesToCache.ToolTip"));
+			nudPingResponsesToCache.Value = new decimal(new int[] { 360000, 0, 0, 0 });
+			nudPingResponsesToCache.ValueChanged += nudPingResponsesToCache_ValueChanged;
 			// 
 			// label2
 			// 
-			this.label2.AutoSize = true;
-			this.label2.Location = new System.Drawing.Point(120, 202);
-			this.label2.Name = "label2";
-			this.label2.Size = new System.Drawing.Size(227, 13);
-			this.label2.TabIndex = 13;
-			this.label2.Text = "Takes effect when ping monitoring is restarted.";
-			this.toolTip1.SetToolTip(this.label2, resources.GetString("label2.ToolTip"));
+			label2.AutoSize = true;
+			label2.Location = new System.Drawing.Point(120, 202);
+			label2.Name = "label2";
+			label2.Size = new System.Drawing.Size(254, 15);
+			label2.TabIndex = 13;
+			label2.Text = "Takes effect when ping monitoring is restarted.";
+			toolTip1.SetToolTip(label2, resources.GetString("label2.ToolTip"));
 			// 
 			// cbFastRefreshScrollingGraphs
 			// 
-			this.cbFastRefreshScrollingGraphs.AutoSize = true;
-			this.cbFastRefreshScrollingGraphs.Checked = true;
-			this.cbFastRefreshScrollingGraphs.CheckState = System.Windows.Forms.CheckState.Checked;
-			this.cbFastRefreshScrollingGraphs.Location = new System.Drawing.Point(12, 98);
-			this.cbFastRefreshScrollingGraphs.Name = "cbFastRefreshScrollingGraphs";
-			this.cbFastRefreshScrollingGraphs.Size = new System.Drawing.Size(212, 17);
-			this.cbFastRefreshScrollingGraphs.TabIndex = 4;
-			this.cbFastRefreshScrollingGraphs.Text = "Accelerate graph redraw when scrolling";
-			this.toolTip1.SetToolTip(this.cbFastRefreshScrollingGraphs, "(Checked by default)\r\n\r\nIf checked, graphs will update faster while being scrolle" +
-        "d,\r\nat the cost of increased CPU usage.");
-			this.cbFastRefreshScrollingGraphs.UseVisualStyleBackColor = true;
-			this.cbFastRefreshScrollingGraphs.CheckedChanged += new System.EventHandler(this.cbFastRefreshScrollingGraphs_CheckedChanged);
+			cbFastRefreshScrollingGraphs.AutoSize = true;
+			cbFastRefreshScrollingGraphs.Checked = true;
+			cbFastRefreshScrollingGraphs.CheckState = System.Windows.Forms.CheckState.Checked;
+			cbFastRefreshScrollingGraphs.Location = new System.Drawing.Point(12, 98);
+			cbFastRefreshScrollingGraphs.Name = "cbFastRefreshScrollingGraphs";
+			cbFastRefreshScrollingGraphs.Size = new System.Drawing.Size(234, 19);
+			cbFastRefreshScrollingGraphs.TabIndex = 4;
+			cbFastRefreshScrollingGraphs.Text = "Accelerate graph redraw when scrolling";
+			toolTip1.SetToolTip(cbFastRefreshScrollingGraphs, "(Checked by default)\r\n\r\nIf checked, graphs will update faster while being scrolled,\r\nat the cost of increased CPU usage.");
+			cbFastRefreshScrollingGraphs.UseVisualStyleBackColor = true;
+			cbFastRefreshScrollingGraphs.CheckedChanged += cbFastRefreshScrollingGraphs_CheckedChanged;
 			// 
 			// label3
 			// 
-			this.label3.AutoSize = true;
-			this.label3.Location = new System.Drawing.Point(9, 150);
-			this.label3.Name = "label3";
-			this.label3.Size = new System.Drawing.Size(126, 13);
-			this.label3.TabIndex = 15;
-			this.label3.Text = "Graph scrolling multiplier: ";
-			this.toolTip1.SetToolTip(this.label3, "(Default: 50)\r\n\r\nWhen you click and drag a ping graph horizontally,\r\nit scrolls. " +
-        " If you increase this value, it will scroll faster.\r\n\r\nIf you set this value to " +
-        "0, graph scrolling will be disabled.");
+			label3.AutoSize = true;
+			label3.Location = new System.Drawing.Point(9, 150);
+			label3.Name = "label3";
+			label3.Size = new System.Drawing.Size(147, 15);
+			label3.TabIndex = 15;
+			label3.Text = "Graph scrolling multiplier: ";
+			toolTip1.SetToolTip(label3, "(Default: 50)\r\n\r\nWhen you click and drag a ping graph horizontally,\r\nit scrolls.  If you increase this value, it will scroll faster.\r\n\r\nIf you set this value to 0, graph scrolling will be disabled.");
 			// 
 			// nudGraphScrollMultiplier
 			// 
-			this.nudGraphScrollMultiplier.Location = new System.Drawing.Point(141, 148);
-			this.nudGraphScrollMultiplier.Maximum = new decimal(new int[] {
-            10000,
-            0,
-            0,
-            0});
-			this.nudGraphScrollMultiplier.Name = "nudGraphScrollMultiplier";
-			this.nudGraphScrollMultiplier.Size = new System.Drawing.Size(102, 20);
-			this.nudGraphScrollMultiplier.TabIndex = 6;
-			this.toolTip1.SetToolTip(this.nudGraphScrollMultiplier, "(Default: 50)\r\n\r\nWhen you click and drag a ping graph horizontally,\r\nit scrolls. " +
-        " If you increase this value, it will scroll faster.\r\n\r\nIf you set this value to " +
-        "0, graph scrolling will be disabled.");
-			this.nudGraphScrollMultiplier.Value = new decimal(new int[] {
-            1,
-            0,
-            0,
-            0});
-			this.nudGraphScrollMultiplier.ValueChanged += new System.EventHandler(this.nudGraphScrollMultiplier_ValueChanged);
+			nudGraphScrollMultiplier.Location = new System.Drawing.Point(162, 148);
+			nudGraphScrollMultiplier.Maximum = new decimal(new int[] { 10000, 0, 0, 0 });
+			nudGraphScrollMultiplier.Name = "nudGraphScrollMultiplier";
+			nudGraphScrollMultiplier.Size = new System.Drawing.Size(102, 23);
+			nudGraphScrollMultiplier.TabIndex = 6;
+			toolTip1.SetToolTip(nudGraphScrollMultiplier, "(Default: 50)\r\n\r\nWhen you click and drag a ping graph horizontally,\r\nit scrolls.  If you increase this value, it will scroll faster.\r\n\r\nIf you set this value to 0, graph scrolling will be disabled.");
+			nudGraphScrollMultiplier.Value = new decimal(new int[] { 1, 0, 0, 0 });
+			nudGraphScrollMultiplier.ValueChanged += nudGraphScrollMultiplier_ValueChanged;
 			// 
 			// cbShowDateInCorner
 			// 
-			this.cbShowDateInCorner.AutoSize = true;
-			this.cbShowDateInCorner.Checked = true;
-			this.cbShowDateInCorner.CheckState = System.Windows.Forms.CheckState.Checked;
-			this.cbShowDateInCorner.Location = new System.Drawing.Point(12, 121);
-			this.cbShowDateInCorner.Name = "cbShowDateInCorner";
-			this.cbShowDateInCorner.Size = new System.Drawing.Size(310, 17);
-			this.cbShowDateInCorner.TabIndex = 5;
-			this.cbShowDateInCorner.Text = "Show the current date in the bottom left corner of the graphs";
-			this.toolTip1.SetToolTip(this.cbShowDateInCorner, "(Checked by default)\r\n\r\nIf checked, the associated date will overlap the bottom\r\n" +
-        "left corner of the timeline below the graphs.");
-			this.cbShowDateInCorner.UseVisualStyleBackColor = true;
-			this.cbShowDateInCorner.CheckedChanged += new System.EventHandler(this.cbShowDateInCorner_CheckedChanged);
+			cbShowDateInCorner.AutoSize = true;
+			cbShowDateInCorner.Checked = true;
+			cbShowDateInCorner.CheckState = System.Windows.Forms.CheckState.Checked;
+			cbShowDateInCorner.Location = new System.Drawing.Point(12, 121);
+			cbShowDateInCorner.Name = "cbShowDateInCorner";
+			cbShowDateInCorner.Size = new System.Drawing.Size(348, 19);
+			cbShowDateInCorner.TabIndex = 5;
+			cbShowDateInCorner.Text = "Show the current date in the bottom left corner of the graphs";
+			toolTip1.SetToolTip(cbShowDateInCorner, "(Checked by default)\r\n\r\nIf checked, the associated date will overlap the bottom\r\nleft corner of the timeline below the graphs.");
+			cbShowDateInCorner.UseVisualStyleBackColor = true;
+			cbShowDateInCorner.CheckedChanged += cbShowDateInCorner_CheckedChanged;
 			// 
 			// nudPingTimeoutRedLineHeight
 			// 
-			this.nudPingTimeoutRedLineHeight.Location = new System.Drawing.Point(160, 257);
-			this.nudPingTimeoutRedLineHeight.Maximum = new decimal(new int[] {
-            10000,
-            0,
-            0,
-            0});
-			this.nudPingTimeoutRedLineHeight.Minimum = new decimal(new int[] {
-            1,
-            0,
-            0,
-            0});
-			this.nudPingTimeoutRedLineHeight.Name = "nudPingTimeoutRedLineHeight";
-			this.nudPingTimeoutRedLineHeight.Size = new System.Drawing.Size(64, 20);
-			this.nudPingTimeoutRedLineHeight.TabIndex = 21;
-			this.toolTip1.SetToolTip(this.nudPingTimeoutRedLineHeight, "When a ping times out (gets no response), a red line is drawn \r\nup to this many p" +
-        "ixels tall in the graph. You can reduce this \r\nvalue to shrink the line that is " +
-        "drawn.");
-			this.nudPingTimeoutRedLineHeight.Value = new decimal(new int[] {
-            10000,
-            0,
-            0,
-            0});
-			this.nudPingTimeoutRedLineHeight.ValueChanged += new System.EventHandler(this.nudPingTimeoutRedLineHeight_ValueChanged);
+			nudPingTimeoutRedLineHeight.Location = new System.Drawing.Point(176, 257);
+			nudPingTimeoutRedLineHeight.Maximum = new decimal(new int[] { 10000, 0, 0, 0 });
+			nudPingTimeoutRedLineHeight.Minimum = new decimal(new int[] { 1, 0, 0, 0 });
+			nudPingTimeoutRedLineHeight.Name = "nudPingTimeoutRedLineHeight";
+			nudPingTimeoutRedLineHeight.Size = new System.Drawing.Size(64, 23);
+			nudPingTimeoutRedLineHeight.TabIndex = 21;
+			toolTip1.SetToolTip(nudPingTimeoutRedLineHeight, "When a ping times out (gets no response), a red line is drawn \r\nup to this many pixels tall in the graph. You can reduce this \r\nvalue to shrink the line that is drawn.");
+			nudPingTimeoutRedLineHeight.Value = new decimal(new int[] { 10000, 0, 0, 0 });
+			nudPingTimeoutRedLineHeight.ValueChanged += nudPingTimeoutRedLineHeight_ValueChanged;
 			// 
 			// label6
 			// 
-			this.label6.AutoSize = true;
-			this.label6.Location = new System.Drawing.Point(12, 259);
-			this.label6.Name = "label6";
-			this.label6.Size = new System.Drawing.Size(137, 13);
-			this.label6.TabIndex = 22;
-			this.label6.Text = "Ping timeout red line height:";
-			this.toolTip1.SetToolTip(this.label6, "When a ping times out (gets no response), a red line is drawn \r\nup to this many p" +
-        "ixels tall in the graph. You can reduce this \r\nvalue to shrink the line that is " +
-        "drawn.");
+			label6.AutoSize = true;
+			label6.Location = new System.Drawing.Point(12, 259);
+			label6.Name = "label6";
+			label6.Size = new System.Drawing.Size(158, 15);
+			label6.TabIndex = 22;
+			label6.Text = "Ping timeout red line height:";
+			toolTip1.SetToolTip(label6, "When a ping times out (gets no response), a red line is drawn \r\nup to this many pixels tall in the graph. You can reduce this \r\nvalue to shrink the line that is drawn.");
 			// 
 			// label7
 			// 
-			this.label7.AutoSize = true;
-			this.label7.Location = new System.Drawing.Point(232, 259);
-			this.label7.Name = "label7";
-			this.label7.Size = new System.Drawing.Size(39, 13);
-			this.label7.TabIndex = 23;
-			this.label7.Text = "(pixels)";
-			this.toolTip1.SetToolTip(this.label7, "When a ping times out (gets no response), a red line is drawn \r\nup to this many p" +
-        "ixels tall in the graph. You can reduce this \r\nvalue to shrink the line that is " +
-        "drawn.");
+			label7.AutoSize = true;
+			label7.Location = new System.Drawing.Point(246, 259);
+			label7.Name = "label7";
+			label7.Size = new System.Drawing.Size(44, 15);
+			label7.TabIndex = 23;
+			label7.Text = "(pixels)";
+			toolTip1.SetToolTip(label7, "When a ping times out (gets no response), a red line is drawn \r\nup to this many pixels tall in the graph. You can reduce this \r\nvalue to shrink the line that is drawn.");
 			// 
 			// label4
 			// 
-			this.label4.AutoSize = true;
-			this.label4.Location = new System.Drawing.Point(12, 234);
-			this.label4.Name = "label4";
-			this.label4.Size = new System.Drawing.Size(142, 13);
-			this.label4.TabIndex = 16;
-			this.label4.Text = "Custom Time String for Logs:";
+			label4.AutoSize = true;
+			label4.Location = new System.Drawing.Point(12, 234);
+			label4.Name = "label4";
+			label4.Size = new System.Drawing.Size(162, 15);
+			label4.TabIndex = 16;
+			label4.Text = "Custom Time String for Logs:";
 			// 
 			// txtCustomTimeString
 			// 
-			this.txtCustomTimeString.Location = new System.Drawing.Point(160, 231);
-			this.txtCustomTimeString.Name = "txtCustomTimeString";
-			this.txtCustomTimeString.Size = new System.Drawing.Size(147, 20);
-			this.txtCustomTimeString.TabIndex = 17;
-			this.txtCustomTimeString.TextChanged += new System.EventHandler(this.txtCustomTimeStringGraphs_TextChanged);
+			txtCustomTimeString.Location = new System.Drawing.Point(180, 231);
+			txtCustomTimeString.Name = "txtCustomTimeString";
+			txtCustomTimeString.Size = new System.Drawing.Size(147, 23);
+			txtCustomTimeString.TabIndex = 17;
+			txtCustomTimeString.TextChanged += txtCustomTimeStringGraphs_TextChanged;
 			// 
 			// customTimeStringHelp
 			// 
-			this.customTimeStringHelp.AutoSize = true;
-			this.customTimeStringHelp.Location = new System.Drawing.Point(313, 234);
-			this.customTimeStringHelp.Name = "customTimeStringHelp";
-			this.customTimeStringHelp.Size = new System.Drawing.Size(33, 13);
-			this.customTimeStringHelp.TabIndex = 18;
-			this.customTimeStringHelp.TabStop = true;
-			this.customTimeStringHelp.Text = "(help)";
-			this.customTimeStringHelp.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.customTimeStringHelp_LinkClicked);
+			customTimeStringHelp.AutoSize = true;
+			customTimeStringHelp.Location = new System.Drawing.Point(333, 234);
+			customTimeStringHelp.Name = "customTimeStringHelp";
+			customTimeStringHelp.Size = new System.Drawing.Size(38, 15);
+			customTimeStringHelp.TabIndex = 18;
+			customTimeStringHelp.TabStop = true;
+			customTimeStringHelp.Text = "(help)";
+			customTimeStringHelp.LinkClicked += customTimeStringHelp_LinkClicked;
 			// 
 			// panel1
 			// 
-			this.panel1.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-			this.panel1.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-			this.panel1.Location = new System.Drawing.Point(228, 42);
-			this.panel1.Name = "panel1";
-			this.panel1.Size = new System.Drawing.Size(53, 49);
-			this.panel1.TabIndex = 19;
+			panel1.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+			panel1.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+			panel1.Location = new System.Drawing.Point(244, 67);
+			panel1.Name = "panel1";
+			panel1.Size = new System.Drawing.Size(53, 49);
+			panel1.TabIndex = 19;
 			// 
 			// groupBoxFormMargins
 			// 
-			this.groupBoxFormMargins.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-			this.groupBoxFormMargins.Controls.Add(this.nudBottomMargin);
-			this.groupBoxFormMargins.Controls.Add(this.nudRightMargin);
-			this.groupBoxFormMargins.Controls.Add(this.nudLeftMargin);
-			this.groupBoxFormMargins.Controls.Add(this.nudTopMargin);
-			this.groupBoxFormMargins.Controls.Add(this.label5);
-			this.groupBoxFormMargins.Controls.Add(this.panel1);
-			this.groupBoxFormMargins.Location = new System.Drawing.Point(12, 277);
-			this.groupBoxFormMargins.Name = "groupBoxFormMargins";
-			this.groupBoxFormMargins.Size = new System.Drawing.Size(346, 131);
-			this.groupBoxFormMargins.TabIndex = 20;
-			this.groupBoxFormMargins.TabStop = false;
-			this.groupBoxFormMargins.Text = "Window Margins";
+			groupBoxFormMargins.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+			groupBoxFormMargins.Controls.Add(nudBottomMargin);
+			groupBoxFormMargins.Controls.Add(nudRightMargin);
+			groupBoxFormMargins.Controls.Add(nudLeftMargin);
+			groupBoxFormMargins.Controls.Add(nudTopMargin);
+			groupBoxFormMargins.Controls.Add(label5);
+			groupBoxFormMargins.Controls.Add(panel1);
+			groupBoxFormMargins.Location = new System.Drawing.Point(12, 294);
+			groupBoxFormMargins.Name = "groupBoxFormMargins";
+			groupBoxFormMargins.Size = new System.Drawing.Size(362, 151);
+			groupBoxFormMargins.TabIndex = 20;
+			groupBoxFormMargins.TabStop = false;
+			groupBoxFormMargins.Text = "Window Margins";
 			// 
 			// nudBottomMargin
 			// 
-			this.nudBottomMargin.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-			this.nudBottomMargin.Location = new System.Drawing.Point(228, 97);
-			this.nudBottomMargin.Maximum = new decimal(new int[] {
-            30,
-            0,
-            0,
-            0});
-			this.nudBottomMargin.Minimum = new decimal(new int[] {
-            30,
-            0,
-            0,
-            -2147483648});
-			this.nudBottomMargin.Name = "nudBottomMargin";
-			this.nudBottomMargin.Size = new System.Drawing.Size(53, 20);
-			this.nudBottomMargin.TabIndex = 24;
-			this.nudBottomMargin.ValueChanged += new System.EventHandler(this.nudBottomMargin_ValueChanged);
+			nudBottomMargin.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+			nudBottomMargin.Location = new System.Drawing.Point(244, 122);
+			nudBottomMargin.Maximum = new decimal(new int[] { 30, 0, 0, 0 });
+			nudBottomMargin.Minimum = new decimal(new int[] { 30, 0, 0, int.MinValue });
+			nudBottomMargin.Name = "nudBottomMargin";
+			nudBottomMargin.Size = new System.Drawing.Size(53, 23);
+			nudBottomMargin.TabIndex = 24;
+			nudBottomMargin.ValueChanged += nudBottomMargin_ValueChanged;
 			// 
 			// nudRightMargin
 			// 
-			this.nudRightMargin.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-			this.nudRightMargin.Location = new System.Drawing.Point(287, 56);
-			this.nudRightMargin.Maximum = new decimal(new int[] {
-            30,
-            0,
-            0,
-            0});
-			this.nudRightMargin.Minimum = new decimal(new int[] {
-            30,
-            0,
-            0,
-            -2147483648});
-			this.nudRightMargin.Name = "nudRightMargin";
-			this.nudRightMargin.Size = new System.Drawing.Size(53, 20);
-			this.nudRightMargin.TabIndex = 23;
-			this.nudRightMargin.ValueChanged += new System.EventHandler(this.nudRightMargin_ValueChanged);
+			nudRightMargin.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+			nudRightMargin.Location = new System.Drawing.Point(303, 81);
+			nudRightMargin.Maximum = new decimal(new int[] { 30, 0, 0, 0 });
+			nudRightMargin.Minimum = new decimal(new int[] { 30, 0, 0, int.MinValue });
+			nudRightMargin.Name = "nudRightMargin";
+			nudRightMargin.Size = new System.Drawing.Size(53, 23);
+			nudRightMargin.TabIndex = 23;
+			nudRightMargin.ValueChanged += nudRightMargin_ValueChanged;
 			// 
 			// nudLeftMargin
 			// 
-			this.nudLeftMargin.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-			this.nudLeftMargin.Location = new System.Drawing.Point(169, 56);
-			this.nudLeftMargin.Maximum = new decimal(new int[] {
-            30,
-            0,
-            0,
-            0});
-			this.nudLeftMargin.Minimum = new decimal(new int[] {
-            30,
-            0,
-            0,
-            -2147483648});
-			this.nudLeftMargin.Name = "nudLeftMargin";
-			this.nudLeftMargin.Size = new System.Drawing.Size(53, 20);
-			this.nudLeftMargin.TabIndex = 22;
-			this.nudLeftMargin.ValueChanged += new System.EventHandler(this.nudLeftMargin_ValueChanged);
+			nudLeftMargin.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+			nudLeftMargin.Location = new System.Drawing.Point(185, 81);
+			nudLeftMargin.Maximum = new decimal(new int[] { 30, 0, 0, 0 });
+			nudLeftMargin.Minimum = new decimal(new int[] { 30, 0, 0, int.MinValue });
+			nudLeftMargin.Name = "nudLeftMargin";
+			nudLeftMargin.Size = new System.Drawing.Size(53, 23);
+			nudLeftMargin.TabIndex = 22;
+			nudLeftMargin.ValueChanged += nudLeftMargin_ValueChanged;
 			// 
 			// nudTopMargin
 			// 
-			this.nudTopMargin.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-			this.nudTopMargin.Location = new System.Drawing.Point(228, 16);
-			this.nudTopMargin.Maximum = new decimal(new int[] {
-            30,
-            0,
-            0,
-            0});
-			this.nudTopMargin.Minimum = new decimal(new int[] {
-            30,
-            0,
-            0,
-            -2147483648});
-			this.nudTopMargin.Name = "nudTopMargin";
-			this.nudTopMargin.Size = new System.Drawing.Size(53, 20);
-			this.nudTopMargin.TabIndex = 21;
-			this.nudTopMargin.ValueChanged += new System.EventHandler(this.nudTopMargin_ValueChanged);
+			nudTopMargin.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+			nudTopMargin.Location = new System.Drawing.Point(244, 41);
+			nudTopMargin.Maximum = new decimal(new int[] { 30, 0, 0, 0 });
+			nudTopMargin.Minimum = new decimal(new int[] { 30, 0, 0, int.MinValue });
+			nudTopMargin.Name = "nudTopMargin";
+			nudTopMargin.Size = new System.Drawing.Size(53, 23);
+			nudTopMargin.TabIndex = 21;
+			nudTopMargin.ValueChanged += nudTopMargin_ValueChanged;
 			// 
 			// label5
 			// 
-			this.label5.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-			this.label5.Location = new System.Drawing.Point(6, 18);
-			this.label5.Name = "label5";
-			this.label5.Size = new System.Drawing.Size(157, 110);
-			this.label5.TabIndex = 20;
-			this.label5.Text = "When maximizing the ping graphs, they may appear larger or smaller than the regul" +
-    "ar program window.  To correct this, the following margins will be subtracted fr" +
-    "om the maximized graph view.";
+			label5.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+			label5.Location = new System.Drawing.Point(6, 28);
+			label5.Name = "label5";
+			label5.Size = new System.Drawing.Size(173, 120);
+			label5.TabIndex = 20;
+			label5.Text = "When maximizing the ping graphs, they may appear larger or smaller than the regular program window.  To correct this, the following margins will be subtracted from the maximized graph view.";
 			// 
 			// OptionsForm
 			// 
-			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
-			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-			this.ClientSize = new System.Drawing.Size(370, 415);
-			this.Controls.Add(this.label7);
-			this.Controls.Add(this.nudPingTimeoutRedLineHeight);
-			this.Controls.Add(this.label6);
-			this.Controls.Add(this.groupBoxFormMargins);
-			this.Controls.Add(this.customTimeStringHelp);
-			this.Controls.Add(this.txtCustomTimeString);
-			this.Controls.Add(this.label4);
-			this.Controls.Add(this.cbShowDateInCorner);
-			this.Controls.Add(this.nudGraphScrollMultiplier);
-			this.Controls.Add(this.label3);
-			this.Controls.Add(this.cbFastRefreshScrollingGraphs);
-			this.Controls.Add(this.label2);
-			this.Controls.Add(this.nudPingResponsesToCache);
-			this.Controls.Add(this.label1);
-			this.Controls.Add(this.cbWarnGraphNotLive);
-			this.Controls.Add(this.cbDelayMostRecentPing);
-			this.Controls.Add(this.cbLogToFile);
-			this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
-			this.Name = "OptionsForm";
-			this.Text = "Options - PingTracer";
-			((System.ComponentModel.ISupportInitialize)(this.nudPingResponsesToCache)).EndInit();
-			((System.ComponentModel.ISupportInitialize)(this.nudGraphScrollMultiplier)).EndInit();
-			((System.ComponentModel.ISupportInitialize)(this.nudPingTimeoutRedLineHeight)).EndInit();
-			this.groupBoxFormMargins.ResumeLayout(false);
-			((System.ComponentModel.ISupportInitialize)(this.nudBottomMargin)).EndInit();
-			((System.ComponentModel.ISupportInitialize)(this.nudRightMargin)).EndInit();
-			((System.ComponentModel.ISupportInitialize)(this.nudLeftMargin)).EndInit();
-			((System.ComponentModel.ISupportInitialize)(this.nudTopMargin)).EndInit();
-			this.ResumeLayout(false);
-			this.PerformLayout();
+			AutoScaleDimensions = new System.Drawing.SizeF(96F, 96F);
+			AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi;
+			ClientSize = new System.Drawing.Size(386, 452);
+			Controls.Add(label7);
+			Controls.Add(nudPingTimeoutRedLineHeight);
+			Controls.Add(label6);
+			Controls.Add(groupBoxFormMargins);
+			Controls.Add(customTimeStringHelp);
+			Controls.Add(txtCustomTimeString);
+			Controls.Add(label4);
+			Controls.Add(cbShowDateInCorner);
+			Controls.Add(nudGraphScrollMultiplier);
+			Controls.Add(label3);
+			Controls.Add(cbFastRefreshScrollingGraphs);
+			Controls.Add(label2);
+			Controls.Add(nudPingResponsesToCache);
+			Controls.Add(label1);
+			Controls.Add(cbWarnGraphNotLive);
+			Controls.Add(cbDelayMostRecentPing);
+			Controls.Add(cbLogToFile);
+			FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
+			Icon = (System.Drawing.Icon)resources.GetObject("$this.Icon");
+			Name = "OptionsForm";
+			Text = "Options - PingTracer";
+			((System.ComponentModel.ISupportInitialize)nudPingResponsesToCache).EndInit();
+			((System.ComponentModel.ISupportInitialize)nudGraphScrollMultiplier).EndInit();
+			((System.ComponentModel.ISupportInitialize)nudPingTimeoutRedLineHeight).EndInit();
+			groupBoxFormMargins.ResumeLayout(false);
+			((System.ComponentModel.ISupportInitialize)nudBottomMargin).EndInit();
+			((System.ComponentModel.ISupportInitialize)nudRightMargin).EndInit();
+			((System.ComponentModel.ISupportInitialize)nudLeftMargin).EndInit();
+			((System.ComponentModel.ISupportInitialize)nudTopMargin).EndInit();
+			ResumeLayout(false);
+			PerformLayout();
 
 		}
 

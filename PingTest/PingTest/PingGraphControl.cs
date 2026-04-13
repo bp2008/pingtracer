@@ -33,7 +33,13 @@ namespace PingTracer
 		public static Brush brushTimestampsText = new SolidBrush(Color.FromArgb(200, 200, 200));
 		public static Pen penTimestampsMark = new Pen(Color.FromArgb(128, 128, 128), 1);
 		public static Pen penTimestampsBorder = new Pen(Color.FromArgb(128, 128, 128), 1);
-		public static Font textFont = new Font(FontFamily.GenericSansSerif, 8.25f);
+		private const float textFontBaseSize = 8.25f;
+		public static Font textFont = new Font(FontFamily.GenericSansSerif, textFontBaseSize);
+		/// <summary>
+		/// A DPI-scaled font used for drawing text on the graph. Initialized during construction
+		/// and updated when the monitor DPI changes.
+		/// </summary>
+		private Font scaledTextFont;
 		/// <summary>
 		/// Text that is displayed in the upper left corner of the graph.
 		/// </summary>
@@ -146,6 +152,7 @@ namespace PingTracer
 			else
 				ConsumeHostName(hostName);
 			InitializeComponent();
+			UpdateDpiScaledResources();
 		}
 
 		private void LookupHostname(object arg)
@@ -207,13 +214,31 @@ namespace PingTracer
 			this.Invalidate();
 		}
 
-		int timestampsHeight = 13;
+		private int timestampsHeight = 13;
 		public int TimestampsHeight
 		{
 			get
 			{
 				return timestampsHeight;
 			}
+		}
+
+		/// <summary>
+		/// Recomputes the DPI-scaled font and timestamps height based on the current DPI.
+		/// </summary>
+		private void UpdateDpiScaledResources()
+		{
+			float dpiScale = DeviceDpi / 96f;
+			scaledTextFont?.Dispose();
+			scaledTextFont = new Font(FontFamily.GenericSansSerif, textFontBaseSize * dpiScale, GraphicsUnit.Point);
+			timestampsHeight = (int)Math.Ceiling(scaledTextFont.GetHeight(DeviceDpi));
+		}
+
+		protected override void OnDpiChangedAfterParent(EventArgs e)
+		{
+			base.OnDpiChangedAfterParent(e);
+			UpdateDpiScaledResources();
+			Invalidate();
 		}
 		private bool isInvalidatedSync = false;
 		/// <summary>
@@ -430,9 +455,10 @@ namespace PingTracer
 								e.Graphics.DrawLine(penTimestampsMark, pTimestampMarkStart, pTimestampMarkEnd);
 
 							string stamp = p.startTime.ToString("t");
-							SizeF strSize = e.Graphics.MeasureString(stamp, textFont);
+							Font drawFont = scaledTextFont ?? textFont;
+							SizeF strSize = e.Graphics.MeasureString(stamp, drawFont);
 							e.Graphics.FillRectangle(brushBackgroundTimestamps, new Rectangle(pTimestampMarkStart.X + 1, pTimestampMarkStart.Y, (int)strSize.Width - 1, (int)timestampsHeight - 1));
-							e.Graphics.DrawString(stamp, textFont, brushTimestampsText, pTimestampMarkStart.X, pTimestampMarkStart.Y - 1);
+							e.Graphics.DrawString(stamp, drawFont, brushTimestampsText, pTimestampMarkStart.X, pTimestampMarkStart.Y - 1);
 
 							lastStampedMinute = p.startTime.Minute;
 						}
@@ -454,20 +480,22 @@ namespace PingTracer
 
 			if (timelineOverlayString.Length > 0)
 			{
-				SizeF strSize = e.Graphics.MeasureString(timelineOverlayString, textFont);
+				Font drawFont = scaledTextFont ?? textFont;
+				SizeF strSize = e.Graphics.MeasureString(timelineOverlayString, drawFont);
 				e.Graphics.FillRectangle(brushBackgroundTimestamps, new Rectangle(0, pTimestampMarkStart.Y, (int)strSize.Width - 1, (int)timestampsHeight - 1));
-				e.Graphics.DrawString(timelineOverlayString, textFont, brushTimestampsText, 0, pTimestampMarkStart.Y - 1);
+				e.Graphics.DrawString(timelineOverlayString, drawFont, brushTimestampsText, 0, pTimestampMarkStart.Y - 1);
 			}
 
 			if (DrawLimitText)
 			{
+				Font drawFont = scaledTextFont ?? textFont;
 				// Add lower and upper limit labels on the right side
 				string lowerLimitLabel = lowerLimitDraw.ToString();
 				string upperLimitLabel = upperLimitDraw.ToString();
-				SizeF lowerLimitSize = e.Graphics.MeasureString(lowerLimitLabel, textFont);
-				SizeF upperLimitSize = e.Graphics.MeasureString(upperLimitLabel, textFont);
-				e.Graphics.DrawString(lowerLimitLabel, textFont, brushText, this.Width - lowerLimitSize.Width, height - lowerLimitSize.Height);
-				e.Graphics.DrawString(upperLimitLabel, textFont, brushText, this.Width - upperLimitSize.Width, 0);
+				SizeF lowerLimitSize = e.Graphics.MeasureString(lowerLimitLabel, drawFont);
+				SizeF upperLimitSize = e.Graphics.MeasureString(upperLimitLabel, drawFont);
+				e.Graphics.DrawString(lowerLimitLabel, drawFont, brushText, this.Width - lowerLimitSize.Width, height - lowerLimitSize.Height);
+				e.Graphics.DrawString(upperLimitLabel, drawFont, brushText, this.Width - upperLimitSize.Width, 0);
 			}
 
 			string statusStr = "";
@@ -503,7 +531,10 @@ namespace PingTracer
 			else if (AlwaysShowServerNames && !string.IsNullOrEmpty(DisplayName))
 				statusStr += DisplayName + " ";
 
-			e.Graphics.DrawString(statusStr, textFont, brushText, 1, 1);
+			{
+				Font drawFont = scaledTextFont ?? textFont;
+				e.Graphics.DrawString(statusStr, drawFont, brushText, 1, 1);
+			}
 			//SizeF measuredSize = e.Graphics.MeasureString(statusStr, textFont);
 			//e.Graphics.DrawString(statusStr, textFont, brushText, (this.Width - measuredSize.Width) - 15, 1);
 		}

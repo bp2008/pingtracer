@@ -284,8 +284,8 @@ namespace PingTracer
 			// 
 			// MainForm
 			// 
-			AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
-			AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+			AutoScaleDimensions = new System.Drawing.SizeF(96F, 96F);
+			AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi;
 			ClientSize = new System.Drawing.Size(682, 392);
 			Controls.Add(btnStart);
 			Controls.Add(btnEdit);

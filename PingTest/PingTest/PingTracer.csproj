@@ -10,16 +10,11 @@
 		<Version>2.1.0.0</Version>
 		<Copyright>Copyright Brian Pearce 2026</Copyright>
 		<Product>PingTracer</Product>
-		<ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
 		<ForceDesignerDpiUnaware>true</ForceDesignerDpiUnaware>
 
 		<!--<PublishSingleFile>true</PublishSingleFile>
 		<SelfContained>false</SelfContained>-->
 		<DebugType>embedded</DebugType>
 	</PropertyGroup>
-
-	<ItemGroup>
-		<None Include="PingTest.csproj" />
-	</ItemGroup>
 
 </Project>
