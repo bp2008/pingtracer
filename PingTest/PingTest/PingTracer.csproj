@@ -18,8 +18,11 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+	  <Compile Remove="pingtracer-web\dist\**" />
 	  <Compile Remove="pingtracer-web\node_modules\**" />
+	  <EmbeddedResource Remove="pingtracer-web\dist\**" />
 	  <EmbeddedResource Remove="pingtracer-web\node_modules\**" />
+	  <None Remove="pingtracer-web\dist\**" />
 	  <None Remove="pingtracer-web\node_modules\**" />
 	</ItemGroup>
 

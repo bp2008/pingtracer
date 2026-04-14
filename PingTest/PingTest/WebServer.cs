@@ -74,7 +74,6 @@ namespace PingTracer
 					#endregion
 				}
 			}
-			p.Response.Simple("200 OK", "Web Server Online");
 		}
 
 		protected override void stopServer()

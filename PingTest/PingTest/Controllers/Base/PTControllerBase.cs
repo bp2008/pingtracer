@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace PingTracer.Controllers
 {
@@ -34,45 +35,36 @@ namespace PingTracer.Controllers
 		/// <typeparam name="T">Type of object to parse into.</typeparam>
 		/// <param name="cancellationToken">Cancellation Token</param>
 		/// <returns></returns>
-		public Task<T> ParseRequest<T>(CancellationToken cancellationToken = default)
+		protected Task<T> ParseRequest<T>(CancellationToken cancellationToken = default)
 		{
 			return ApiRequest.ParseRequest<T>(this, cancellationToken);
 		}
 		/// <summary>
-		/// Returns a JsonResult containing an <see cref="ApiResponseBase"/> that indicates failure and includes the specified error message.
+		/// Returns an ErrorResult containing the specified error message using HTTP status code 299 with the text "Graceful Error".  If you desire an actual error code to be used, call <see cref="Controller.Error(string, string)"/>.
 		/// </summary>
 		/// <param name="errorMessage">The error message to show to the user.</param>
 		/// <returns></returns>
-		public JsonResult ApiError(string errorMessage)
+		protected ErrorResult ApiError(string errorMessage)
 		{
-			return new JsonResult(new ApiResponseBase(false, errorMessage)) { ResponseStatus = "418 Error But Prevent Autocomplete" };
+			return Error(errorMessage, "299 Graceful Error"); // Prevents browser console spam by not using an error status code like 418 or 500.
 		}
 		/// <summary>
-		/// Returns a JsonResult containing an <see cref="ApiResponseBase"/> that indicates failure and includes the specified error message. This result specifies that a non-2xx HTTP response status code should be used in order to prevent autocomplete.
+		/// Returns a JsonResult containing the specified object. This result specifies that a non-2xx HTTP response status code should be used in order to prevent autocomplete.  Use only for API methods that have been known to trigger autocomplete in an unwanted manner.
 		/// </summary>
 		/// <param name="obj">Result object that should be serialized as JSON.</param>
 		/// <returns></returns>
-		public JsonResult ApiSuccessNoAutocomplete(ApiResponseBase obj)
+		protected JsonResult Json418(object obj)
 		{
 			return new JsonResult(obj) { ResponseStatus = "418 Success But Prevent Autocomplete" };
 		}
 		/// <summary>
-		/// Returns a JsonResult containing an <see cref="ApiResponseBase"/> that indicates failure and includes the specified error message.
-		/// </summary>
-		/// <param name="errorMessage">The error message to show to the user.</param>
-		/// <returns></returns>
-		public Task<ActionResult> ApiErrorTask(string errorMessage)
-		{
-			return Task.FromResult<ActionResult>(ApiError(errorMessage));
-		}
-		/// <summary>
-		/// Returns a JsonResult containing an <see cref="ApiResponseBase"/> that indicates failure and includes the specified error message. This result specifies that a non-2xx HTTP response status code should be used in order to prevent autocomplete.
+		/// Returns a JsonResult containing the specified object. This result specifies that a non-2xx HTTP response status code should be used in order to prevent autocomplete.  Use only for API methods that have been known to trigger autocomplete in an unwanted manner.
 		/// </summary>
 		/// <param name="obj">Result object that should be serialized as JSON.</param>
 		/// <returns></returns>
-		public Task<ActionResult> ApiSuccessNoAutocompleteTask(ApiResponseBase obj)
+		protected Task<ActionResult> Json418Task(object obj)
 		{
-			return Task.FromResult<ActionResult>(ApiSuccessNoAutocomplete(obj));
+			return Task.FromResult<ActionResult>(Json(obj));
 		}
 	}
 }
