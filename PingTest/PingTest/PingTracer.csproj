@@ -37,4 +37,12 @@
 	  <Folder Include="www\" />
 	</ItemGroup>
 
+	<ItemGroup>
+	  <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+	</ItemGroup>
+
+	<Target Name="PostBuild" AfterTargets="PostBuildEvent">
+	  <Exec Command="echo SolutionDir = $(SolutionDir)&#xD;&#xA;echo SolutionName = $(SolutionName)&#xD;&#xA;echo SolutionFileName = $(SolutionFileName)&#xD;&#xA;echo SolutionPath = $(SolutionPath)&#xD;&#xA;echo OutDir: $(OutDir)&#xD;&#xA;echo ProjectDir = $(ProjectDir)&#xD;&#xA;echo ProjectName = $(ProjectName)&#xD;&#xA;echo ProjectFileName = $(ProjectFileName)&#xD;&#xA;echo ProjectPath = $(ProjectPath)&#xD;&#xA;echo TargetDir = $(TargetDir)&#xD;&#xA;echo TargetName = $(TargetName)&#xD;&#xA;echo TargetFileName = $(TargetFileName)&#xD;&#xA;echo TargetPath = $(TargetPath)&#xD;&#xA;&#xD;&#xA;echo Building admin console with vite&#xD;&#xA;cd &quot;$(ProjectDir)pingtracer-web&quot;&#xD;&#xA;call npm run-script build&#xD;&#xA;echo cd &quot;$(ProjectDir)&quot;&#xD;&#xA;&#xD;&#xA;echo Deploying dist to &quot;$(TargetDir)www&quot;&#xD;&#xA;rmdir /S /Q &quot;$(TargetDir)www&quot;&#xD;&#xA;xcopy &quot;$(ProjectDir)pingtracer-web\dist&quot; &quot;$(TargetDir)www&quot; /E /C /R /Y /I" />
+	</Target>
+
 </Project>
