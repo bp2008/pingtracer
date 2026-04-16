@@ -1,8 +1,10 @@
 ﻿using BPUtil;
 using BPUtil.MVC;
 using BPUtil.SimpleHttp;
+using BPUtil.SimpleHttp.WebSockets;
 using Newtonsoft.Json;
 using PingTracer.Controllers;
+using PingTracer.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -18,8 +20,10 @@ namespace PingTracer
 		MVCMain mvcMain;
 		ViteProxy viteProxy = null;
 		public static string projectDirPath { get; private set; } = "";
-		public WebServer() : base(CreateCertificateSelector())
+		public PingWebSocketHandler PingWsHandler { get; private set; }
+		public WebServer(Settings settings) : base(CreateCertificateSelector())
 		{
+			PingWsHandler = new PingWebSocketHandler(settings);
 			MVCGlobals.RemoteClientsMaySeeExceptionDetails = true;
 			MvcJson.DeserializeObject = JsonConvert.DeserializeObject;
 			MvcJson.SerializeObject = JsonConvert.SerializeObject;
@@ -48,6 +52,13 @@ namespace PingTracer
 		}
 		public override async Task handleRequest(HttpProcessor p, string method, CancellationToken cancellationToken = default)
 		{
+			// Handle WebSocket upgrade requests
+			if (WebSocket.IsWebSocketRequest(p) && p.Request.Page.Equals("ws", StringComparison.OrdinalIgnoreCase))
+			{
+				PingWsHandler.HandleConnection(p);
+				return;
+			}
+
 			if (!await mvcMain.ProcessRequestAsync(p, cancellationToken: cancellationToken).ConfigureAwait(false))
 			{
 				if (viteProxy != null)

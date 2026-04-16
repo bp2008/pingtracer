@@ -15,7 +15,10 @@ namespace PingTracer
 		[STAThread]
 		static void Main(string[] args)
 		{
-			webServer = new WebServer();
+			Settings settings = new Settings();
+			settings.Load();
+
+			webServer = new WebServer(settings);
 			webServer.SetBindings(8010, 8010);
 
 			Application.SetHighDpiMode(HighDpiMode.DpiUnawareGdiScaled);

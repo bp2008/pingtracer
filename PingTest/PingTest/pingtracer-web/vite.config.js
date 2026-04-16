@@ -11,7 +11,14 @@ export default defineConfig({
 		vueDevTools(),
 	],
 	server: {
-		allowedHosts: ['localhost']
+		allowedHosts: ['localhost'],
+		proxy: {
+			'/ws': {
+				target: 'https://localhost:8010',
+				ws: true,
+				secure: false,
+			},
+		},
 	},
 	resolve: {
 		alias: {
