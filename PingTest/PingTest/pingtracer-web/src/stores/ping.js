@@ -84,6 +84,76 @@ export const usePingStore = defineStore('ping', () =>
 			isRunning.value = true;
 			targets.value = [];
 			pingData.value = {};
+
+			// --- TEMPORARY: generate 1 hour of simulated ping data at 10 pings/sec ---
+			const SIM_DURATION_SEC = 3600;
+			const SIM_RATE = 10; // pings per second
+			const SIM_TOTAL = SIM_DURATION_SEC * SIM_RATE;
+			const SIM_TARGET_ID = '__sim__';
+
+			const simData = new Array(SIM_TOTAL);
+			const baseTime = Date.now() - SIM_DURATION_SEC * 1000;
+			const msPerPing = 1000 / SIM_RATE;
+
+			// State machine for realistic ping simulation
+			let baseLatency = 15 + Math.random() * 10; // 15-25ms base
+			let jitter = 0;
+			let inBurst = false;
+			let burstRemaining = 0;
+			let burstSeverity = 0;
+
+			for (let i = 0; i < SIM_TOTAL; i++)
+			{
+				const t = baseTime + i * msPerPing;
+
+				// Slowly drift baseline
+				if (i % 1000 === 0)
+					baseLatency = 12 + Math.random() * 20;
+
+				// Start a burst of outliers occasionally (~0.3% chance per ping)
+				if (!inBurst && Math.random() < 0.003)
+				{
+					inBurst = true;
+					burstRemaining = 1 + Math.floor(Math.random() * 5); // 1-5 adjacent outliers
+					burstSeverity = Math.random(); // 0-1 controls how bad
+				}
+
+				if (inBurst)
+				{
+					burstRemaining--;
+					if (burstRemaining <= 0) inBurst = false;
+
+					// Packet loss in severe bursts (~30% of burst pings when severity > 0.7)
+					if (burstSeverity > 0.7 && Math.random() < 0.3)
+					{
+						simData[i] = { t, ms: 0, s: 11010 }; // TimedOut
+						continue;
+					}
+
+					// Spike: 80-800ms depending on severity
+					const spike = 80 + burstSeverity * 700 + Math.random() * 50;
+					simData[i] = { t, ms: Math.round(spike), s: 0 };
+					continue;
+				}
+
+				// Normal ping with small jitter (Gaussian-ish via sum of randoms)
+				jitter = (Math.random() + Math.random() + Math.random() - 1.5) * 4;
+				const ms = Math.max(1, Math.round(baseLatency + jitter));
+				simData[i] = { t, ms, s: 0 };
+			}
+
+			// Inject simulated target
+			const simExisting = targets.value.find(t => t.id === SIM_TARGET_ID);
+			if (!simExisting)
+			{
+				targets.value = [...targets.value, {
+					id: SIM_TARGET_ID,
+					displayName: 'Simulated Data (1hr @ 10/sec)',
+					address: '127.0.0.1'
+				}];
+			}
+			pingData.value[SIM_TARGET_ID] = simData;
+			// --- END TEMPORARY ---
 		});
 
 		pingTracerWS.on('stopped', () =>

@@ -138,10 +138,17 @@ export default {
 			const ppp = this.pixelsPerPing; // CSS pixels per ping
 			const totalPings = pings ? pings.length : 0;
 
-			// Maximum bars per physical pixel. With pixel-aligned rendering
-			// each bar occupies an integer number of physical pixels, so
-			// values above 1.0 offer diminishing returns.
+			// Maximum bars per physical pixel. Higher values produce
+			// smoother rendering when SNAP_TO_PHYSICAL_PIXELS is false
+			// by letting the canvas anti-alias overlapping sub-pixel bars.
+			// With pixel-snapping enabled, values above 1.0 have no benefit.
 			const MAX_DATA_POINTS_PER_PIXEL = 1.0;
+
+			// When true, bar x-coordinates and widths are snapped to exact
+			// physical pixel boundaries, eliminating sub-pixel anti-aliasing
+			// (consistent brightness). When false, bars use floating-point
+			// positions (smoother panning at the cost of brightness shimmer).
+			const SNAP_TO_PHYSICAL_PIXELS = false;
 
 			// How many pings are visible in the viewport?
 			const visiblePingCount = logicalW / ppp;
@@ -275,10 +282,7 @@ export default {
 				ctx.fillRect(0, graphHeight - scaledWorseLine, logicalW, scaledWorseLine - scaledBadLine);
 			}
 
-			// --- Draw bars with physical-pixel alignment ---
-			// Snapping bar coordinates to physical pixel boundaries
-			// eliminates sub-pixel anti-aliasing that causes brightness
-			// variation as bars slide across the canvas from frame to frame.
+			// --- Draw bars ---
 			const pixelSize = 1 / dpr; // one physical pixel in CSS units
 
 			const colorBuckets = {
@@ -298,10 +302,20 @@ export default {
 				const rawX = (absBucket * bucketSize - leftIdx) * ppp;
 				const rawXEnd = ((absBucket + 1) * bucketSize - leftIdx) * ppp;
 
-				// Snap to physical pixel boundaries
-				const x = Math.round(rawX * dpr) / dpr;
-				const xEnd = Math.round(rawXEnd * dpr) / dpr;
-				const w = Math.max(pixelSize, xEnd - x);
+				let x, w;
+				if (SNAP_TO_PHYSICAL_PIXELS)
+				{
+					// Snap to physical pixel boundaries for consistent brightness
+					x = Math.round(rawX * dpr) / dpr;
+					const xEnd = Math.round(rawXEnd * dpr) / dpr;
+					w = Math.max(pixelSize, xEnd - x);
+				}
+				else
+				{
+					// Floating-point positions — canvas anti-aliases for smooth panning
+					x = rawX;
+					w = Math.max(pixelSize, rawXEnd - rawX);
+				}
 
 				let color, barH;
 				if (bucketFail[b])
