@@ -105,7 +105,7 @@ export default {
 	props: {
 		config: { type: Object, default: null },
 	},
-	emits: ['save', 'delete', 'close'],
+	emits: ['save', 'delete', 'close', 'preview'],
 	data()
 	{
 		const defaults = {
@@ -148,6 +148,15 @@ export default {
 			if (this.form.pingsPerSecond)
 				return this.form.rate + '/sec';
 			return 'every ' + this.form.rate + 's';
+		}
+	},
+	watch: {
+		form: {
+			deep: true,
+			handler(val)
+			{
+				this.$emit('preview', { ...val });
+			}
 		}
 	},
 	methods: {

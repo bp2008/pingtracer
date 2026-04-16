@@ -137,7 +137,8 @@ namespace PingTracer.Services
 				status = currentStatus,
 				isRunning = currentSession?.IsRunning ?? false,
 				successfulPings = currentSession?.SuccessfulPings ?? 0,
-				failedPings = currentSession?.FailedPings ?? 0
+				failedPings = currentSession?.FailedPings ?? 0,
+				cacheSize = settings.cacheSize
 			}));
 
 			// Send current config details if one is selected
@@ -159,7 +160,8 @@ namespace PingTracer.Services
 						type = "targetAdded",
 						id = target.Id,
 						displayName = target.DisplayName,
-						address = target.Address.ToString()
+						address = target.Address.ToString(),
+						cacheSize = target.CacheSize
 					}));
 
 					// Send recent ping data for this target (send last N pings)
@@ -255,6 +257,9 @@ namespace PingTracer.Services
 						break;
 					case "deleteConfig":
 						HandleDeleteConfig(msg.Value<string>("guid"));
+						break;
+					case "setPingRate":
+						HandleSetPingRate(msg.Value<int>("rate"), msg.Value<bool>("pingsPerSecond"));
 						break;
 					case "requestPingData":
 						HandleRequestPingData(clientId, msg.Value<int>("targetId"), msg.Value<int>("count"), msg.Value<int>("offset"));
@@ -355,6 +360,14 @@ namespace PingTracer.Services
 			}
 		}
 
+		private void HandleSetPingRate(int rate, bool pingsPerSecond)
+		{
+			lock (sessionLock)
+			{
+				currentSession?.SetPingDelay(rate, pingsPerSecond);
+			}
+		}
+
 		private void HandleGetConfigurations(string clientId)
 		{
 			PingConfigurations allConfigs = new PingConfigurations();
@@ -445,6 +458,10 @@ namespace PingTracer.Services
 
 			// Refresh and broadcast updated configurations list
 			HandleGetConfigurations_Broadcast();
+
+			// Send updated config details so clients reflect changes
+			foreach (var client in clients.Values)
+				SendConfigDetails(client, cfg);
 
 			Broadcast(JsonConvert.SerializeObject(new
 			{
@@ -540,7 +557,8 @@ namespace PingTracer.Services
 				type = "targetAdded",
 				id = target.Id,
 				displayName = target.DisplayName,
-				address = target.Address.ToString()
+				address = target.Address.ToString(),
+				cacheSize = target.CacheSize
 			}));
 		}
 

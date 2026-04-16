@@ -4,6 +4,8 @@
 </template>
 
 <script>
+import { toRaw } from 'vue';
+
 const IPStatus_Success = 0;
 
 // Colors matching the WinForms PingGraphControl
@@ -15,43 +17,39 @@ const COLOR_FAILURE = '#ff0000';
 const COLOR_TEXT = '#ffffff';
 const COLOR_BG_BAD = '#232300';
 const COLOR_BG_WORSE = '#280000';
-const COLOR_TIMESTAMP_TEXT = '#c8c8c8';
-const COLOR_TIMESTAMP_MARK = '#808080';
-const COLOR_TIMESTAMP_BORDER = '#808080';
 
 const SCALING_CLASSIC = 0;
 const SCALING_ZOOM = 1;
 const SCALING_ZOOM_UNLIMITED = 2;
 const SCALING_FIXED = 3;
 
+// Sentinel value for "timeout" — treated as highest possible ms for aggregation
+const TIMEOUT_VALUE = 999999;
+
 export default {
 	name: 'PingGraph',
 	props: {
-		/** Array of ping data: [{ t: unixMs, ms: pingTime, s: ipStatus }, ...] */
 		pings: { type: Array, required: true },
-		/** Display name shown in upper-left */
 		displayName: { type: String, default: '' },
-		/** Whether this is the bottom graph (show timestamps) */
-		showTimestamps: { type: Boolean, default: false },
-		/** Config display options */
 		config: { type: Object, default: () => ({}) },
+		/** CSS pixels per ping (zoom level) */
+		pixelsPerPing: { type: Number, required: true },
+		/** Scroll offset in pings from the right (0 = live) */
+		scrollOffset: { type: Number, required: true },
+		isLive: { type: Boolean, default: false },
 	},
+	emits: ['wheel', 'dragStart'],
 	data()
 	{
 		return {
-			scrollXOffset: 0,
-			zoomLevel: 1, // 1 = 1 ping per pixel (default). >1 = zoomed out, <1 = zoomed in
 			mouseX: -1,
 			mouseY: -1,
-			isDragging: false,
-			dragStartX: 0,
-			dragStartScroll: 0,
 			resizeObserver: null,
 			animFrameId: null,
-			setLiveAtTime: 0,
 		};
 	},
 	computed: {
+		pingCount() { return this.pings.length; },
 		badThreshold() { return this.config?.badThreshold ?? 100; },
 		worseThreshold() { return this.config?.worseThreshold ?? 200; },
 		upperLimit() { return this.config?.upperLimit ?? 300; },
@@ -66,10 +64,9 @@ export default {
 		drawLimitText() { return this.config?.drawLimitText ?? false; },
 	},
 	watch: {
-		pings()
-		{
-			this.scheduleRender();
-		},
+		pingCount() { this.scheduleRender(); },
+		pixelsPerPing() { this.scheduleRender(); },
+		scrollOffset() { this.scheduleRender(); },
 		config: {
 			deep: true,
 			handler() { this.scheduleRender(); }
@@ -85,9 +82,6 @@ export default {
 		this.resizeObserver.observe(this.$refs.canvas);
 		this.updateCanvasSize();
 		this.scheduleRender();
-
-		document.addEventListener('mouseup', this.onMouseUp);
-		document.addEventListener('mousemove', this.onDocMouseMove);
 	},
 	beforeUnmount()
 	{
@@ -95,8 +89,6 @@ export default {
 			this.resizeObserver.disconnect();
 		if (this.animFrameId)
 			cancelAnimationFrame(this.animFrameId);
-		document.removeEventListener('mouseup', this.onMouseUp);
-		document.removeEventListener('mousemove', this.onDocMouseMove);
 	},
 	methods: {
 		updateCanvasSize()
@@ -125,10 +117,10 @@ export default {
 			if (!canvas) return;
 			const ctx = canvas.getContext('2d');
 			const dpr = window.devicePixelRatio || 1;
-			const W = canvas.width;
-			const H = canvas.height;
-			const logicalW = W / dpr;
-			const logicalH = H / dpr;
+			const physW = canvas.width;   // physical pixels
+			const physH = canvas.height;
+			const logicalW = physW / dpr; // CSS pixels
+			const logicalH = physH / dpr;
 
 			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
@@ -136,46 +128,103 @@ export default {
 			ctx.fillStyle = COLOR_BG;
 			ctx.fillRect(0, 0, logicalW, logicalH);
 
-			const timestampsHeight = this.showTimestamps ? 16 : 0;
-			const graphHeight = logicalH - timestampsHeight;
+			const graphHeight = logicalH;
 			if (graphHeight <= 0) return;
 
-			const pings = this.pings;
-			if (!pings || pings.length === 0) return;
+			// Use toRaw() to bypass Vue reactivity proxy overhead in the
+			// hot loop. Each proxy get-trap costs ~50-100ns; at 200K+
+			// visible pings the overhead alone can exceed a frame budget.
+			const pings = toRaw(this.pings);
+			const ppp = this.pixelsPerPing; // CSS pixels per ping
+			const totalPings = pings ? pings.length : 0;
 
-			// Calculate how many pings are visible at current zoom level
-			const visiblePings = Math.floor(logicalW * this.zoomLevel);
+			// Maximum bars per physical pixel. With pixel-aligned rendering
+			// each bar occupies an integer number of physical pixels, so
+			// values above 1.0 offer diminishing returns.
+			const MAX_DATA_POINTS_PER_PIXEL = 1.0;
 
-			// Calculate the viewport range in ping-index space
-			const totalPings = pings.length;
-			const scrollMax = Math.max(0, totalPings - visiblePings);
-			const clampedScroll = Math.min(Math.max(0, this.scrollXOffset), scrollMax);
+			// How many pings are visible in the viewport?
+			const visiblePingCount = logicalW / ppp;
 
-			// Determine the range of pings to display
-			const startIdx = Math.max(0, totalPings - visiblePings - clampedScroll);
-			const endIdx = Math.min(totalPings, startIdx + visiblePings);
-			const count = endIdx - startIdx;
+			// Viewport in ping-index space
+			const rightIdx = totalPings - this.scrollOffset;
+			const leftIdx = rightIdx - visiblePingCount;
 
-			if (count <= 0) return;
+			// Maximum number of drawable columns
+			const maxColumns = Math.ceil(physW * MAX_DATA_POINTS_PER_PIXEL);
 
-			// Calc stats over visible range
-			let min = Infinity, max = -Infinity, sum = 0, successCount = 0, last = 0;
-			for (let i = startIdx; i < endIdx; i++)
+			// --- Stable bucketing ---
+			// Bucket boundaries are aligned to absolute ping indices so the
+			// same pings always belong to the same bucket regardless of
+			// viewport position. This prevents visual instability when
+			// outlier values shift between adjacent buckets on each frame.
+			const bucketSize = Math.max(1, Math.ceil(visiblePingCount / maxColumns));
+
+			// Visible ping range (clamped to available data)
+			const visStart = Math.max(0, Math.floor(leftIdx));
+			const visEnd = Math.min(totalPings, Math.ceil(rightIdx));
+
+			if (visStart >= visEnd)
+			{
+				// No visible data — draw label only
+				ctx.font = '12px sans-serif';
+				ctx.fillStyle = COLOR_TEXT;
+				if (this.showServerNames && this.displayName)
+					ctx.fillText(this.displayName, 3, 14);
+				return;
+			}
+
+			// Absolute bucket index range covering visible pings
+			const firstBucket = Math.floor(visStart / bucketSize);
+			const lastBucket = Math.floor((visEnd - 1) / bucketSize);
+			const numBuckets = lastBucket - firstBucket + 1;
+
+			// Bucket value arrays
+			const bucketMax = new Float32Array(numBuckets);
+			const bucketFail = new Uint8Array(numBuckets);
+			bucketMax.fill(-1);
+
+			// --- Single pass: compute stats AND bucket aggregation ---
+			let statMin = Infinity, statMax = -Infinity, statSum = 0, statSucc = 0, statLast = 0;
+			let statTotal = 0;
+
+			const rangeStart = Math.max(0, firstBucket * bucketSize);
+			const rangeEnd = Math.min(totalPings, (lastBucket + 1) * bucketSize);
+
+			for (let i = rangeStart; i < rangeEnd; i++)
 			{
 				const p = pings[i];
-				if (p && p.s === IPStatus_Success)
+				if (!p) continue;
+
+				statTotal++;
+				const bIdx = Math.floor(i / bucketSize) - firstBucket;
+
+				if (p.s === IPStatus_Success)
 				{
-					successCount++;
-					last = p.ms;
-					sum += last;
-					if (last > max) max = last;
-					if (last < min) min = last;
+					statSucc++;
+					statLast = p.ms;
+					statSum += p.ms;
+					if (p.ms > statMax) statMax = p.ms;
+					if (p.ms < statMin) statMin = p.ms;
+					if (p.ms > bucketMax[bIdx]) bucketMax[bIdx] = p.ms;
+				}
+				else
+				{
+					bucketFail[bIdx] = 1;
 				}
 			}
-			const avg = successCount > 0 ? Math.round(sum / successCount) : 0;
-			if (min === Infinity) min = 0;
-			if (max === -Infinity) max = 0;
-			const packetLoss = count > 0 ? ((count - successCount) / count * 100) : 0;
+
+			const avg = statSucc > 0 ? Math.round(statSum / statSucc) : 0;
+			if (statMin === Infinity) statMin = 0;
+			if (statMax === -Infinity) statMax = 0;
+			const packetLoss = statTotal > 0 ? ((statTotal - statSucc) / statTotal * 100) : 0;
+
+			// Resolve: failure in a bucket overrides any success values
+			for (let b = 0; b < numBuckets; b++)
+			{
+				if (bucketFail[b])
+					bucketMax[b] = TIMEOUT_VALUE;
+			}
 
 			// Y-axis scaling
 			let lowerLimitDraw, upperLimitDraw;
@@ -184,18 +233,18 @@ export default {
 				case SCALING_CLASSIC:
 					lowerLimitDraw = this.lowerLimit;
 					upperLimitDraw = this.lowerLimit + graphHeight;
-					if (max > upperLimitDraw)
-						upperLimitDraw = Math.ceil(max * 1.1);
+					if (statMax > upperLimitDraw)
+						upperLimitDraw = Math.ceil(statMax * 1.1);
 					if (upperLimitDraw > this.upperLimit)
 						upperLimitDraw = this.upperLimit;
 					break;
 				case SCALING_ZOOM:
-					lowerLimitDraw = Math.max(min - 1, this.lowerLimit);
-					upperLimitDraw = Math.min(max + 1, this.upperLimit);
+					lowerLimitDraw = Math.max(statMin - 1, this.lowerLimit);
+					upperLimitDraw = Math.min(statMax + 1, this.upperLimit);
 					break;
 				case SCALING_ZOOM_UNLIMITED:
-					lowerLimitDraw = min - 1;
-					upperLimitDraw = max + 1;
+					lowerLimitDraw = statMin - 1;
+					upperLimitDraw = statMax + 1;
 					break;
 				case SCALING_FIXED:
 					lowerLimitDraw = Math.max(this.lowerLimit, 0);
@@ -208,8 +257,8 @@ export default {
 			if (upperLimitDraw <= lowerLimitDraw)
 				upperLimitDraw = lowerLimitDraw + 1;
 
-			const drawHeight = upperLimitDraw - lowerLimitDraw;
-			const vScale = graphHeight / drawHeight;
+			const drawRange = upperLimitDraw - lowerLimitDraw;
+			const vScale = graphHeight / drawRange;
 
 			// Draw threshold background zones
 			const scaledBadLine = (this.badThreshold - lowerLimitDraw) * vScale;
@@ -226,82 +275,71 @@ export default {
 				ctx.fillRect(0, graphHeight - scaledWorseLine, logicalW, scaledWorseLine - scaledBadLine);
 			}
 
-			// Draw timestamp border
-			if (this.showTimestamps)
+			// --- Draw bars with physical-pixel alignment ---
+			// Snapping bar coordinates to physical pixel boundaries
+			// eliminates sub-pixel anti-aliasing that causes brightness
+			// variation as bars slide across the canvas from frame to frame.
+			const pixelSize = 1 / dpr; // one physical pixel in CSS units
+
+			const colorBuckets = {
+				[COLOR_SUCCESS]: [],
+				[COLOR_BAD]: [],
+				[COLOR_WORSE]: [],
+				[COLOR_FAILURE]: [],
+			};
+
+			for (let b = 0; b < numBuckets; b++)
 			{
-				ctx.strokeStyle = COLOR_TIMESTAMP_BORDER;
-				ctx.lineWidth = 1;
-				ctx.beginPath();
-				ctx.moveTo(0, graphHeight + 0.5);
-				ctx.lineTo(logicalW, graphHeight + 0.5);
-				ctx.stroke();
-			}
+				const val = bucketMax[b];
+				if (val < 0) continue; // no data
 
-			// Draw ping data
-			const pixelsPerPing = logicalW / count;
-			let lastStampedMinute = -1;
+				// Map absolute bucket index to screen CSS coordinates
+				const absBucket = firstBucket + b;
+				const rawX = (absBucket * bucketSize - leftIdx) * ppp;
+				const rawXEnd = ((absBucket + 1) * bucketSize - leftIdx) * ppp;
 
-			for (let i = 0; i < count; i++)
-			{
-				const p = pings[startIdx + i];
-				if (!p) continue;
+				// Snap to physical pixel boundaries
+				const x = Math.round(rawX * dpr) / dpr;
+				const xEnd = Math.round(rawXEnd * dpr) / dpr;
+				const w = Math.max(pixelSize, xEnd - x);
 
-				const x = i * pixelsPerPing;
-				const barWidth = Math.max(1, Math.ceil(pixelsPerPing));
-
-				if (p.s === IPStatus_Success)
+				let color, barH;
+				if (bucketFail[b])
 				{
-					if (p.ms > lowerLimitDraw)
-					{
-						const barH = Math.max(1, (p.ms - lowerLimitDraw) * vScale);
-						const y = graphHeight - barH;
-
-						if (p.ms < this.badThreshold)
-							ctx.fillStyle = COLOR_SUCCESS;
-						else if (p.ms < this.worseThreshold)
-							ctx.fillStyle = COLOR_BAD;
-						else
-							ctx.fillStyle = COLOR_WORSE;
-
-						ctx.fillRect(x, y, barWidth, barH);
-					}
+					color = COLOR_FAILURE;
+					barH = graphHeight;
+				}
+				else if (val <= lowerLimitDraw)
+				{
+					continue; // below visible range
 				}
 				else
 				{
-					// Failure: draw red bar
-					const failH = Math.min(graphHeight, 10000 * vScale);
-					ctx.fillStyle = COLOR_FAILURE;
-					ctx.fillRect(x, graphHeight - failH, barWidth, failH);
+					barH = Math.max(pixelSize, (val - lowerLimitDraw) * vScale);
+					if (val < this.badThreshold)
+						color = COLOR_SUCCESS;
+					else if (val < this.worseThreshold)
+						color = COLOR_BAD;
+					else
+						color = COLOR_WORSE;
 				}
 
-				// Draw timestamps
-				if (this.showTimestamps && p.t)
+				const y = graphHeight - barH;
+				colorBuckets[color].push(x, y, w, barH);
+			}
+
+			// Draw each color's bars in one batch
+			for (const color of [COLOR_SUCCESS, COLOR_BAD, COLOR_WORSE, COLOR_FAILURE])
+			{
+				const rects = colorBuckets[color];
+				if (rects.length === 0) continue;
+				ctx.fillStyle = color;
+				ctx.beginPath();
+				for (let i = 0; i < rects.length; i += 4)
 				{
-					const dt = new Date(p.t);
-					const minute = dt.getMinutes();
-					if (minute !== lastStampedMinute)
-					{
-						if (dt.getSeconds() < 2)
-						{
-							ctx.strokeStyle = COLOR_TIMESTAMP_MARK;
-							ctx.lineWidth = 1;
-							ctx.beginPath();
-							ctx.moveTo(x + 0.5, graphHeight + 1);
-							ctx.lineTo(x + 0.5, logicalH);
-							ctx.stroke();
-						}
-
-						const stamp = dt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-						ctx.font = '11px sans-serif';
-						ctx.fillStyle = COLOR_BG;
-						const sw = ctx.measureText(stamp).width;
-						ctx.fillRect(x + 1, graphHeight + 1, sw, timestampsHeight - 1);
-						ctx.fillStyle = COLOR_TIMESTAMP_TEXT;
-						ctx.fillText(stamp, x + 1, graphHeight + timestampsHeight - 3);
-
-						lastStampedMinute = minute;
-					}
+					ctx.rect(rects[i], rects[i + 1], rects[i + 2], rects[i + 3]);
 				}
+				ctx.fill();
 			}
 
 			// Draw limit text
@@ -320,25 +358,25 @@ export default {
 			// Build status text
 			let statusStr = '';
 
-			if (clampedScroll !== 0)
-				statusStr += 'NOT LIVE -' + clampedScroll + ': ';
-			else if (Math.abs(this.setLiveAtTime - Date.now()) < 1000)
+			if (this.scrollOffset > 0)
+				statusStr += 'NOT LIVE -' + this.scrollOffset + ': ';
+			else if (this.isLive)
 				statusStr += 'LIVE ';
 
 			if (this.showPacketLoss)
 				statusStr += packetLoss.toFixed(2) + '% ';
 
 			const intVals = [];
-			if (this.showLastPing) intVals.push(last);
+			if (this.showLastPing) intVals.push(statLast);
 			if (this.showAverage) intVals.push(avg);
-			if (this.showJitter) intVals.push(Math.abs(max - min));
-			if (this.showMinMax) { intVals.push(min); intVals.push(max); }
+			if (this.showJitter) intVals.push(Math.abs(statMax - statMin));
+			if (this.showMinMax) { intVals.push(statMin); intVals.push(statMax); }
 
 			if (intVals.length > 0)
 				statusStr += '[' + intVals.join(',') + '] ';
 
 			// Mouseover hint
-			const hintText = this.getMouseoverHint(pings, startIdx, count, pixelsPerPing, graphHeight, vScale, lowerLimitDraw, logicalW);
+			const hintText = this.getMouseoverHint(pings, leftIdx, ppp, graphHeight, vScale, lowerLimitDraw);
 			if (hintText)
 			{
 				if (this.displayName) statusStr += this.displayName + ' ';
@@ -355,16 +393,15 @@ export default {
 			ctx.fillText(statusStr, 3, 14);
 		},
 
-		getMouseoverHint(pings, startIdx, count, pixelsPerPing, graphHeight, vScale, lowerLimitDraw, logicalW)
+		getMouseoverHint(pings, leftIdx, ppp, graphHeight, vScale, lowerLimitDraw)
 		{
 			if (this.mouseX < 0 || this.mouseY < 0) return '';
 
 			const mouseMs = Math.round(((graphHeight - this.mouseY) / graphHeight) * (graphHeight / vScale) + lowerLimitDraw);
 
-			if (pixelsPerPing <= 0 || count <= 0) return 'Mouse ms: ' + mouseMs;
+			if (ppp <= 0 || !pings || pings.length === 0) return 'Mouse ms: ' + mouseMs;
 
-			const pingIdx = Math.floor(this.mouseX / pixelsPerPing);
-			const dataIdx = startIdx + pingIdx;
+			const dataIdx = Math.floor(leftIdx + this.mouseX / ppp);
 
 			if (dataIdx < 0 || dataIdx >= pings.length)
 				return 'Mouse ms: ' + mouseMs;
@@ -416,102 +453,20 @@ export default {
 		{
 			if (e.button === 0)
 			{
-				this.isDragging = true;
-				this.dragStartX = e.clientX;
-				this.dragStartScroll = this.scrollXOffset;
+				this.$emit('dragStart', e.clientX);
 			}
 		},
 
-		onMouseUp()
-		{
-			this.isDragging = false;
-		},
-
-		onDocMouseMove(e)
-		{
-			if (!this.isDragging) return;
-
-			const dx = e.clientX - this.dragStartX;
-			// Each pixel of drag = zoomLevel pings of scroll
-			const scrollDelta = Math.round(dx * this.zoomLevel);
-			const newScroll = this.dragStartScroll + scrollDelta;
-			const totalPings = this.pings.length;
-			const rect = this.$refs.canvas.getBoundingClientRect();
-			const visiblePings = Math.floor(rect.width * this.zoomLevel);
-			const scrollMax = Math.max(0, totalPings - visiblePings);
-
-			this.scrollXOffset = Math.min(Math.max(0, newScroll), scrollMax);
-			if (this.scrollXOffset === 0)
-				this.setLiveAtTime = Date.now();
-			this.scheduleRender();
-		},
-
-		/**
-		 * Mouse wheel zoom: changes the X-axis scale.
-		 * Scrolling up zooms in (fewer pings visible, more detail).
-		 * Scrolling down zooms out (more pings visible, less detail).
-		 */
 		onWheel(e)
 		{
-			const oldZoom = this.zoomLevel;
-			const factor = e.deltaY > 0 ? 1.15 : 1 / 1.15;
-			let newZoom = oldZoom * factor;
-
-			// Clamp zoom: min 0.1 (10x zoom in), max = enough to show all data
-			const maxZoom = Math.max(1, this.pings.length / 100);
-			newZoom = Math.max(0.1, Math.min(newZoom, maxZoom));
-
-			if (newZoom === oldZoom) return;
-
-			// Zoom centered on mouse position
 			const rect = this.$refs.canvas.getBoundingClientRect();
-			const mouseXFraction = (e.clientX - rect.left) / rect.width;
-
-			const oldVisiblePings = rect.width * oldZoom;
-			const newVisiblePings = rect.width * newZoom;
-			const pingDelta = (oldVisiblePings - newVisiblePings) * mouseXFraction;
-
-			this.zoomLevel = newZoom;
-			this.scrollXOffset = Math.max(0, Math.round(this.scrollXOffset - pingDelta));
-			if (this.scrollXOffset === 0)
-				this.setLiveAtTime = Date.now();
-			this.scheduleRender();
-		},
-
-		/**
-		 * Scroll to live position (most recent data).
-		 */
-		scrollToLive()
-		{
-			this.scrollXOffset = 0;
-			this.setLiveAtTime = Date.now();
-			this.scheduleRender();
-		},
-
-		/**
-		 * Scroll to oldest data.
-		 */
-		scrollToOldest()
-		{
-			const rect = this.$refs.canvas.getBoundingClientRect();
-			const visiblePings = Math.floor(rect.width * this.zoomLevel);
-			this.scrollXOffset = Math.max(0, this.pings.length - visiblePings);
-			this.scheduleRender();
-		},
-
-		/**
-		 * Scroll left/right by a page.
-		 */
-		scrollPage(direction)
-		{
-			const rect = this.$refs.canvas.getBoundingClientRect();
-			const visiblePings = Math.floor(rect.width * this.zoomLevel);
-			this.scrollXOffset += direction * visiblePings;
-			const scrollMax = Math.max(0, this.pings.length - visiblePings);
-			this.scrollXOffset = Math.min(Math.max(0, this.scrollXOffset), scrollMax);
-			if (this.scrollXOffset === 0)
-				this.setLiveAtTime = Date.now();
-			this.scheduleRender();
+			this.$emit('wheel', {
+				deltaY: e.deltaY,
+				clientX: e.clientX,
+				clientY: e.clientY,
+				rectLeft: rect.left,
+				rectWidth: rect.width,
+			});
 		},
 	}
 };

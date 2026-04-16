@@ -121,6 +121,11 @@ class PingTracerWS
 		this.send({ action: 'deleteConfig', guid });
 	}
 
+	setPingRate(rate, pingsPerSecond)
+	{
+		this.send({ action: 'setPingRate', rate, pingsPerSecond });
+	}
+
 	requestPingData(targetId, count, offset)
 	{
 		this.send({ action: 'requestPingData', targetId, count, offset });

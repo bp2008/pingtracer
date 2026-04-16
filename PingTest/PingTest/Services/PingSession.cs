@@ -228,6 +228,19 @@ namespace PingTracer.Services
 			SessionStopped?.Invoke();
 		}
 
+		/// <summary>
+		/// Updates the ping delay while the session is running.
+		/// </summary>
+		public void SetPingDelay(int rate, bool pingsPerSecond)
+		{
+			if (rate == 0)
+				pingDelay = 0;
+			else if (pingsPerSecond)
+				pingDelay = Math.Max(100, (int)(1000.0 / rate));
+			else
+				pingDelay = Math.Max(100, (int)(1000.0 * rate));
+		}
+
 		private void ControllerWorker_DoWork(object sender, DoWorkEventArgs e)
 		{
 			object[] args = (object[])e.Argument;

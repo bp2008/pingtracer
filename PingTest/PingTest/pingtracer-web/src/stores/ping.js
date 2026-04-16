@@ -20,6 +20,9 @@ export const usePingStore = defineStore('ping', () =>
 	// Each target's ping data: { [targetId]: PingLog[] }
 	const pingData = ref({});
 
+	// Rolling buffer size from server
+	const cacheSize = ref(360000);
+
 	// --- Computed ---
 	const selectedConfig = computed(() =>
 	{
@@ -72,6 +75,8 @@ export const usePingStore = defineStore('ping', () =>
 			isRunning.value = msg.isRunning;
 			successfulPings.value = msg.successfulPings;
 			failedPings.value = msg.failedPings;
+			if (msg.cacheSize)
+				cacheSize.value = msg.cacheSize;
 		});
 
 		pingTracerWS.on('started', (msg) =>
@@ -88,12 +93,25 @@ export const usePingStore = defineStore('ping', () =>
 
 		pingTracerWS.on('targetAdded', (msg) =>
 		{
-			targets.value = [...targets.value, {
-				id: msg.id,
-				displayName: msg.displayName,
-				address: msg.address
-			}];
-			pingData.value[msg.id] = [];
+			// Deduplicate: on reconnect, server resends all targets
+			const existing = targets.value.find(t => t.id === msg.id);
+			if (existing)
+			{
+				existing.displayName = msg.displayName;
+				existing.address = msg.address;
+			}
+			else
+			{
+				targets.value = [...targets.value, {
+					id: msg.id,
+					displayName: msg.displayName,
+					address: msg.address
+				}];
+			}
+			if (!pingData.value[msg.id])
+				pingData.value[msg.id] = [];
+			if (msg.cacheSize)
+				cacheSize.value = msg.cacheSize;
 		});
 
 		pingTracerWS.on('targetRemoved', (msg) =>
@@ -163,11 +181,24 @@ export const usePingStore = defineStore('ping', () =>
 	function saveConfig(config)
 	{
 		pingTracerWS.saveConfig(config);
+		// Update configDetails locally so the editor reflects changes immediately
+		if (config.guid && config.guid === selectedConfigGuid.value)
+			configDetails.value = { ...config };
 	}
 
 	function deleteConfig(guid)
 	{
 		pingTracerWS.deleteConfig(guid);
+	}
+
+	function setPingRate(rate, pingsPerSecond)
+	{
+		pingTracerWS.setPingRate(rate, pingsPerSecond);
+	}
+
+	function disconnect()
+	{
+		pingTracerWS.disconnect();
 	}
 
 	function clearErrors()
@@ -187,6 +218,7 @@ export const usePingStore = defineStore('ping', () =>
 		failedPings,
 		targets,
 		pingData,
+		cacheSize,
 		logMessages,
 		errors,
 		// Computed
@@ -198,6 +230,8 @@ export const usePingStore = defineStore('ping', () =>
 		stopPinging,
 		saveConfig,
 		deleteConfig,
+		setPingRate,
+		disconnect,
 		clearErrors,
 	};
 });
