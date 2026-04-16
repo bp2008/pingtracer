@@ -1,12 +1,4 @@
-﻿/**
- * Splits the given string on ',' and ' ', removing empty entries.
- * @param {String} str String to split.
- */
-export function splitExitpointHostList(str)
-{
-	return str.split(/,| /).filter(Boolean);
-}
-export function Clamp(i, min, max)
+﻿export function Clamp(i, min, max)
 {
 	if (i < min)
 		return min;
