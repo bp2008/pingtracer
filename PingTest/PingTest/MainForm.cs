@@ -490,13 +490,6 @@ namespace PingTracer
 				CreateLogEntry("Now beginning pings");
 				UpdateStatus("Pinging Active" + statusNote);
 
-				// Prepopulate all graph buffers with simulated data for performance testing
-				foreach (KeyValuePair<int, PingGraphControl> kvp in pingGraphs)
-				{
-					kvp.Value.FillWithSimulatedData(pingDelay > 0 ? pingDelay : 100);
-					CreateLogEntry("Filled graph " + kvp.Key + " buffer with simulated data");
-				}
-
 				Stopwatch sw = null;
 
 				long numberOfPingLoopIterations = 0;
