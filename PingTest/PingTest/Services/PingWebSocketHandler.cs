@@ -573,6 +573,22 @@ namespace PingTracer.Services
 
 		private void OnPingResult(int targetId, PingLog log)
 		{
+			// A null log signals that the target buffer was bulk-filled (e.g. with simulation data).
+			// Resend all data to connected clients.
+			if (log == null)
+			{
+				if (currentSession != null)
+				{
+					PingTarget target = currentSession.GetTarget(targetId);
+					if (target != null)
+					{
+						foreach (var client in clients.Values)
+							SendBulkPingData(client, target);
+					}
+				}
+				return;
+			}
+
 			Broadcast(JsonConvert.SerializeObject(new
 			{
 				type = "ping",

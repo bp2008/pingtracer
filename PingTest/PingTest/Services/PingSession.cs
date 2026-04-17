@@ -34,6 +34,71 @@ namespace PingTracer.Services
 		}
 
 		/// <summary>
+		/// Fills the entire rolling buffer with simulated ping data for performance testing.
+		/// Simulates realistic latency with a base around 15-25ms, periodic spikes between 60-150ms,
+		/// and occasional packet loss.
+		/// </summary>
+		/// <param name="pingIntervalMs">The simulated interval between pings in milliseconds.</param>
+		public void FillWithSimulatedData(int pingIntervalMs)
+		{
+			int bufferSize = pings.Length;
+			Random rng = new Random();
+			DateTime now = DateTime.Now;
+			DateTime startTime = now.AddMilliseconds(-(long)bufferSize * pingIntervalMs);
+
+			double baseLatency = 15 + rng.NextDouble() * 10;
+			bool inBurst = false;
+			int burstRemaining = 0;
+
+			for (int i = 0; i < bufferSize; i++)
+			{
+				DateTime time = startTime.AddMilliseconds((long)i * pingIntervalMs);
+
+				// Slowly drift baseline every 1000 pings
+				if (i % 1000 == 0)
+					baseLatency = 12 + rng.NextDouble() * 20;
+
+				// Start a latency spike burst (~0.3% chance per ping)
+				if (!inBurst && rng.NextDouble() < 0.003)
+				{
+					inBurst = true;
+					burstRemaining = 1 + rng.Next(5); // 1-5 adjacent outliers
+				}
+
+				PingLog log;
+				if (inBurst)
+				{
+					burstRemaining--;
+					if (burstRemaining <= 0) inBurst = false;
+
+					// Occasional packet loss during bursts (~20%)
+					if (rng.NextDouble() < 0.2)
+					{
+						log = new PingLog(time, 0, IPStatus.TimedOut);
+					}
+					else
+					{
+						// Spike between 60-150ms
+						short spike = (short)(60 + rng.NextDouble() * 90);
+						log = new PingLog(time, spike, IPStatus.Success);
+					}
+				}
+				else
+				{
+					// Normal ping with small jitter
+					double jitter = (rng.NextDouble() + rng.NextDouble() + rng.NextDouble() - 1.5) * 4;
+					short ms = (short)Math.Max(1, (int)Math.Round(baseLatency + jitter));
+					log = new PingLog(time, ms, IPStatus.Success);
+				}
+
+				pings[i % bufferSize] = log;
+			}
+
+			// Set the offset so the buffer appears fully filled
+			Interlocked.Exchange(ref _nextIndexOffset, bufferSize - 1);
+		}
+
+		/// <summary>
 		/// Gets the total number of pings recorded (may exceed buffer size for wrap-around).
 		/// </summary>
 		public long TotalPingsRecorded => Interlocked.Read(ref _nextIndexOffset) + 1;
@@ -326,6 +391,15 @@ namespace PingTracer.Services
 
 				LogCreated?.Invoke("Now beginning pings");
 				StatusChanged?.Invoke("Pinging Active");
+
+				// Prepopulate all target buffers with simulated data for performance testing
+				foreach (var kvp in targets)
+				{
+					kvp.Value.FillWithSimulatedData(pingDelay > 0 ? pingDelay : 100);
+					LogCreated?.Invoke("Filled " + kvp.Value.DisplayName + " buffer with " + kvp.Value.CacheSize + " simulated pings");
+					// Notify WebSocket clients about the prepopulated data
+					PingResultReceived?.Invoke(kvp.Value.Id, null);
+				}
 
 				Stopwatch sw = null;
 				long numberOfPingLoopIterations = 0;
