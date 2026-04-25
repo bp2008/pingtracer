@@ -53,7 +53,7 @@ namespace PingTracer
 		public override async Task handleRequest(HttpProcessor p, string method, CancellationToken cancellationToken = default)
 		{
 			// Handle WebSocket upgrade requests
-			if (WebSocket.IsWebSocketRequest(p) && p.Request.Page.Equals("ws", StringComparison.OrdinalIgnoreCase))
+			if (WebSocket.IsWebSocketRequest(p) && p.Request.Page.IEquals("ws"))
 			{
 				PingWsHandler.HandleConnection(p);
 				return;

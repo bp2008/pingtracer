@@ -8,6 +8,7 @@
 *.user
 *.userosscache
 *.sln.docstates
+PingTracer2/
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
