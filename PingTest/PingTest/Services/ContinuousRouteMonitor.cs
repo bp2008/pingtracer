@@ -13,7 +13,7 @@ namespace PingTracer.Services
 	/// in parallel; cycles may overlap to preserve sampling cadence even when prior
 	/// cycles are still in-flight.
 	/// </summary>
-	public class ContinuousRouteMonitor : IDisposable
+	public class ContinuousRouteMonitor : IPingMonitor
 	{
 		public delegate Task TraceRouteDelegate(
 			object token,

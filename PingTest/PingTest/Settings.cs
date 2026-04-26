@@ -20,6 +20,11 @@ namespace PingTracer
 		/// After migration, this list will be empty.
 		/// </summary>
 		public List<HostSettings> hostHistory = new List<HostSettings>();
+		/// <summary>
+		/// Legacy field retained only for backward-compatible XML deserialization.
+		/// PingTracer 3+ uses time-based retention via <see cref="dataRetentionPeriod"/>.
+		/// </summary>
+		[Obsolete("PingTracer 3+ uses time-based retention. See dataRetentionPeriod.")]
 		public int cacheSize = 360000;
 		public bool fastRefreshScrollingGraphs = true;
 		public int graphScrollMultiplier = 50;
@@ -36,6 +41,43 @@ namespace PingTracer
 		/// The Guid of the most recently loaded PingConfiguration, used to auto-load on next launch.
 		/// </summary>
 		public string lastLoadedConfigurationGuid = null;
+
+		// --- PingTracer 3 monitoring/retention/persistence settings ---
+
+		/// <summary>
+		/// How long ping data is retained in memory (and on disk) before pruning.
+		/// Stored as seconds for portable XML serialization; access via <see cref="DataRetentionPeriod"/>.
+		/// </summary>
+		public long dataRetentionSeconds = (long)TimeSpan.FromDays(1).TotalSeconds;
+
+		/// <summary>Default initial maximum hop count for ContinuousRouteMonitor.</summary>
+		public int maxHopsDefault = 30;
+
+		/// <summary>Number of consecutive cycles where the destination fails to respond before a high-TTL probe is issued.</summary>
+		public int destinationProbeMissThreshold = 10;
+
+		/// <summary>TTL used for the destination liveness probe.</summary>
+		public byte destinationProbeTtl = 128;
+
+		/// <summary>Cycle cadence for repeating the destination probe while the destination remains unresponsive.</summary>
+		public int destinationProbeIntervalCycles = 1;
+
+		/// <summary>Disk flush interval for the binary session log (Phase 5).</summary>
+		public int diskFlushIntervalSeconds = 10;
+
+		/// <summary>
+		/// Directory where session data files are written. Null means default to
+		/// <c>{SettingsFolderPath}/data/</c> resolved at use time.
+		/// </summary>
+		public string dataDirectory = null;
+
+		/// <summary>Strongly-typed accessor for <see cref="dataRetentionSeconds"/>.</summary>
+		[XmlIgnore]
+		public TimeSpan DataRetentionPeriod
+		{
+			get => TimeSpan.FromSeconds(dataRetentionSeconds);
+			set => dataRetentionSeconds = (long)value.TotalSeconds;
+		}
 
 		public bool Save()
 		{

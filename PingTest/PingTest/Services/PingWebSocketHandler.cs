@@ -3,12 +3,15 @@ using BPUtil.SimpleHttp;
 using BPUtil.SimpleHttp.WebSockets;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using PingTracer.Storage;
 using PingTracer.Tracer;
+using PingTracer.TraceRoute;
 using SmartPing;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Threading;
 
 namespace PingTracer.Services
@@ -137,8 +140,7 @@ namespace PingTracer.Services
 				status = currentStatus,
 				isRunning = currentSession?.IsRunning ?? false,
 				successfulPings = currentSession?.SuccessfulPings ?? 0,
-				failedPings = currentSession?.FailedPings ?? 0,
-				cacheSize = settings.cacheSize
+				failedPings = currentSession?.FailedPings ?? 0
 			}));
 
 			// Send current config details if one is selected
@@ -149,52 +151,8 @@ namespace PingTracer.Services
 					SendConfigDetails(client, cfg);
 			}
 
-			// Send existing targets and their data if a session is active
-			if (currentSession != null)
-			{
-				var sessionTargets = currentSession.GetTargets();
-				foreach (PingTarget target in sessionTargets)
-				{
-					client.Send(JsonConvert.SerializeObject(new
-					{
-						type = "targetAdded",
-						id = target.Id,
-						displayName = target.DisplayName,
-						address = target.Address.ToString(),
-						cacheSize = target.CacheSize
-					}));
-
-					// Send recent ping data for this target (send last N pings)
-					SendBulkPingData(client, target);
-				}
-			}
-		}
-
-		private void SendBulkPingData(ClientConnection client, PingTarget target)
-		{
-			// Send ping data in chunks to avoid overwhelming the WebSocket
-			long total = target.TotalPingsRecorded;
-			if (total <= 0) return;
-
-			int toSend = (int)Math.Min(total, 3600); // Send up to 1 hour of data at 1/sec
-			PingLog[] pings = target.GetRecentPings(toSend);
-
-			// Encode as compact binary-style JSON array for efficiency
-			var pingData = new List<object>(pings.Length);
-			foreach (PingLog p in pings)
-			{
-				if (p == null)
-					pingData.Add(null);
-				else
-					pingData.Add(new { t = p.startTime.ToUnixTimeMs(), ms = p.pingTime, s = (int)p.result });
-			}
-
-			client.Send(JsonConvert.SerializeObject(new
-			{
-				type = "pingBulk",
-				targetId = target.Id,
-				pings = pingData
-			}));
+			// TODO Phase 4: send routeUpdate frames for each MonitoringSession on connect
+			// so clients can render the current route topology and request aggregated data.
 		}
 
 		private void SendConfigDetails(ClientConnection client, PingConfiguration cfg)
@@ -261,9 +219,8 @@ namespace PingTracer.Services
 					case "setPingRate":
 						HandleSetPingRate(msg.Value<int>("rate"), msg.Value<bool>("pingsPerSecond"));
 						break;
-					case "requestPingData":
-						HandleRequestPingData(clientId, msg.Value<int>("targetId"), msg.Value<int>("count"), msg.Value<int>("offset"));
-						break;
+					// TODO Phase 4: replace requestPingData with queryData (server-side aggregation
+					// per HopTimeSeries with binary frame response).
 				}
 			}
 			catch (Exception ex)
@@ -335,9 +292,12 @@ namespace PingTracer.Services
 				}
 
 				currentSession = new PingSession(cfg, settings);
-				currentSession.TargetAdded += OnTargetAdded;
-				currentSession.TargetRemoved += OnTargetRemoved;
-				currentSession.PingResultReceived += OnPingResult;
+				// TODO Phase 4: subscribe these events to a binary protocol redesign
+				// (routeUpdate / pingUpdate / hostnameUpdated / aggregatedData frames).
+				currentSession.HopDiscovered += OnHopDiscovered;
+				currentSession.HopDeactivated += OnHopDeactivated;
+				currentSession.PingRecordCompleted += OnPingRecordCompleted;
+				currentSession.RouteChanged += OnRouteChanged;
 				currentSession.StatusChanged += OnStatusChanged;
 				currentSession.LogCreated += OnLogCreated;
 				currentSession.SessionStopped += OnSessionStopped;
@@ -521,83 +481,19 @@ namespace PingTracer.Services
 			}));
 		}
 
-		private void HandleRequestPingData(string clientId, int targetId, int count, int offset)
-		{
-			if (currentSession == null) return;
-			PingTarget target = currentSession.GetTarget(targetId);
-			if (target == null) return;
-
-			PingLog[] pings = target.GetRecentPings(count, offset);
-			var pingData = new List<object>(pings.Length);
-			foreach (PingLog p in pings)
-			{
-				if (p == null)
-					pingData.Add(null);
-				else
-					pingData.Add(new { t = p.startTime.ToUnixTimeMs(), ms = p.pingTime, s = (int)p.result });
-			}
-
-			if (clients.TryGetValue(clientId, out ClientConnection client))
-			{
-				client.Send(JsonConvert.SerializeObject(new
-				{
-					type = "pingBulk",
-					targetId = targetId,
-					pings = pingData
-				}));
-			}
-		}
-
 		#region Session Event Handlers
 
-		private void OnTargetAdded(PingTarget target)
-		{
-			Broadcast(JsonConvert.SerializeObject(new
-			{
-				type = "targetAdded",
-				id = target.Id,
-				displayName = target.DisplayName,
-				address = target.Address.ToString(),
-				cacheSize = target.CacheSize
-			}));
-		}
+		// TODO Phase 4: replace these stubs with binary `routeUpdate` / `pingUpdate` frames
+		// per the new protocol. For now they are no-ops so PingSession can run and write
+		// data into the new MonitoringSession storage; the web UI will not render until
+		// Phase 4 lands.
+		private void OnHopDiscovered(MonitoringSession session, HopTimeSeries series) { }
 
-		private void OnTargetRemoved(int targetId)
-		{
-			Broadcast(JsonConvert.SerializeObject(new
-			{
-				type = "targetRemoved",
-				id = targetId
-			}));
-		}
+		private void OnHopDeactivated(MonitoringSession session, byte hop, IPAddress address) { }
 
-		private void OnPingResult(int targetId, PingLog log)
-		{
-			// A null log signals that the target buffer was bulk-filled (e.g. with simulation data).
-			// Resend all data to connected clients.
-			if (log == null)
-			{
-				if (currentSession != null)
-				{
-					PingTarget target = currentSession.GetTarget(targetId);
-					if (target != null)
-					{
-						foreach (var client in clients.Values)
-							SendBulkPingData(client, target);
-					}
-				}
-				return;
-			}
+		private void OnPingRecordCompleted(MonitoringSession session, TraceRouteHostResult result, HopTimeSeries series, RecordHandle? handle) { }
 
-			Broadcast(JsonConvert.SerializeObject(new
-			{
-				type = "ping",
-				targetId = targetId,
-				t = log.startTime.ToUnixTimeMs(),
-				ms = log.pingTime,
-				s = (int)log.result
-			}));
-		}
+		private void OnRouteChanged(MonitoringSession session, RouteSnapshot oldRoute, RouteSnapshot newRoute) { }
 
 		private void OnStatusChanged(string status)
 		{
