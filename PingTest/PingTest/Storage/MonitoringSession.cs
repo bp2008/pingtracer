@@ -24,10 +24,13 @@ namespace PingTracer.Storage
 
 		public readonly List<RouteSnapshot> RouteHistory = new List<RouteSnapshot>();
 
-		public RouteSnapshot CurrentRoute { get; private set; }
+		public RouteSnapshot CurrentRoute { get; internal set; }
 
 		public event Action<RouteSnapshot, RouteSnapshot> RouteChanged;
 		public event Action<DateTime> TraceResultRecorded;
+
+		/// <summary>Raised whenever a new HopTimeSeries is appended to a HopHistory.Series list.</summary>
+		public event Action<HopTimeSeries> HopSeriesAdded;
 
 		public MonitoringSession(IPAddress targetAddress, string displayName)
 		{
@@ -59,6 +62,7 @@ namespace PingTracer.Storage
 			}
 
 			var snapshotHops = new HopTimeSeries[maxTtl];
+			List<HopTimeSeries> addedSeries = null;
 
 			for (byte ttl = 1; ttl <= maxTtl; ttl++)
 			{
@@ -91,6 +95,7 @@ namespace PingTracer.Storage
 							var newSeries = new HopTimeSeries((byte)hopIndex, result.replyFrom, timestamp, startDnsLookup: true);
 							history.Series.Add(newSeries);
 							snapshotHops[hopIndex] = newSeries;
+							(addedSeries ??= new List<HopTimeSeries>()).Add(newSeries);
 						}
 					}
 					else
@@ -116,6 +121,16 @@ namespace PingTracer.Storage
 			}
 
 			// Fire events outside all locks to prevent deadlocks.
+			if (addedSeries != null)
+			{
+				var handler = HopSeriesAdded;
+				if (handler != null)
+				{
+					foreach (var s in addedSeries)
+						handler(s);
+				}
+			}
+
 			var changes = newSnapshot.DiffFrom(oldRoute);
 			if (changes.Count > 0)
 				RouteChanged?.Invoke(oldRoute, newSnapshot);

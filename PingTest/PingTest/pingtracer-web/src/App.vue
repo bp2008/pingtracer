@@ -7,11 +7,11 @@
 			@newConfig="newConfig" @showLog="showLog = true" />
 
 		<div class="graph-area" ref="graphArea">
-			<template v-if="store.targets.length > 0">
-				<div v-for="(target, idx) in store.targets" :key="target.id" class="graph-container"
+			<template v-if="graphRows.length > 0">
+				<div v-for="(row, idx) in graphRows" :key="row.key" class="graph-container"
 					:style="graphStyle(idx)">
-					<PingGraph ref="graphs" :pings="store.pingData[target.id] || []"
-						:displayName="target.displayName" :config="configForGraphs"
+					<PingGraph ref="graphs" :pings="row.pings"
+						:displayName="row.displayName" :config="configForGraphs"
 						:pixelsPerPing="effectivePixelsPerPing" :scrollOffset="scrollOffset" :isLive="isLive"
 						@wheel="onGraphWheel" @dragStart="onDragStart" />
 				</div>
@@ -20,12 +20,12 @@
 				<div class="no-graphs-content">
 					<p v-if="!store.selectedConfigGuid">Select or create a configuration to begin.</p>
 					<p v-else-if="!store.isRunning">Press <strong>Start</strong> to begin pinging.</p>
-					<p v-else>Waiting for targets...</p>
+					<p v-else>Waiting for route discovery...</p>
 				</div>
 			</div>
 		</div>
 
-		<TimeScale v-if="store.targets.length > 0" :pings="longestPingArray" :pixelsPerPing="effectivePixelsPerPing"
+		<TimeScale v-if="graphRows.length > 0" :pings="longestPingArray" :pixelsPerPing="effectivePixelsPerPing"
 			:scrollOffset="scrollOffset" />
 
 		<ConfigEditor v-if="showConfigEditor" :config="editingConfig" @save="onConfigSave" @delete="onConfigDelete"
@@ -53,10 +53,13 @@ import LogViewer from '@/components/LogViewer.vue';
 import { usePingStore } from '@/stores/ping';
 
 // Zoom level = CSS pixels per ping.
-// Default 1.0, max 3.0 (most zoomed in), min = canvasWidth / cacheSize (most zoomed out).
+// Default 1.0, max 3.0 (most zoomed in), min = canvasWidth / VIRTUAL_PING_HISTORY (most zoomed out).
 const ZOOM_DEFAULT = 1.0;
 const ZOOM_MAX = 3.0;
 const ZOOM_SNAP_THRESHOLD = 0.05; // snap to 1.0 if within this range
+// Approximate cap on visible pings (no longer a server-side circular buffer).
+// Used to bound the minimum zoom level and the keyboard "Home" jump.
+const VIRTUAL_PING_HISTORY = 86400;
 
 export default {
 	name: 'App',
@@ -99,15 +102,46 @@ export default {
 			return this.scrollOffset === 0 && Date.now() < this.liveUntil;
 		},
 
+		graphRows()
+		{
+			// Flatten (sessionIndex, hop) → one render row per active hop.
+			// Each row carries a tail of {t, ms, s} pings derived from liveTail,
+			// where s = 0 for success, 11010 (TimedOut) for 0xFFFF.
+			const rows = [];
+			const sessions = this.store.sessions || [];
+			const routes = this.store.routes || {};
+			const liveTail = this.store.liveTail || {};
+
+			for (const session of sessions)
+			{
+				const route = routes[session.index];
+				if (!route || !route.hops) continue;
+
+				for (const hop of route.hops)
+				{
+					if (!hop) continue;
+					const key = `${session.index}:${hop.hopNumber}:${hop.seriesStartUtc}`;
+					const tail = liveTail[key] || [];
+					const pings = tail.map(p => ({
+						t: p.t,
+						ms: p.ms === 0xFFFF ? 0 : p.ms,
+						s: p.ms === 0xFFFF ? 11010 : 0,
+					}));
+					const label = hop.hostname && hop.hostname.length > 0
+						? `${hop.hopNumber + 1}. ${hop.hostname} [${hop.address}]`
+						: `${hop.hopNumber + 1}. ${hop.address}`;
+					rows.push({ key, displayName: label, pings });
+				}
+			}
+			return rows;
+		},
+
 		longestPingArray()
 		{
 			let longest = [];
-			for (const target of this.store.targets)
-			{
-				const arr = this.store.pingData[target.id];
-				if (arr && arr.length > longest.length)
-					longest = arr;
-			}
+			for (const row of this.graphRows)
+				if (row.pings.length > longest.length)
+					longest = row.pings;
 			return longest;
 		},
 
@@ -125,7 +159,7 @@ export default {
 		zoomMin()
 		{
 			const w = this.$refs.graphArea?.clientWidth || 800;
-			return w / this.store.cacheSize;
+			return w / VIRTUAL_PING_HISTORY;
 		},
 
 		effectivePixelsPerPing()
@@ -159,7 +193,7 @@ export default {
 	methods: {
 		graphStyle(index)
 		{
-			const count = this.store.targets.length;
+			const count = this.graphRows.length;
 			if (count === 0) return {};
 			const pct = 100 / count;
 			return {
@@ -269,7 +303,7 @@ export default {
 
 		onKeyDown(e)
 		{
-			if (this.store.targets.length === 0) return;
+			if (this.graphRows.length === 0) return;
 
 			const graphEl = this.$refs.graphArea;
 			const w = graphEl ? graphEl.clientWidth : 800;
@@ -279,7 +313,7 @@ export default {
 			{
 				case 'Home':
 				case '9':
-					this.scrollOffset = Math.max(0, this.store.cacheSize - visiblePings);
+					this.scrollOffset = Math.max(0, VIRTUAL_PING_HISTORY - visiblePings);
 					e.preventDefault();
 					break;
 				case 'End':

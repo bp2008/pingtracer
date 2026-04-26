@@ -207,6 +207,60 @@ namespace PingTracer.Storage
 		}
 
 		/// <summary>
+		/// Walks records starting after the given cursor (exclusive). If <paramref name="cursor"/>
+		/// is null, enumerates from the very first record. Materializes a snapshot under the
+		/// write lock so iteration is safe against concurrent appends.
+		/// </summary>
+		internal List<(RecordHandle handle, PingRecord record)> SnapshotRecordsAfter(RecordHandle? cursor)
+		{
+			var output = new List<(RecordHandle, PingRecord)>();
+			lock (_writeLock)
+			{
+				if (_records.ActiveCount == 0) return output;
+
+				IEnumerable<(RecordHandle, PingRecord)> seq;
+				bool skipFirst;
+				if (cursor == null)
+				{
+					seq = _records.EnumerateFrom(new RecordHandle(_records.FirstLogicalChunkIndex, 0));
+					skipFirst = false;
+				}
+				else
+				{
+					seq = _records.EnumerateFrom(cursor.Value);
+					skipFirst = true;
+				}
+
+				foreach (var pair in seq)
+				{
+					if (skipFirst)
+					{
+						skipFirst = false;
+						if (cursor != null && pair.Item1.ChunkIndex == cursor.Value.ChunkIndex && pair.Item1.SlotIndex == cursor.Value.SlotIndex)
+							continue;
+					}
+					output.Add(pair);
+				}
+			}
+			return output;
+		}
+
+		/// <summary>
+		/// Appends a fully-formed record (with its own RelativeTimeMs and final RoundTripMs)
+		/// without going through BeginPendingRecord/CompleteRecord. Used by the disk loader
+		/// to reconstruct a series. Updates the monotonic timestamp watermark.
+		/// </summary>
+		internal RecordHandle AppendRawRecord(PingRecord record)
+		{
+			lock (_writeLock)
+			{
+				DateTime ts = StartTimeUtc.AddMilliseconds(record.RelativeTimeMs);
+				if (ts > _lastRecordedTimestampUtc) _lastRecordedTimestampUtc = ts;
+				return _records.Append(record);
+			}
+		}
+
+		/// <summary>
 		/// Drops whole leading chunks whose records all predate the cutoff.
 		/// Keeps at least the last chunk.
 		/// </summary>

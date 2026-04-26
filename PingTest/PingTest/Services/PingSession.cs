@@ -48,6 +48,7 @@ namespace PingTracer.Services
 		private readonly List<MonitoringSession> _sessions = new List<MonitoringSession>();
 		private readonly List<IPingMonitor> _monitors = new List<IPingMonitor>();
 		private readonly List<RouteSnapshot> _lastEmittedRoutes = new List<RouteSnapshot>();
+		private readonly List<PingDataWriter> _writers = new List<PingDataWriter>();
 
 		private long _successfulPings;
 		private long _failedPings;
@@ -84,6 +85,12 @@ namespace PingTracer.Services
 			{
 				if (IsRunning) return;
 				IsRunning = true;
+				// A previous Stop() retained sessions for post-stop queryData;
+				// clear them now so this Start replaces them cleanly.
+				_sessions.Clear();
+				_monitors.Clear();
+				_lastEmittedRoutes.Clear();
+				_writers.Clear();
 			}
 
 			Interlocked.Exchange(ref _successfulPings, 0);
@@ -134,11 +141,14 @@ namespace PingTracer.Services
 				WireSessionEvents(session);
 				WireMonitorEvents(session, monitor);
 
+				PingDataWriter writer = TryCreateWriter(session);
+
 				lock (_stateLock)
 				{
 					_sessions.Add(session);
 					_monitors.Add(monitor);
 					_lastEmittedRoutes.Add(null);
+					if (writer != null) _writers.Add(writer);
 				}
 
 				monitor.Start();
@@ -175,20 +185,47 @@ namespace PingTracer.Services
 			Timer pt = Interlocked.Exchange(ref _pruneTimer, null);
 			pt?.Dispose();
 
-			List<IPingMonitor> snapshot;
+			List<IPingMonitor> monitorSnapshot;
+			List<PingDataWriter> writerSnapshot;
 			lock (_stateLock)
 			{
 				IsRunning = false;
-				snapshot = new List<IPingMonitor>(_monitors);
+				monitorSnapshot = new List<IPingMonitor>(_monitors);
+				writerSnapshot = new List<PingDataWriter>(_writers);
+				// Retain _sessions and _lastEmittedRoutes so post-stop queryData
+				// requests can still resolve against the in-memory data.
+				// They are cleared on the next Start().
 				_monitors.Clear();
-				_sessions.Clear();
-				_lastEmittedRoutes.Clear();
+				_writers.Clear();
 			}
 
-			foreach (IPingMonitor m in snapshot)
+			foreach (IPingMonitor m in monitorSnapshot)
 			{
 				try { m.Stop(); } catch { }
 				try { m.Dispose(); } catch { }
+			}
+
+			// Disposing the writer waits for in-flight pings to complete and performs
+			// a final flush, so it must happen after monitors are stopped.
+			foreach (PingDataWriter w in writerSnapshot)
+			{
+				try { w.Dispose(); } catch { }
+			}
+		}
+
+		private PingDataWriter TryCreateWriter(MonitoringSession session)
+		{
+			try
+			{
+				string dir = PingDataFile.ResolveDataDirectory(_settings.dataDirectory, Settings.SettingsFolderPath);
+				string fileName = PingDataFile.BuildSessionFileName(session.TargetAddress, session.StartTimeUtc);
+				string path = System.IO.Path.Combine(dir, fileName);
+				return new PingDataWriter(session, path, _settings.diskFlushIntervalSeconds);
+			}
+			catch (Exception ex)
+			{
+				LogCreated?.Invoke("Disk persistence disabled (failed to open session log): " + ex.Message);
+				return null;
 			}
 		}
 

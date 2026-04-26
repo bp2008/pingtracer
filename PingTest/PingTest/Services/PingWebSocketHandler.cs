@@ -12,6 +12,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Text;
 using System.Threading;
 
 namespace PingTracer.Services
@@ -37,6 +38,13 @@ namespace PingTracer.Services
 		/// Lock for session start/stop operations.
 		/// </summary>
 		private readonly object sessionLock = new object();
+
+		/// <summary>
+		/// Snapshot of MonitoringSessions captured after PingSession.Start(), keyed by index.
+		/// Retained after Stop() so historical queryData requests still resolve.
+		/// </summary>
+		private MonitoringSession[] _sessionsByIndex = Array.Empty<MonitoringSession>();
+		private readonly Dictionary<MonitoringSession, byte> _indexBySession = new Dictionary<MonitoringSession, byte>();
 
 		/// <summary>
 		/// Status text.
@@ -151,8 +159,27 @@ namespace PingTracer.Services
 					SendConfigDetails(client, cfg);
 			}
 
-			// TODO Phase 4: send routeUpdate frames for each MonitoringSession on connect
-			// so clients can render the current route topology and request aggregated data.
+			// Send the current binary topology snapshot so the new client can render
+			// even if it connected mid-run or after a stop.
+			SendTopologyAndRoutesTo(client);
+		}
+
+		private void SendTopologyAndRoutesTo(ClientConnection client)
+		{
+			MonitoringSession[] sessions;
+			lock (sessionLock)
+				sessions = _sessionsByIndex;
+
+			if (sessions.Length == 0) return;
+
+			client.SendBinary(BuildSessionTopologyFrame(sessions));
+
+			for (byte i = 0; i < sessions.Length; i++)
+			{
+				RouteSnapshot snap = sessions[i].CurrentRoute;
+				if (snap != null)
+					client.SendBinary(BuildRouteUpdateFrame(i, snap));
+			}
 		}
 
 		private void SendConfigDetails(ClientConnection client, PingConfiguration cfg)
@@ -219,8 +246,9 @@ namespace PingTracer.Services
 					case "setPingRate":
 						HandleSetPingRate(msg.Value<int>("rate"), msg.Value<bool>("pingsPerSecond"));
 						break;
-					// TODO Phase 4: replace requestPingData with queryData (server-side aggregation
-					// per HopTimeSeries with binary frame response).
+					case "queryData":
+						HandleQueryData(clientId, msg);
+						break;
 				}
 			}
 			catch (Exception ex)
@@ -292,8 +320,6 @@ namespace PingTracer.Services
 				}
 
 				currentSession = new PingSession(cfg, settings);
-				// TODO Phase 4: subscribe these events to a binary protocol redesign
-				// (routeUpdate / pingUpdate / hostnameUpdated / aggregatedData frames).
 				currentSession.HopDiscovered += OnHopDiscovered;
 				currentSession.HopDeactivated += OnHopDeactivated;
 				currentSession.PingRecordCompleted += OnPingRecordCompleted;
@@ -303,11 +329,37 @@ namespace PingTracer.Services
 				currentSession.SessionStopped += OnSessionStopped;
 				currentSession.Start();
 
+				// Capture the index map after Start so HopDiscovered/RouteChanged
+				// callbacks (and queryData lookups) can resolve a SessionIndex.
+				MonitoringSession[] startedSessions = currentSession.Sessions.ToArray();
+				_sessionsByIndex = startedSessions;
+				_indexBySession.Clear();
+				for (byte i = 0; i < startedSessions.Length; i++)
+				{
+					_indexBySession[startedSessions[i]] = i;
+					// Subscribe per-series hostname updates so async DNS results
+					// reach connected clients.
+					foreach (HopHistory h in startedSessions[i].HopData)
+					{
+						// HopHistory.Series is empty at start; new series subscribe via OnHopDiscovered.
+					}
+				}
+
 				Broadcast(JsonConvert.SerializeObject(new
 				{
 					type = "started",
 					isRunning = true
 				}));
+
+				// Broadcast initial binary topology so all already-connected clients
+				// learn the new SessionIndex → MonitoringSession mapping.
+				if (startedSessions.Length > 0)
+				{
+					byte[] topology = BuildSessionTopologyFrame(startedSessions);
+					BroadcastBinary(topology);
+					// CurrentRoute is null until the first traceroute completes, so
+					// only routeUpdate frames will arrive via OnRouteChanged from now on.
+				}
 			}
 		}
 
@@ -483,17 +535,69 @@ namespace PingTracer.Services
 
 		#region Session Event Handlers
 
-		// TODO Phase 4: replace these stubs with binary `routeUpdate` / `pingUpdate` frames
-		// per the new protocol. For now they are no-ops so PingSession can run and write
-		// data into the new MonitoringSession storage; the web UI will not render until
-		// Phase 4 lands.
-		private void OnHopDiscovered(MonitoringSession session, HopTimeSeries series) { }
+		private void OnHopDiscovered(MonitoringSession session, HopTimeSeries series)
+		{
+			// Subscribe so async DNS resolution reaches clients. Use a closure
+			// keyed off the series so we capture the right address.
+			series.HostnameUpdated += s =>
+			{
+				try { BroadcastBinary(BuildHostnameUpdatedFrame(s.Address, s.Hostname ?? string.Empty)); }
+				catch { }
+			};
+			// If hostname was already resolved (race), emit immediately.
+			if (!string.IsNullOrEmpty(series.Hostname))
+			{
+				try { BroadcastBinary(BuildHostnameUpdatedFrame(series.Address, series.Hostname)); }
+				catch { }
+			}
+		}
 
-		private void OnHopDeactivated(MonitoringSession session, byte hop, IPAddress address) { }
+		private void OnHopDeactivated(MonitoringSession session, byte hop, IPAddress address)
+		{
+			byte idx = ResolveSessionIndex(session);
+			if (idx == BinaryFrameType.NoSession) return;
+			try { BroadcastBinary(BuildHopDeactivatedFrame(idx, hop, address, DateTime.UtcNow)); }
+			catch { }
+		}
 
-		private void OnPingRecordCompleted(MonitoringSession session, TraceRouteHostResult result, HopTimeSeries series, RecordHandle? handle) { }
+		private void OnPingRecordCompleted(MonitoringSession session, TraceRouteHostResult result, HopTimeSeries series, RecordHandle? handle)
+		{
+			if (series == null || result == null) return;
+			byte idx = ResolveSessionIndex(session);
+			if (idx == BinaryFrameType.NoSession) return;
 
-		private void OnRouteChanged(MonitoringSession session, RouteSnapshot oldRoute, RouteSnapshot newRoute) { }
+			ushort rtt;
+			if (result.success)
+				rtt = (ushort)Math.Min(Math.Max(result.roundTripTime, 0), 65533L);
+			else
+				rtt = PingRecordStatus.Timeout;
+
+			DateTime ts = result.sentTimestampUtc;
+			if (ts == default) ts = DateTime.UtcNow;
+
+			try { BroadcastBinary(BuildPingUpdateFrame(idx, series, ts, rtt)); }
+			catch { }
+		}
+
+		private void OnRouteChanged(MonitoringSession session, RouteSnapshot oldRoute, RouteSnapshot newRoute)
+		{
+			if (newRoute == null) return;
+			byte idx = ResolveSessionIndex(session);
+			if (idx == BinaryFrameType.NoSession) return;
+			try { BroadcastBinary(BuildRouteUpdateFrame(idx, newRoute)); }
+			catch { }
+		}
+
+		private byte ResolveSessionIndex(MonitoringSession session)
+		{
+			if (session == null) return BinaryFrameType.NoSession;
+			lock (sessionLock)
+			{
+				if (_indexBySession.TryGetValue(session, out byte idx))
+					return idx;
+			}
+			return BinaryFrameType.NoSession;
+		}
 
 		private void OnStatusChanged(string status)
 		{
@@ -534,6 +638,167 @@ namespace PingTracer.Services
 
 		#endregion
 
+		#region Binary Frame Builders
+
+		private static byte[] BuildSessionTopologyFrame(MonitoringSession[] sessions)
+		{
+			var w = new BinaryFrameWriter(BinaryFrameType.SessionTopology, BinaryFrameType.NoSession);
+			byte count = (byte)Math.Min(sessions.Length, 255);
+			w.WriteByte(count);
+			for (byte i = 0; i < count; i++)
+			{
+				w.WriteByte(i);
+				w.WriteIp(sessions[i].TargetAddress);
+				w.WriteUtf8String(sessions[i].DisplayName ?? string.Empty);
+			}
+			return w.ToArray();
+		}
+
+		private static byte[] BuildRouteUpdateFrame(byte sessionIndex, RouteSnapshot snap)
+		{
+			var w = new BinaryFrameWriter(BinaryFrameType.RouteUpdate, sessionIndex);
+			w.WriteUnixMs(snap.TimestampUtc);
+
+			// Trim trailing nulls so the wire payload only carries discovered hops.
+			HopTimeSeries[] hops = snap.Hops ?? Array.Empty<HopTimeSeries>();
+			int hopCount = hops.Length;
+			while (hopCount > 0 && hops[hopCount - 1] == null) hopCount--;
+			w.WriteByte((byte)Math.Min(hopCount, 255));
+
+			for (int i = 0; i < hopCount; i++)
+			{
+				HopTimeSeries h = hops[i];
+				w.WriteByte((byte)i);
+				if (h == null)
+				{
+					w.WriteByte(0);
+				}
+				else
+				{
+					w.WriteByte(1);
+					w.WriteIp(h.Address);
+					w.WriteUtf8String(h.Hostname ?? string.Empty);
+					w.WriteUnixMs(h.StartTimeUtc);
+				}
+			}
+			return w.ToArray();
+		}
+
+		private static byte[] BuildHostnameUpdatedFrame(IPAddress address, string hostname)
+		{
+			var w = new BinaryFrameWriter(BinaryFrameType.HostnameUpdated, BinaryFrameType.NoSession);
+			w.WriteIp(address);
+			w.WriteUtf8String(hostname ?? string.Empty);
+			return w.ToArray();
+		}
+
+		private static byte[] BuildPingUpdateFrame(byte sessionIndex, HopTimeSeries series, DateTime timestampUtc, ushort rtt)
+		{
+			var w = new BinaryFrameWriter(BinaryFrameType.PingUpdate, sessionIndex);
+			w.WriteByte(series.HopNumber);
+			w.WriteUnixMs(series.StartTimeUtc);
+			w.WriteUnixMs(timestampUtc);
+			w.WriteUInt16(rtt);
+			return w.ToArray();
+		}
+
+		private static byte[] BuildHopDeactivatedFrame(byte sessionIndex, byte hop, IPAddress address, DateTime endUtc)
+		{
+			var w = new BinaryFrameWriter(BinaryFrameType.HopDeactivated, sessionIndex);
+			w.WriteByte(hop);
+			w.WriteIp(address);
+			w.WriteUnixMs(endUtc);
+			return w.ToArray();
+		}
+
+		public static byte[] BuildAggregatedDataFrame(byte sessionIndex, uint queryId, IList<AggregateResult> results)
+		{
+			var w = new BinaryFrameWriter(BinaryFrameType.AggregatedData, sessionIndex);
+			w.WriteUInt32(queryId);
+			byte count = (byte)Math.Min(results.Count, 255);
+			w.WriteByte(count);
+			for (int i = 0; i < count; i++)
+			{
+				AggregateResult r = results[i];
+				HopTimeSeries s = r.Series;
+				w.WriteByte(s.HopNumber);
+				w.WriteIp(s.Address);
+				w.WriteUtf8String(s.Hostname ?? string.Empty);
+				w.WriteUnixMs(s.StartTimeUtc);
+				w.WriteUnixMs(s.EndTimeUtc ?? default(DateTime));
+				AggregatedPoint[] pts = r.Points ?? Array.Empty<AggregatedPoint>();
+				w.WriteUInt32((uint)pts.Length);
+				foreach (AggregatedPoint p in pts)
+				{
+					w.WriteUnixMs(p.TimestampUtc);
+					w.WriteUInt16(EncodeRtt(p.MinRtt, p.SampleCount));
+					w.WriteUInt16(EncodeRtt(p.MaxRtt, p.SampleCount));
+					w.WriteUInt16(EncodeRtt(p.AvgRtt, p.SampleCount));
+					int lossX100 = (int)Math.Round(p.PacketLossPercent * 100.0);
+					if (lossX100 < 0) lossX100 = 0;
+					if (lossX100 > 10000) lossX100 = 10000;
+					w.WriteUInt16((ushort)lossX100);
+					w.WriteUInt32((uint)Math.Max(0, p.SampleCount));
+				}
+			}
+			return w.ToArray();
+		}
+
+		private static ushort EncodeRtt(double v, int sampleCount)
+		{
+			// AggregatedPoint uses 0 as the unset default; treat as "no successful samples".
+			if (sampleCount <= 0 || v <= 0 || double.IsNaN(v)) return 0xFFFF;
+			if (v >= 65533) return 65533;
+			return (ushort)Math.Round(v);
+		}
+
+		#endregion
+
+		#region Query Data
+
+		private void HandleQueryData(string clientId, JObject msg)
+		{
+			if (!clients.TryGetValue(clientId, out ClientConnection client)) return;
+
+			uint queryId = (uint)(msg.Value<long?>("queryId") ?? 0);
+			int sessionIndex = msg.Value<int?>("sessionIndex") ?? 0;
+			long startMs = msg.Value<long?>("startTimeUtc") ?? 0;
+			long endMs = msg.Value<long?>("endTimeUtc") ?? 0;
+			int maxPoints = msg.Value<int?>("maxPointsPerHop") ?? 800;
+			if (maxPoints < 1) maxPoints = 1;
+
+			MonitoringSession session = null;
+			lock (sessionLock)
+			{
+				if (sessionIndex >= 0 && sessionIndex < _sessionsByIndex.Length)
+					session = _sessionsByIndex[sessionIndex];
+			}
+			if (session == null)
+			{
+				client.SendBinary(BuildAggregatedDataFrame((byte)0xFF, queryId, Array.Empty<AggregateResult>()));
+				return;
+			}
+
+			DateTime start = FromUnixMs(startMs);
+			DateTime end = FromUnixMs(endMs);
+			if (end <= start) end = start.AddMilliseconds(1);
+
+			var results = new List<AggregateResult>();
+			foreach (HopTimeSeries series in session.GetAggregatedData(start, end, maxPoints))
+			{
+				AggregateResult r = series.AggregateRange(start, end, maxPoints);
+				if (r != null && r.Points != null && r.Points.Length > 0)
+					results.Add(r);
+			}
+
+			client.SendBinary(BuildAggregatedDataFrame((byte)sessionIndex, queryId, results));
+		}
+
+		private static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+		private static DateTime FromUnixMs(long ms) => UnixEpoch.AddMilliseconds(ms);
+
+		#endregion
+
 		#region Broadcasting
 
 		private void Broadcast(string message)
@@ -544,6 +809,16 @@ namespace PingTracer.Services
 				{
 					client.Send(message);
 				}
+				catch (Exception) { }
+			}
+		}
+
+		private void BroadcastBinary(byte[] data)
+		{
+			if (data == null || data.Length == 0) return;
+			foreach (var client in clients.Values)
+			{
+				try { client.SendBinary(data); }
 				catch (Exception) { }
 			}
 		}
@@ -582,6 +857,15 @@ namespace PingTracer.Services
 			{
 				if (ws.State == WebSocketState.Open)
 					ws.Send(message);
+			}
+		}
+
+		public void SendBinary(byte[] data)
+		{
+			lock (sendLock)
+			{
+				if (ws.State == WebSocketState.Open)
+					ws.Send(data);
 			}
 		}
 
