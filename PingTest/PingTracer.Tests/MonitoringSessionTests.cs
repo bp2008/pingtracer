@@ -15,12 +15,12 @@ namespace PingTracer.Tests
 
 		private static TraceRouteHostResult Hit(byte ttl, string ip, long rtt = 10)
 		{
-			return new TraceRouteHostResult(null, true, rtt, IPAddress.Parse(ip), ttl, Target, ttl, 5000);
+			return new TraceRouteHostResult(null, true, rtt, IPAddress.Parse(ip), ttl, Target, ttl, 5000, default);
 		}
 
 		private static TraceRouteHostResult Miss(byte ttl)
 		{
-			return new TraceRouteHostResult(null, false, 0, IPAddress.Any, ttl, Target, ttl, 5000);
+			return new TraceRouteHostResult(null, false, 0, IPAddress.Any, ttl, Target, ttl, 5000, default);
 		}
 
 		[Fact]

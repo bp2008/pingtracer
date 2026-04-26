@@ -1,8 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+using System;
 using System.Net;
-using System.Text;
 
 namespace PingTracer.TraceRoute
 {
@@ -40,8 +37,12 @@ namespace PingTracer.TraceRoute
 		/// Number of milliseconds after which the ping was instructed to time out.
 		/// </summary>
 		public int pingTimeoutMs;
+		/// <summary>
+		/// UTC timestamp captured immediately before the ping was dispatched.
+		/// </summary>
+		public DateTime sentTimestampUtc;
 
-		public TraceRouteHostResult(object token, bool success, long roundTripTime, IPAddress replyFrom, byte ttl, IPAddress target, byte maxHops, int pingTimeoutMs)
+		public TraceRouteHostResult(object token, bool success, long roundTripTime, IPAddress replyFrom, byte ttl, IPAddress target, byte maxHops, int pingTimeoutMs, DateTime sentTimestampUtc)
 		{
 			this.token = token;
 			this.success = success;
@@ -51,6 +52,7 @@ namespace PingTracer.TraceRoute
 			this.target = target;
 			this.maxHops = maxHops;
 			this.pingTimeoutMs = pingTimeoutMs;
+			this.sentTimestampUtc = sentTimestampUtc;
 		}
 	}
 }

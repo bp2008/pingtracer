@@ -65,7 +65,7 @@ namespace PingTracer.TraceRoute
 			((Ping)sender).PingCompleted -= Ping_PingCompleted;
 			PingInstancePool.Recycle((Ping)sender);
 
-			TraceRouteHostResult result = new TraceRouteHostResult(token, Success, RoundTripTime, ReplyFrom, ttl, Target, MaxHops, PingTimeoutMs);
+			TraceRouteHostResult result = new TraceRouteHostResult(token, Success, RoundTripTime, ReplyFrom, ttl, Target, MaxHops, PingTimeoutMs, default);
 			OnHostResult(result);
 		}
 	}

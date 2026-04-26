@@ -26,6 +26,12 @@
   <ItemGroup>
     <Compile Include="..\PingTest\Storage\*.cs" LinkBase="Storage" />
     <Compile Include="..\PingTest\TraceRoute\TraceRouteHostResult.cs" LinkBase="TraceRoute" />
+    <Compile Include="..\PingTest\Services\TraceThrottler.cs" LinkBase="Services" />
+    <Compile Include="..\PingTest\Services\ContinuousRouteMonitor.cs" LinkBase="Services" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\BPUtil\BPUtil\BPUtil.csproj" />
+    <ProjectReference Include="..\PingTest\PingTracer.csproj" />
   </ItemGroup>
 
 </Project>

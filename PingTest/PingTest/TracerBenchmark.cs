@@ -77,7 +77,7 @@ namespace PingTracer
 			pool.Stop();
 
 			results[3] = await RunBenchmark("D (Optimized TAP)", () =>
-				RouteTracerMethodD.TraceRoute(null, target, MaxHops, _ => { }, PingTimeoutMs));
+				RouteTracerMethodD.TraceRoute(null, target, MaxHops, null, null, _ => { }, PingTimeoutMs));
 
 			Console.WriteLine();
 			Console.WriteLine("============================================================");
@@ -136,7 +136,7 @@ namespace PingTracer
 			pool.Stop();
 
 			// Method D
-			await RouteTracerMethodD.TraceRoute(null, target, MaxHops, _ => { }, PingTimeoutMs);
+			await RouteTracerMethodD.TraceRoute(null, target, MaxHops, null, null, _ => { }, PingTimeoutMs);
 
 			ForceGC();
 		}
