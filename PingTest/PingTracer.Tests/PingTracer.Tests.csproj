@@ -21,15 +21,7 @@
     </PackageReference>
   </ItemGroup>
 
-  <!-- Compile Storage/ and TraceRouteHostResult directly so the test project
-       has no dependency on BPUtil, which lives outside the worktree. -->
-  <ItemGroup>
-    <Compile Include="..\PingTest\Storage\*.cs" LinkBase="Storage" />
-    <Compile Include="..\PingTest\TraceRoute\TraceRouteHostResult.cs" LinkBase="TraceRoute" />
-    <Compile Include="..\PingTest\Services\TraceThrottler.cs" LinkBase="Services" />
-    <Compile Include="..\PingTest\Services\ContinuousRouteMonitor.cs" LinkBase="Services" />
-  </ItemGroup>
-  <ItemGroup>
+<ItemGroup>
     <ProjectReference Include="..\..\..\BPUtil\BPUtil\BPUtil.csproj" />
     <ProjectReference Include="..\PingTest\PingTracer.csproj" />
   </ItemGroup>
