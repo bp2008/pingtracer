@@ -199,7 +199,6 @@ namespace PingTracer.Services
 
 			HopTimeSeries pendingSeries = state.PendingSeries[idx];
 			RecordHandle? pendingHandle = state.PendingHandles[idx];
-			HopTimeSeries reportedSeries = pendingSeries;
 
 			if (pendingSeries != null && pendingHandle.HasValue)
 			{
@@ -217,7 +216,13 @@ namespace PingTracer.Services
 
 			if (result.success) Throttler.GotResponseFromHop(result.ttl);
 
-			PingRecordCompleted?.Invoke(result, reportedSeries, pendingHandle);
+			// Only broadcast when the result corresponds to an existing series. Results
+			// without a pending series are deferred to ReconcileDeferredRecords, which
+			// fires the event after RecordTraceResult creates the series. This prevents
+			// the first-cycle "all timeouts" red flash and avoids broadcasting against
+			// a synthetic placeholder.
+			if (pendingSeries != null)
+				PingRecordCompleted?.Invoke(result, pendingSeries, pendingHandle);
 		}
 
 		private void ReconcileDeferredRecords(CycleState state)
@@ -227,19 +232,35 @@ namespace PingTracer.Services
 				if (state.PendingResolvedOk[idx]) continue;
 
 				TraceRouteHostResult result = state.Results[idx];
-				if (result == null || !result.success || result.replyFrom == null) continue;
+				if (result == null) continue;
 
+				// Only reconcile against the now-current series if it matches the
+				// reply address (handles first-cycle and address-change cases).
 				HopHistory history = Session.HopData[idx];
 				HopTimeSeries active;
 				lock (history)
 					active = history.ActiveSeries;
 
-				if (active == null || !active.Address.Equals(result.replyFrom)) continue;
+				bool matchedActive = result.success
+					&& result.replyFrom != null
+					&& active != null
+					&& active.Address.Equals(result.replyFrom);
 
-				DateTime sentAt = state.SendTimes[idx];
-				if (sentAt == default) sentAt = DateTime.UtcNow;
-				RecordHandle h = active.BeginPendingRecord(sentAt);
-				active.CompleteRecord(h, ClampRtt(result.roundTripTime));
+				if (matchedActive)
+				{
+					DateTime sentAt = state.SendTimes[idx];
+					if (sentAt == default) sentAt = DateTime.UtcNow;
+					RecordHandle h = active.BeginPendingRecord(sentAt);
+					active.CompleteRecord(h, ClampRtt(result.roundTripTime));
+
+					// Broadcast the deferred completion so first-cycle hops render
+					// real data immediately rather than waiting for cycle 2.
+					if (state.PendingSeries[idx] == null)
+						PingRecordCompleted?.Invoke(result, active, h);
+				}
+				// Failed/non-matching results without a pre-existing series produce
+				// no broadcast — the hop will simply have no data point for this cycle
+				// rather than a synthetic timeout that would render as a red bar.
 			}
 		}
 

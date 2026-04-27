@@ -43,7 +43,8 @@ namespace PingTracer.Tests
 			pts[1] = new AggregatedPoint
 			{
 				TimestampUtc = start.AddMilliseconds(1500),
-				MinRtt = 0, MaxRtt = 0, AvgRtt = 0, PacketLossPercent = 50,
+				MinRtt = double.NaN, MaxRtt = double.NaN, AvgRtt = double.NaN,
+				PacketLossPercent = 50,
 				SampleCount = 2
 			};
 			var result = new AggregateResult { Series = series, Points = pts };

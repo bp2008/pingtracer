@@ -1,6 +1,14 @@
 <template>
-	<canvas ref="canvas" class="ping-graph" @mousemove="onMouseMove" @mouseleave="onMouseLeave"
-		@mousedown="onMouseDown" @wheel.prevent="onWheel"></canvas>
+	<div class="ping-graph-wrap">
+		<canvas ref="canvas" class="ping-graph" @mousemove="onMouseMove" @mouseleave="onMouseLeave"
+			@mousedown="onMouseDown" @wheel.prevent="onWheel"></canvas>
+		<div v-if="tooltip.visible" class="hover-tooltip"
+			:style="{ left: tooltip.x + 'px', top: tooltip.y + 'px' }">
+			<div>{{ tooltip.time }}</div>
+			<div v-if="tooltip.address">{{ tooltip.address }}<span v-if="tooltip.hostname"> ({{ tooltip.hostname }})</span></div>
+			<div>{{ tooltip.rtt }}</div>
+		</div>
+	</div>
 </template>
 
 <script>
@@ -49,6 +57,7 @@ export default {
 			mouseY: -1,
 			resizeObserver: null,
 			animFrameId: null,
+			tooltip: { visible: false, x: 0, y: 0, time: '', address: '', hostname: '', rtt: '' },
 		};
 	},
 	created()
@@ -287,10 +296,32 @@ export default {
 			// Bars whose extent crosses the viewport edges are clipped to the
 			// edge but still rendered, so partial bars at the left/right
 			// remain visible when zoomed in.
+			//
+			// The trailing bar must NOT extend all the way to vEnd: that would
+			// repaint the most recent ping's color across the entire interval
+			// while waiting for the next response, and then retroactively
+			// recolor it. Cap the last bar at one estimated ping interval past
+			// its own time so the area beyond it stays blank until a real
+			// result arrives.
+			let lastBarEndCap = vEnd;
+			if (flat.length >= 2)
+			{
+				const sampleN = Math.min(8, flat.length - 1);
+				let sumGap = 0;
+				for (let k = flat.length - sampleN; k < flat.length; k++)
+					sumGap += flat[k].b.t - flat[k - 1].b.t;
+				const avgGap = Math.max(1, sumGap / sampleN);
+				lastBarEndCap = Math.min(vEnd, flat[flat.length - 1].b.t + avgGap);
+			}
+			else if (flat.length === 1)
+			{
+				lastBarEndCap = Math.min(vEnd, flat[0].b.t + 1000);
+			}
+
 			for (let i = 0; i < flat.length; i++)
 			{
 				const b = flat[i].b;
-				const nextT = (i + 1 < flat.length) ? flat[i + 1].b.t : vEnd;
+				const nextT = (i + 1 < flat.length) ? flat[i + 1].b.t : lastBarEndCap;
 				const tStart = b.t;
 				const tEnd = nextT;
 				if (tEnd < vStart || tStart > vEnd) continue;
@@ -440,27 +471,32 @@ export default {
 
 		getMouseoverHint(segments, vStart, vDur, logicalW, graphHeight, vScale, lowerLimitDraw)
 		{
-			if (this.mouseX < 0 || this.mouseY < 0) return '';
+			if (this.mouseX < 0 || this.mouseY < 0)
+			{
+				if (this.tooltip.visible) this.tooltip = { ...this.tooltip, visible: false };
+				return '';
+			}
 
 			const mouseMs = Math.round(((graphHeight - this.mouseY) / graphHeight) * (graphHeight / vScale) + lowerLimitDraw);
 			const mouseT = vStart + (this.mouseX / logicalW) * vDur;
 
-			// Pick the segment whose [start, end) window contains the mouse
-			// time. This makes the address shown reflect the actual segment
-			// the cursor is over, not the segment of the nearest bucket
-			// (which would mislabel positions near a series boundary).
+			// Prefer real segments over the synthetic "no response" placeholder
+			// (address '*'); otherwise the placeholder, which spans all time,
+			// would always shadow the real segment under the cursor.
+			const realSegments = segments.filter(s => s.address !== '*');
+			const candidates = realSegments.length > 0 ? realSegments : segments;
+
 			let activeSeg = null;
-			for (const seg of segments)
+			for (const seg of candidates)
 			{
 				const segStart = seg.seriesStartUtc;
 				const segEnd = seg.seriesEndUtc != null ? seg.seriesEndUtc : Number.POSITIVE_INFINITY;
 				if (mouseT >= segStart && mouseT <= segEnd) { activeSeg = seg; break; }
 			}
-			// Fallback: nearest segment by midpoint, in case windows don't cover mouseT.
-			if (!activeSeg && segments.length > 0)
+			if (!activeSeg && candidates.length > 0)
 			{
 				let bestDist = Infinity;
-				for (const seg of segments)
+				for (const seg of candidates)
 				{
 					const mid = (seg.seriesStartUtc + (seg.seriesEndUtc != null ? seg.seriesEndUtc : Date.now())) / 2;
 					const d = Math.abs(mid - mouseT);
@@ -481,21 +517,42 @@ export default {
 			}
 
 			const time = new Date(mouseT).toLocaleTimeString();
-			const addrStr = activeSeg ? ' [' + activeSeg.address
-				+ (activeSeg.hostname ? ' ' + activeSeg.hostname : '') + ']' : '';
+			const isRealAddr = activeSeg && activeSeg.address && activeSeg.address !== '*';
+			const addrStr = isRealAddr
+				? ' [' + activeSeg.address + (activeSeg.hostname ? ' ' + activeSeg.hostname : '') + ']'
+				: '';
 
-			if (!bucket) return time + addrStr + ', Mouse ms: ' + mouseMs;
-
-			const bt = new Date(bucket.t).toLocaleTimeString();
-			let info;
-			if (bucket.avg == null)
-				info = bt + ': lost' + (bucket.samples > 1 ? ' (' + bucket.samples + ' sent)' : '');
-			else if (bucket.samples === 1)
-				info = bt + ': ' + bucket.avg + ' ms';
+			let rttStr;
+			let bucketTimeStr = '';
+			if (!bucket)
+			{
+				rttStr = '(no data)';
+			}
 			else
-				info = bt + ': avg ' + bucket.avg + ' (' + bucket.min + '-' + bucket.max
-					+ ', n=' + bucket.samples + ', loss ' + bucket.lossPct.toFixed(1) + '%)';
-			return info + addrStr + ', Mouse ms: ' + mouseMs;
+			{
+				bucketTimeStr = new Date(bucket.t).toLocaleTimeString();
+				if (bucket.avg == null)
+					rttStr = 'lost' + (bucket.samples > 1 ? ' (' + bucket.samples + ' sent)' : '');
+				else if (bucket.samples === 1)
+					rttStr = bucket.avg + ' ms';
+				else
+					rttStr = 'avg ' + bucket.avg + ' (' + bucket.min + '-' + bucket.max
+						+ ', n=' + bucket.samples + ', loss ' + bucket.lossPct.toFixed(1) + '%)';
+			}
+
+			// Update floating tooltip near cursor.
+			this.tooltip = {
+				visible: true,
+				x: this.mouseX + 14,
+				y: this.mouseY + 14,
+				time: bucketTimeStr || time,
+				address: isRealAddr ? activeSeg.address : '',
+				hostname: isRealAddr ? (activeSeg.hostname || '') : '',
+				rtt: rttStr,
+			};
+
+			const bt = bucket ? bucketTimeStr : time;
+			return bt + ': ' + rttStr + addrStr + ', Mouse ms: ' + mouseMs;
 		},
 
 		// --- Input Handlers ---
@@ -512,6 +569,7 @@ export default {
 		{
 			this.mouseX = -1;
 			this.mouseY = -1;
+			this.tooltip = { ...this.tooltip, visible: false };
 			this.scheduleRender();
 		},
 
@@ -536,11 +594,32 @@ export default {
 </script>
 
 <style scoped>
+.ping-graph-wrap {
+	position: relative;
+	width: 100%;
+	height: 100%;
+}
+
 .ping-graph {
 	width: 100%;
 	height: 100%;
 	display: block;
 	cursor: crosshair;
 	background: #000;
+}
+
+.hover-tooltip {
+	position: absolute;
+	background: rgba(20, 20, 30, 0.95);
+	color: #e0e0e0;
+	font-size: 11px;
+	font-family: monospace;
+	padding: 4px 7px;
+	border-radius: 3px;
+	border: 1px solid #555;
+	pointer-events: none;
+	z-index: 100;
+	white-space: nowrap;
+	line-height: 1.35;
 }
 </style>

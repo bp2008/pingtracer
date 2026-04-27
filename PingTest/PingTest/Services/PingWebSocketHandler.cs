@@ -580,23 +580,13 @@ namespace PingTracer.Services
 			DateTime ts = result.sentTimestampUtc;
 			if (ts == default) ts = DateTime.UtcNow;
 
-			if (series != null)
-			{
-				ushort rtt = result.success
-					? (ushort)Math.Min(Math.Max(result.roundTripTime, 0), 65533L)
-					: PingRecordStatus.Timeout;
-				try { BroadcastBinary(BuildPingUpdateFrame(idx, series, ts, rtt)); }
-				catch { }
-			}
-			else if (result.ttl > 0 && result.ttl <= 255)
-			{
-				// Hop has no active HopTimeSeries — i.e. it has never responded
-				// (or its previous series has been closed). Emit a synthetic
-				// pingUpdate keyed by seriesStartUtc=0 so the client can render
-				// a row of timeouts for the unresponsive hop.
-				try { BroadcastBinary(BuildPingUpdateUnresponsiveFrame(idx, (byte)(result.ttl - 1), ts)); }
-				catch { }
-			}
+			if (series == null) return;
+
+			ushort rtt = result.success
+				? (ushort)Math.Min(Math.Max(result.roundTripTime, 0), 65533L)
+				: PingRecordStatus.Timeout;
+			try { BroadcastBinary(BuildPingUpdateFrame(idx, series, ts, rtt)); }
+			catch { }
 		}
 
 		private void OnRouteChanged(MonitoringSession session, RouteSnapshot oldRoute, RouteSnapshot newRoute)
@@ -723,18 +713,7 @@ namespace PingTracer.Services
 			return w.ToArray();
 		}
 
-		private static byte[] BuildPingUpdateUnresponsiveFrame(byte sessionIndex, byte hopNumber, DateTime timestampUtc)
-		{
-			var w = new BinaryFrameWriter(BinaryFrameType.PingUpdate, sessionIndex);
-			w.WriteByte(hopNumber);
-			// seriesStartUtc=0 marks the synthetic "unresponsive hop" series.
-			w.WriteUInt64(0);
-			w.WriteUnixMs(timestampUtc);
-			w.WriteUInt16(PingRecordStatus.Timeout);
-			return w.ToArray();
-		}
-
-		private static byte[] BuildHopDeactivatedFrame(byte sessionIndex, byte hop, IPAddress address, DateTime endUtc)
+private static byte[] BuildHopDeactivatedFrame(byte sessionIndex, byte hop, IPAddress address, DateTime endUtc)
 		{
 			var w = new BinaryFrameWriter(BinaryFrameType.HopDeactivated, sessionIndex);
 			w.WriteByte(hop);
@@ -778,8 +757,9 @@ namespace PingTracer.Services
 
 		private static ushort EncodeRtt(double v, int sampleCount)
 		{
-			// AggregatedPoint uses 0 as the unset default; treat as "no successful samples".
-			if (sampleCount <= 0 || v <= 0 || double.IsNaN(v)) return 0xFFFF;
+			// NaN signals "no successful samples in this bucket". A real 0ms RTT
+			// (common on the local LAN) must encode to 0, not 0xFFFF.
+			if (sampleCount <= 0 || double.IsNaN(v) || v < 0) return 0xFFFF;
 			if (v >= 65533) return 65533;
 			return (ushort)Math.Round(v);
 		}

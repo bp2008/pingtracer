@@ -61,10 +61,26 @@ namespace PingTracer.Storage
 				if (r.ttl > maxTtl) maxTtl = r.ttl;
 			}
 
-			var snapshotHops = new HopTimeSeries[maxTtl];
+			// Determine the lowest TTL at which the destination responded (if any).
+			// Hops at deeper TTLs see the destination only because the probe packets
+			// reach the destination with leftover TTL — they should not be treated as
+			// real intermediate hops. Cap processing at destTtl when found.
+			byte? destTtl = null;
+			for (byte ttl = 1; ttl <= maxTtl; ttl++)
+			{
+				if (!byTtl.TryGetValue(ttl, out var r)) continue;
+				if (r.success && r.replyFrom != null && r.replyFrom.Equals(TargetAddress))
+				{
+					destTtl = ttl;
+					break;
+				}
+			}
+			byte effectiveMaxTtl = destTtl ?? maxTtl;
+
+			var snapshotHops = new HopTimeSeries[effectiveMaxTtl];
 			List<HopTimeSeries> addedSeries = null;
 
-			for (byte ttl = 1; ttl <= maxTtl; ttl++)
+			for (byte ttl = 1; ttl <= effectiveMaxTtl; ttl++)
 			{
 				int hopIndex = ttl - 1;
 				byTtl.TryGetValue(ttl, out var result);
@@ -88,7 +104,7 @@ namespace PingTracer.Storage
 						}
 						else
 						{
-							// New address (or first appearance). Close any active series.
+							// Address changed (or first appearance). Close any active series.
 							if (active != null)
 								active.EndTimeUtc = timestamp;
 
@@ -100,12 +116,29 @@ namespace PingTracer.Storage
 					}
 					else
 					{
-						// Hop didn't respond — close any previously active series.
+						// Non-response: keep the previously active series active. A single
+						// missed reply (or a routine ICMP-rate-limited intermediate hop)
+						// must not flap the series. The series will only be closed when
+						// the responding address actually changes (handled above) or when
+						// the destination responds at an earlier TTL (handled below).
+						snapshotHops[hopIndex] = history.ActiveSeries;
+					}
+				}
+			}
+
+			// When the destination is known, deactivate any pre-existing series at
+			// deeper TTLs (e.g. duplicates created during the very first cycle before
+			// maxHops shrunk).
+			if (destTtl.HasValue)
+			{
+				for (int hopIndex = destTtl.Value; hopIndex < HopData.Length; hopIndex++)
+				{
+					HopHistory history = HopData[hopIndex];
+					lock (history)
+					{
 						HopTimeSeries active = history.ActiveSeries;
 						if (active != null)
 							active.EndTimeUtc = timestamp;
-
-						snapshotHops[hopIndex] = null;
 					}
 				}
 			}

@@ -141,6 +141,9 @@ namespace PingTracer.Storage
 				var (ts, rtt) = raw[i];
 				pts[i].TimestampUtc = ts;
 				pts[i].SampleCount = 1;
+				pts[i].AvgRtt = double.NaN;
+				pts[i].MinRtt = double.NaN;
+				pts[i].MaxRtt = double.NaN;
 				if (rtt == PingRecordStatus.Timeout)
 				{
 					pts[i].PacketLossPercent = 100.0;
@@ -169,7 +172,12 @@ namespace PingTracer.Storage
 			var hasData = new bool[maxPoints];
 
 			for (int i = 0; i < maxPoints; i++)
+			{
 				pts[i].TimestampUtc = start.AddMilliseconds((i + 0.5) * bucketMs);
+				pts[i].AvgRtt = double.NaN;
+				pts[i].MinRtt = double.NaN;
+				pts[i].MaxRtt = double.NaN;
+			}
 
 			foreach (var (ts, rtt) in raw)
 			{
@@ -189,7 +197,7 @@ namespace PingTracer.Storage
 					sumRtt[bi] += v;
 					successCount[bi]++;
 					if (successCount[bi] == 1 || v < pts[bi].MinRtt) pts[bi].MinRtt = v;
-					if (v > pts[bi].MaxRtt) pts[bi].MaxRtt = v;
+					if (successCount[bi] == 1 || v > pts[bi].MaxRtt) pts[bi].MaxRtt = v;
 				}
 			}
 

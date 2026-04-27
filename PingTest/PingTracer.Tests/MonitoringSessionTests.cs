@@ -82,22 +82,47 @@ namespace PingTracer.Tests
 		}
 
 		[Fact]
-		public void RecordTraceResult_MissingHop_ClosesActiveSeries()
+		public void RecordTraceResult_MissingHop_KeepsSeriesActive()
 		{
+			// A single non-response (or any number — until the address actually
+			// changes or the destination responds at an earlier TTL) must NOT
+			// close the active series. Closing-then-recreating on every transient
+			// miss would flap the series and spam the route-change UI.
 			var session = new MonitoringSession(Target, "test");
 			session.RecordTraceResult(new[] { Hit(1, "10.0.0.1"), Hit(2, "10.0.0.2") }, T0);
 
-			// Second trace: hop 1 is gone
 			session.RecordTraceResult(new[] { Miss(1), Hit(2, "10.0.0.2") }, T0.AddSeconds(1));
+			session.RecordTraceResult(new[] { Miss(1), Hit(2, "10.0.0.2") }, T0.AddSeconds(2));
 
 			var h0 = session.HopData[0];
 			Assert.Single(h0.Series);
-			Assert.False(h0.Series[0].IsActive);
-			Assert.Equal(T0.AddSeconds(1), h0.Series[0].EndTimeUtc);
+			Assert.True(h0.Series[0].IsActive);
+			Assert.Null(h0.Series[0].EndTimeUtc);
 
 			var h1 = session.HopData[1];
 			Assert.Single(h1.Series);
 			Assert.True(h1.Series[0].IsActive);
+		}
+
+		[Fact]
+		public void RecordTraceResult_DestinationFoundAtEarlierTtl_ClosesDeeperHops()
+		{
+			var session = new MonitoringSession(Target, "test");
+
+			// First cycle: destination not yet found — three intermediate hops.
+			session.RecordTraceResult(
+				new[] { Hit(1, "10.0.0.1"), Hit(2, "10.0.0.2"), Hit(3, "10.0.0.3") },
+				T0);
+			Assert.True(session.HopData[2].ActiveSeries != null);
+
+			// Second cycle: destination responds at TTL 2; deeper hops must be deactivated.
+			session.RecordTraceResult(
+				new[] { Hit(1, "10.0.0.1"), Hit(2, Target.ToString()), Hit(3, "10.0.0.3") },
+				T0.AddSeconds(1));
+
+			Assert.True(session.HopData[1].ActiveSeries != null);
+			Assert.Null(session.HopData[2].ActiveSeries);
+			Assert.False(session.HopData[2].Series[0].IsActive);
 		}
 
 		[Fact]
@@ -172,27 +197,22 @@ namespace PingTracer.Tests
 		{
 			var session = new MonitoringSession(Target, "test");
 
-			// Hop 0 active for T0..T0+1s, then gone
+			// Hop 0 starts at 10.0.0.1, then changes to 10.0.0.2. The first series
+			// is now inactive with no recorded pings; pruning should remove it.
 			session.RecordTraceResult(new[] { Hit(1, "10.0.0.1") }, T0);
-			session.RecordTraceResult(new[] { Miss(1) }, T0.AddSeconds(1));
+			session.RecordTraceResult(new[] { Hit(1, "10.0.0.2") }, T0.AddSeconds(1));
 
-			// Hop 0 now has one inactive series with no ping records
-			Assert.Single(session.HopData[0].Series);
+			Assert.Equal(2, session.HopData[0].Series.Count);
 			Assert.False(session.HopData[0].Series[0].IsActive);
+			Assert.True(session.HopData[0].Series[1].IsActive);
 
-			// Pruning with a cutoff past the series should remove it
-			session.PruneOlderThan(TimeSpan.FromSeconds(-10)); // cutoff = now - (-10s) = now + 10s... that's future
-
-			// Use a very small maxAge so the cutoff is effectively "now"
-			// which should include the T0 records
-			// Actually let's just call it directly with sufficient maxAge
-			// The series is empty (no pings were recorded in it for >1 day)
-			// PruneOlderThan with maxAge = 0 would set cutoff = now
-			// T0 is 2025-01-01, so all records predate "now" (2026)
 			session.PruneOlderThan(TimeSpan.FromDays(1));
 
-			// Empty inactive series should be gone
-			Assert.Empty(session.HopData[0].Series);
+			// Empty inactive series (the one for 10.0.0.1) should be gone; the
+			// active one for 10.0.0.2 remains.
+			Assert.Single(session.HopData[0].Series);
+			Assert.True(session.HopData[0].Series[0].IsActive);
+			Assert.Equal(System.Net.IPAddress.Parse("10.0.0.2"), session.HopData[0].Series[0].Address);
 		}
 
 		[Fact]

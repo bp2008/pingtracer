@@ -397,11 +397,14 @@ export default {
 				this.liveNow = now;
 				return;
 			}
-			// Clamp to earliest session start.
+			// Allow panning far enough back that the oldest buffered data scrolls
+			// off the right side of the view (i.e. the entire viewport sits before
+			// the data window). Stop one full viewport before that to avoid endless
+			// blank scrolling.
 			const earliest = this.earliestSessionStartUtc;
 			if (earliest != null)
 			{
-				const minEnd = earliest + this.viewportDurationMs * 0.05;
+				const minEnd = earliest - this.viewportDurationMs;
 				if (newEnd < minEnd) newEnd = minEnd;
 			}
 			this.viewportEndUtc = newEnd;
