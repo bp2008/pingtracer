@@ -650,6 +650,7 @@ namespace PingTracer.Services
 				w.WriteByte(i);
 				w.WriteIp(sessions[i].TargetAddress);
 				w.WriteUtf8String(sessions[i].DisplayName ?? string.Empty);
+				w.WriteUnixMs(sessions[i].StartTimeUtc);
 			}
 			return w.ToArray();
 		}

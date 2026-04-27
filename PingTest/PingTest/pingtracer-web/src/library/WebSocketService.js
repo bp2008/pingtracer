@@ -263,7 +263,8 @@ class PingTracerWS
 			const index = r.u8();
 			const targetAddress = r.ip();
 			const displayName = r.utf8String();
-			sessions.push({ index, targetAddress, displayName });
+			const sessionStartUtc = r.u64();
+			sessions.push({ index, targetAddress, displayName, sessionStartUtc });
 		}
 		return { sessions };
 	}

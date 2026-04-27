@@ -5,13 +5,21 @@ import pingTracerWS from '@/library/WebSocketService';
 /**
  * Pinia store for the route-aware data plane.
  *
- * `routes` mirrors the server's RouteSnapshot per session. `liveTail` accumulates
- * incoming `pingUpdate` points capped at LIVE_TAIL_CAP per (session, hop, series),
- * keyed `${sessionIndex}:${hopNumber}:${seriesStartUtc}`. Use `keyFor(...)` to
- * compute keys consistently. `history` holds the last queryData response per key.
+ * Per-series ping data is stored in two places, both keyed by
+ * `${sessionIndex}:${hopNumber}:${seriesStartUtc}`:
+ *   - liveTail: incremental {t, ms} points capped at LIVE_TAIL_CAP (drawn on
+ *     the trailing edge of the graph, no server round-trip).
+ *   - history: aggregated {t, min, max, avg, lossPct, samples} buckets fetched
+ *     via queryData, populated when the viewport extends beyond the live tail.
+ *
+ * `hopHistory[sessionIndex][hopNumber]` is the chronological list of all
+ * series segments seen for a given hop position (active + closed). Used by
+ * the graph to render a single row per hop position even when its address
+ * has changed mid-window.
  */
 
 const LIVE_TAIL_CAP = 5000;
+const VIEWPORT_QUERY_DEBOUNCE_MS = 120;
 
 export function keyFor(sessionIndex, hopNumber, seriesStartUtc)
 {
@@ -33,14 +41,20 @@ export const usePingStore = defineStore('ping', () =>
 	const errors = ref([]);
 
 	// --- Data plane (binary) ---
-	// sessions: [{ index, displayName, targetAddress }]
+	// sessions: [{ index, displayName, targetAddress, sessionStartUtc }]
 	const sessions = ref([]);
 	// routes: { [sessionIndex]: { timestampUtc, hops: [hopEntry|null] } }
 	const routes = ref({});
+	// hopHistory: { [sessionIndex]: { [hopNumber]: [{address, hostname, seriesStartUtc, seriesEndUtc|null}] } }
+	const hopHistory = ref({});
 	// liveTail: { [key]: [{ t, ms }] }
 	const liveTail = ref({});
-	// history: { [key]: { points: [{ t, min, max, avg, lossPct, samples }], queryWindow: { startTimeUtc, endTimeUtc } } }
+	// history: { [key]: { points: [{ t, min, max, avg, lossPct, samples }], address, hostname, seriesEndUtc, queriedStart, queriedEnd, queriedMaxPoints } }
 	const history = ref({});
+
+	// Debounced viewport query state (per session)
+	const _queryTimers = {};   // sessionIndex -> setTimeout handle
+	const _lastQuery = {};     // sessionIndex -> { startUtc, endUtc, maxPoints }
 
 	const selectedConfig = computed(() =>
 		configurations.value.find(c => c.guid === selectedConfigGuid.value) || null);
@@ -49,28 +63,48 @@ export const usePingStore = defineStore('ping', () =>
 	{
 		sessions.value = [];
 		routes.value = {};
+		hopHistory.value = {};
 		liveTail.value = {};
 		history.value = {};
+		for (const k of Object.keys(_queryTimers))
+		{
+			clearTimeout(_queryTimers[k]);
+			delete _queryTimers[k];
+		}
+		for (const k of Object.keys(_lastQuery)) delete _lastQuery[k];
 	}
 
-	function _trimDeadKeys(sessionIndex, route)
+	function _ensureHopHistory(sessionIndex, hopNumber)
 	{
-		// Drop liveTail/history keys that no longer match a present series in this session.
-		const valid = new Set();
-		for (const hop of route.hops)
-			if (hop) valid.add(keyFor(sessionIndex, hop.hopNumber, hop.seriesStartUtc));
+		let bySession = hopHistory.value[sessionIndex];
+		if (!bySession)
+		{
+			bySession = {};
+			hopHistory.value = { ...hopHistory.value, [sessionIndex]: bySession };
+		}
+		let arr = bySession[hopNumber];
+		if (!arr)
+		{
+			arr = [];
+			bySession[hopNumber] = arr;
+		}
+		return arr;
+	}
 
-		const prefix = `${sessionIndex}:`;
-		for (const k of Object.keys(liveTail.value))
+	function _recordSeries(sessionIndex, hopNumber, address, hostname, seriesStartUtc, seriesEndUtc)
+	{
+		const arr = _ensureHopHistory(sessionIndex, hopNumber);
+		const existing = arr.find(s => s.seriesStartUtc === seriesStartUtc && s.address === address);
+		if (existing)
 		{
-			if (k.startsWith(prefix) && !valid.has(k))
-				delete liveTail.value[k];
+			if (hostname && existing.hostname !== hostname) existing.hostname = hostname;
+			if (seriesEndUtc != null && existing.seriesEndUtc !== seriesEndUtc) existing.seriesEndUtc = seriesEndUtc;
+			return;
 		}
-		for (const k of Object.keys(history.value))
-		{
-			if (k.startsWith(prefix) && !valid.has(k))
-				delete history.value[k];
-		}
+		arr.push({ address, hostname: hostname || '', seriesStartUtc, seriesEndUtc: seriesEndUtc || null });
+		arr.sort((a, b) => a.seriesStartUtc - b.seriesStartUtc);
+		// Trigger reactivity for nested object mutation.
+		hopHistory.value = { ...hopHistory.value };
 	}
 
 	function connect()
@@ -115,10 +149,11 @@ export const usePingStore = defineStore('ping', () =>
 		pingTracerWS.on('sessionTopology', (msg) =>
 		{
 			sessions.value = msg.sessions;
-			// Drop routes/tails belonging to indexes that no longer exist.
 			const validIndexes = new Set(msg.sessions.map(s => s.index));
 			for (const k of Object.keys(routes.value))
 				if (!validIndexes.has(parseInt(k, 10))) delete routes.value[k];
+			for (const k of Object.keys(hopHistory.value))
+				if (!validIndexes.has(parseInt(k, 10))) delete hopHistory.value[k];
 			for (const k of Object.keys(liveTail.value))
 				if (!validIndexes.has(parseInt(k.split(':')[0], 10))) delete liveTail.value[k];
 			for (const k of Object.keys(history.value))
@@ -128,7 +163,11 @@ export const usePingStore = defineStore('ping', () =>
 		pingTracerWS.on('routeUpdate', (msg) =>
 		{
 			routes.value = { ...routes.value, [msg.sessionIndex]: { timestampUtc: msg.timestampUtc, hops: msg.hops } };
-			_trimDeadKeys(msg.sessionIndex, { hops: msg.hops });
+			for (const hop of msg.hops)
+			{
+				if (!hop) continue;
+				_recordSeries(msg.sessionIndex, hop.hopNumber, hop.address, hop.hostname, hop.seriesStartUtc, null);
+			}
 		});
 
 		pingTracerWS.on('hostnameUpdated', (msg) =>
@@ -156,6 +195,25 @@ export const usePingStore = defineStore('ping', () =>
 				}
 			}
 			if (changed) routes.value = next;
+
+			// Update hopHistory entries with matching address.
+			let historyChanged = false;
+			for (const sIdx of Object.keys(hopHistory.value))
+			{
+				const bySession = hopHistory.value[sIdx];
+				for (const hopNum of Object.keys(bySession))
+				{
+					for (const seg of bySession[hopNum])
+					{
+						if (seg.address === msg.address && seg.hostname !== msg.hostname)
+						{
+							seg.hostname = msg.hostname;
+							historyChanged = true;
+						}
+					}
+				}
+			}
+			if (historyChanged) hopHistory.value = { ...hopHistory.value };
 		});
 
 		pingTracerWS.on('pingUpdate', (msg) =>
@@ -177,20 +235,36 @@ export const usePingStore = defineStore('ping', () =>
 
 		pingTracerWS.on('hopDeactivated', (msg) =>
 		{
-			const route = routes.value[msg.sessionIndex];
-			if (!route) return;
-			// We don't have seriesStartUtc here, so just leave the route as the
-			// next routeUpdate will refresh hop state. No-op for now is fine.
+			const bySession = hopHistory.value[msg.sessionIndex];
+			if (!bySession) return;
+			const arr = bySession[msg.hopNumber];
+			if (!arr) return;
+			let changed = false;
+			for (const seg of arr)
+			{
+				if (seg.address === msg.address && seg.seriesEndUtc == null)
+				{
+					seg.seriesEndUtc = msg.seriesEndUtc;
+					changed = true;
+				}
+			}
+			if (changed) hopHistory.value = { ...hopHistory.value };
 		});
 
 		pingTracerWS.on('aggregatedData', (msg) =>
 		{
-			// Replace history for each returned series.
 			const next = { ...history.value };
 			for (const s of msg.series)
 			{
 				const k = keyFor(msg.sessionIndex, s.hopNumber, s.seriesStartUtc);
-				next[k] = { points: s.points, address: s.address, hostname: s.hostname, seriesEndUtc: s.seriesEndUtc };
+				next[k] = {
+					points: s.points,
+					address: s.address,
+					hostname: s.hostname,
+					seriesEndUtc: s.seriesEndUtc || null,
+				};
+				// Backfill hopHistory with metadata for series we discovered via query.
+				_recordSeries(msg.sessionIndex, s.hopNumber, s.address, s.hostname, s.seriesStartUtc, s.seriesEndUtc || null);
 			}
 			history.value = next;
 		});
@@ -233,6 +307,32 @@ export const usePingStore = defineStore('ping', () =>
 		return pingTracerWS.queryData(sessionIndex, startTimeUtc, endTimeUtc, maxPointsPerHop);
 	}
 
+	/**
+	 * Fire a debounced queryData for the given viewport. Called every time
+	 * the viewport changes; only the last call within the debounce window
+	 * actually hits the wire.
+	 *
+	 * Pass `force=true` to skip the dedupe check (useful for reconnects).
+	 */
+	function requestViewportData(sessionIndex, startUtc, endUtc, maxPointsPerHop, force = false)
+	{
+		if (!force)
+		{
+			const last = _lastQuery[sessionIndex];
+			if (last && last.startUtc === startUtc && last.endUtc === endUtc && last.maxPoints === maxPointsPerHop)
+				return; // already covered
+		}
+		_lastQuery[sessionIndex] = { startUtc, endUtc, maxPoints: maxPointsPerHop };
+
+		if (_queryTimers[sessionIndex]) clearTimeout(_queryTimers[sessionIndex]);
+		_queryTimers[sessionIndex] = setTimeout(() =>
+		{
+			delete _queryTimers[sessionIndex];
+			pingTracerWS.queryData(sessionIndex, startUtc, endUtc, maxPointsPerHop)
+				.catch(err => console.warn('queryData failed:', err.message));
+		}, VIEWPORT_QUERY_DEBOUNCE_MS);
+	}
+
 	return {
 		// State
 		connected,
@@ -245,6 +345,7 @@ export const usePingStore = defineStore('ping', () =>
 		failedPings,
 		sessions,
 		routes,
+		hopHistory,
 		liveTail,
 		history,
 		logMessages,
@@ -262,5 +363,6 @@ export const usePingStore = defineStore('ping', () =>
 		disconnect,
 		clearErrors,
 		queryData,
+		requestViewportData,
 	};
 });

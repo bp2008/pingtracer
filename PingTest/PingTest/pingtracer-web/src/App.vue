@@ -10,9 +10,10 @@
 			<template v-if="graphRows.length > 0">
 				<div v-for="(row, idx) in graphRows" :key="row.key" class="graph-container"
 					:style="graphStyle(idx)">
-					<PingGraph ref="graphs" :pings="row.pings"
+					<PingGraph ref="graphs" :segments="row.segments"
 						:displayName="row.displayName" :config="configForGraphs"
-						:pixelsPerPing="effectivePixelsPerPing" :scrollOffset="scrollOffset" :isLive="isLive"
+						:viewportStartUtc="viewportStartUtc" :viewportEndUtc="viewportEndUtcEffective"
+						:isLive="isLive" :scrollOffsetMs="scrollOffsetMs"
 						@wheel="onGraphWheel" @dragStart="onDragStart" />
 				</div>
 			</template>
@@ -25,8 +26,8 @@
 			</div>
 		</div>
 
-		<TimeScale v-if="graphRows.length > 0" :pings="longestPingArray" :pixelsPerPing="effectivePixelsPerPing"
-			:scrollOffset="scrollOffset" />
+		<TimeScale v-if="graphRows.length > 0"
+			:viewportStartUtc="viewportStartUtc" :viewportEndUtc="viewportEndUtcEffective" />
 
 		<ConfigEditor v-if="showConfigEditor" :config="editingConfig" @save="onConfigSave" @delete="onConfigDelete"
 			@close="onConfigClose" @preview="onConfigPreview" />
@@ -50,16 +51,16 @@ import PingGraph from '@/components/PingGraph.vue';
 import TimeScale from '@/components/TimeScale.vue';
 import ConfigEditor from '@/components/ConfigEditor.vue';
 import LogViewer from '@/components/LogViewer.vue';
-import { usePingStore } from '@/stores/ping';
+import { usePingStore, keyFor } from '@/stores/ping';
 
-// Zoom level = CSS pixels per ping.
-// Default 1.0, max 3.0 (most zoomed in), min = canvasWidth / VIRTUAL_PING_HISTORY (most zoomed out).
-const ZOOM_DEFAULT = 1.0;
-const ZOOM_MAX = 3.0;
-const ZOOM_SNAP_THRESHOLD = 0.05; // snap to 1.0 if within this range
-// Approximate cap on visible pings (no longer a server-side circular buffer).
-// Used to bound the minimum zoom level and the keyboard "Home" jump.
-const VIRTUAL_PING_HISTORY = 86400;
+// Time-based viewport: viewportEndUtc is the right edge of the graph in
+// Unix ms. `null` means live (auto-tracks Date.now()).
+// viewportDurationMs is the total visible time span.
+const DEFAULT_VIEWPORT_DURATION_MS = 60 * 1000;       // 1 minute
+const MIN_VIEWPORT_DURATION_MS = 1000;                // 1 second
+const MAX_VIEWPORT_DURATION_MS = 7 * 86400 * 1000;    // 7 days
+const LIVE_QUERY_THRESHOLD_MS = 5 * 60 * 1000;        // beyond 5 minutes, live mode also queries
+const LIVE_TICK_MS = 250;                             // re-render rate while live
 
 export default {
 	name: 'App',
@@ -78,15 +79,15 @@ export default {
 			previewConfig: null,
 			savedConfigBackup: null,
 
-			// Shared zoom/scroll state
-			pixelsPerPing: ZOOM_DEFAULT,
-			scrollOffset: 0,     // pings from the right edge (0 = live)
-			liveUntil: 0,        // timestamp for showing LIVE label
+			// Time-based viewport state
+			viewportEndUtc: null,                         // null = live
+			viewportDurationMs: DEFAULT_VIEWPORT_DURATION_MS,
+			liveNow: Date.now(),                          // refreshed on a timer when live
 
 			// Drag state
 			isDragging: false,
 			dragStartX: 0,
-			dragStartScroll: 0,
+			dragStartEndUtc: 0,
 
 			// Zoom tooltip
 			zoomTooltipVisible: false,
@@ -94,55 +95,134 @@ export default {
 			zoomTooltipY: 0,
 			zoomTooltipText: '',
 			zoomTooltipTimer: null,
+
+			_liveTimer: null,
+			_lastQueryViewport: null,
 		};
 	},
 	computed: {
-		isLive()
+		isLive() { return this.viewportEndUtc === null; },
+
+		viewportEndUtcEffective()
 		{
-			return this.scrollOffset === 0 && Date.now() < this.liveUntil;
+			return this.isLive ? this.liveNow : this.viewportEndUtc;
+		},
+
+		viewportStartUtc()
+		{
+			return this.viewportEndUtcEffective - this.viewportDurationMs;
+		},
+
+		scrollOffsetMs()
+		{
+			// Distance from "now" to the right edge, in ms. 0 when live.
+			if (this.isLive) return 0;
+			return Math.max(0, this.liveNow - this.viewportEndUtc);
 		},
 
 		graphRows()
 		{
-			// Flatten (sessionIndex, hop) → one render row per active hop.
-			// Each row carries a tail of {t, ms, s} pings derived from liveTail,
-			// where s = 0 for success, 11010 (TimedOut) for 0xFFFF.
+			// One row per (sessionIndex, hopNumber). Each row carries
+			// every series segment whose [startUtc, endUtc] overlaps the
+			// viewport. PingGraph renders the segments in time order with
+			// vertical seams at boundaries.
 			const rows = [];
 			const sessions = this.store.sessions || [];
 			const routes = this.store.routes || {};
+			const hopHistory = this.store.hopHistory || {};
 			const liveTail = this.store.liveTail || {};
+			const history = this.store.history || {};
+
+			const vStart = this.viewportStartUtc;
+			const vEnd = this.viewportEndUtcEffective;
 
 			for (const session of sessions)
 			{
-				const route = routes[session.index];
-				if (!route || !route.hops) continue;
+				const sIdx = session.index;
+				const route = routes[sIdx];
+				const bySession = hopHistory[sIdx];
 
-				for (const hop of route.hops)
+				// Collect every hop number we know about (active + closed).
+				const hopNumbers = new Set();
+				if (route && route.hops) for (const h of route.hops) if (h) hopNumbers.add(h.hopNumber);
+				if (bySession) for (const k of Object.keys(bySession)) hopNumbers.add(parseInt(k, 10));
+
+				const sortedHops = Array.from(hopNumbers).sort((a, b) => a - b);
+				for (const hopNumber of sortedHops)
 				{
-					if (!hop) continue;
-					const key = `${session.index}:${hop.hopNumber}:${hop.seriesStartUtc}`;
-					const tail = liveTail[key] || [];
-					const pings = tail.map(p => ({
-						t: p.t,
-						ms: p.ms === 0xFFFF ? 0 : p.ms,
-						s: p.ms === 0xFFFF ? 11010 : 0,
-					}));
-					const label = hop.hostname && hop.hostname.length > 0
-						? `${hop.hopNumber + 1}. ${hop.hostname} [${hop.address}]`
-						: `${hop.hopNumber + 1}. ${hop.address}`;
-					rows.push({ key, displayName: label, pings });
+					const segs = (bySession && bySession[hopNumber]) || [];
+					const visibleSegs = [];
+					for (const seg of segs)
+					{
+						const segStart = seg.seriesStartUtc;
+						const segEnd = seg.seriesEndUtc != null ? seg.seriesEndUtc : Number.POSITIVE_INFINITY;
+						if (segEnd < vStart || segStart > vEnd) continue;
+
+						const k = keyFor(sIdx, hopNumber, seg.seriesStartUtc);
+						const histEntry = history[k];
+						const tail = liveTail[k] || [];
+
+						// Build bucket list. History buckets first (already aggregated),
+						// then live-tail entries as 1-sample buckets after the last
+						// history bucket's timestamp (to avoid double-drawing).
+						const buckets = [];
+						const lastHistT = histEntry && histEntry.points.length > 0
+							? histEntry.points[histEntry.points.length - 1].t
+							: -1;
+						if (histEntry)
+						{
+							for (const p of histEntry.points)
+							{
+								if (p.t < vStart - this.viewportDurationMs || p.t > vEnd) continue;
+								buckets.push(p);
+							}
+						}
+						for (const p of tail)
+						{
+							if (p.t <= lastHistT) continue;
+							if (p.t < vStart - this.viewportDurationMs || p.t > vEnd) continue;
+							const isFail = p.ms === 0xFFFF || p.ms === 0xFFFE;
+							buckets.push({
+								t: p.t,
+								min: isFail ? null : p.ms,
+								max: isFail ? null : p.ms,
+								avg: isFail ? null : p.ms,
+								lossPct: isFail ? 100 : 0,
+								samples: 1,
+							});
+						}
+
+						visibleSegs.push({
+							address: seg.address,
+							hostname: seg.hostname,
+							seriesStartUtc: seg.seriesStartUtc,
+							seriesEndUtc: seg.seriesEndUtc,
+							buckets,
+						});
+					}
+
+					// Pick latest visible segment for the row label; fall back to
+					// last known segment if none in window.
+					let labelSeg = null;
+					if (visibleSegs.length > 0) labelSeg = visibleSegs[visibleSegs.length - 1];
+					else if (segs.length > 0) labelSeg = segs[segs.length - 1];
+					if (!labelSeg) continue;
+
+					const label = labelSeg.hostname && labelSeg.hostname.length > 0
+						? `${hopNumber + 1}. ${labelSeg.hostname} [${labelSeg.address}]`
+						: `${hopNumber + 1}. ${labelSeg.address}`;
+
+					rows.push({
+						key: `${sIdx}:${hopNumber}`,
+						sessionIndex: sIdx,
+						hopNumber,
+						displayName: label,
+						addressChanged: visibleSegs.length > 1,
+						segments: visibleSegs,
+					});
 				}
 			}
 			return rows;
-		},
-
-		longestPingArray()
-		{
-			let longest = [];
-			for (const row of this.graphRows)
-				if (row.pings.length > longest.length)
-					longest = row.pings;
-			return longest;
 		},
 
 		configForGraphs()
@@ -152,24 +232,21 @@ export default {
 
 		graphAreaWidth()
 		{
-			// Rough estimate; recalculated on resize via ResizeObserver in graphs
 			return this.$refs.graphArea?.clientWidth || 800;
 		},
 
-		zoomMin()
+		earliestSessionStartUtc()
 		{
-			const w = this.$refs.graphArea?.clientWidth || 800;
-			return w / VIRTUAL_PING_HISTORY;
+			let earliest = Number.POSITIVE_INFINITY;
+			for (const s of this.store.sessions || [])
+				if (s.sessionStartUtc && s.sessionStartUtc < earliest) earliest = s.sessionStartUtc;
+			return Number.isFinite(earliest) ? earliest : null;
 		},
-
-		effectivePixelsPerPing()
-		{
-			const v = this.pixelsPerPing;
-			// Snap near 1.0
-			if (Math.abs(v - 1.0) < ZOOM_SNAP_THRESHOLD)
-				return 1.0;
-			return v;
-		},
+	},
+	watch: {
+		'store.sessions'() { this.maybeQueryViewport(true); },
+		viewportEndUtc() { this.maybeQueryViewport(); },
+		viewportDurationMs() { this.maybeQueryViewport(); },
 	},
 	mounted()
 	{
@@ -177,7 +254,11 @@ export default {
 		document.addEventListener('mouseup', this.onMouseUp);
 		document.addEventListener('mousemove', this.onDocMouseMove);
 
-		// Clean up WebSocket on page unload to prevent stale connections
+		this._liveTimer = setInterval(() =>
+		{
+			if (this.isLive) this.liveNow = Date.now();
+		}, LIVE_TICK_MS);
+
 		this._onBeforeUnload = () => this.store.disconnect();
 		window.addEventListener('beforeunload', this._onBeforeUnload);
 	},
@@ -187,8 +268,8 @@ export default {
 		this.store.disconnect();
 		document.removeEventListener('mouseup', this.onMouseUp);
 		document.removeEventListener('mousemove', this.onDocMouseMove);
-		if (this.zoomTooltipTimer)
-			clearTimeout(this.zoomTooltipTimer);
+		if (this.zoomTooltipTimer) clearTimeout(this.zoomTooltipTimer);
+		if (this._liveTimer) clearInterval(this._liveTimer);
 	},
 	methods: {
 		graphStyle(index)
@@ -202,61 +283,62 @@ export default {
 			};
 		},
 
-		// --- Zoom ---
+		// --- Viewport queries ---
 
-		clampZoom(z)
+		maybeQueryViewport(force = false)
 		{
-			const min = this.zoomMin;
-			return Math.max(min, Math.min(ZOOM_MAX, z));
+			const sessions = this.store.sessions || [];
+			if (sessions.length === 0) return;
+
+			const w = this.graphAreaWidth;
+			const maxPoints = Math.max(64, Math.ceil(w));
+
+			const startUtc = Math.floor(this.viewportStartUtc);
+			const endUtc = Math.ceil(this.viewportEndUtcEffective);
+
+			// Skip queries entirely when live AND viewport is small enough that
+			// the live tail covers it.
+			if (this.isLive && this.viewportDurationMs < LIVE_QUERY_THRESHOLD_MS && !force)
+				return;
+
+			for (const s of sessions)
+				this.store.requestViewportData(s.index, startUtc, endUtc, maxPoints, force);
+		},
+
+		// --- Zoom (time-based) ---
+
+		clampDuration(d)
+		{
+			return Math.max(MIN_VIEWPORT_DURATION_MS, Math.min(MAX_VIEWPORT_DURATION_MS, d));
 		},
 
 		onGraphWheel(ev)
 		{
-			const oldPPP = this.effectivePixelsPerPing;
-			const factor = ev.deltaY > 0 ? (1 / 1.15) : 1.15; // scroll down = zoom out (fewer px/ping)
-			let newPPP = this.clampZoom(this.pixelsPerPing * factor);
+			const factor = ev.deltaY > 0 ? 1.15 : (1 / 1.15); // scroll down = zoom out (longer span)
+			const newDur = this.clampDuration(this.viewportDurationMs * factor);
+			if (newDur === this.viewportDurationMs) return;
 
-			if (newPPP === this.pixelsPerPing) return;
+			// Anchor zoom on the time under the mouse: keep that time at the same x.
+			const mouseFrac = (ev.clientX - ev.rectLeft) / Math.max(1, ev.rectWidth);
+			const anchorTime = this.viewportStartUtc + this.viewportDurationMs * mouseFrac;
+			const newEnd = anchorTime + newDur * (1 - mouseFrac);
 
-			// Zoom centered on mouse position within the graph
-			const mouseXFraction = (ev.clientX - ev.rectLeft) / ev.rectWidth;
-			const oldVisible = ev.rectWidth / oldPPP;
-			const newVisible = ev.rectWidth / newPPP;
-			const pingDelta = (oldVisible - newVisible) * (1 - mouseXFraction);
-
-			this.pixelsPerPing = newPPP;
-			this.scrollOffset = Math.max(0, Math.round(this.scrollOffset + pingDelta));
-			if (this.scrollOffset === 0)
-				this.liveUntil = Date.now() + 1000;
+			this.viewportDurationMs = newDur;
+			this._setEnd(newEnd);
 
 			this.showZoomTooltip(ev.clientX, ev.clientY);
 		},
 
 		showZoomTooltip(clientX, clientY)
 		{
-			const display = this.effectivePixelsPerPing;
-			let text;
-			if (display >= 0.01)
-				text = display.toFixed(Math.min(4, Math.max(0, 4 - Math.floor(Math.log10(display))))) + 'x';
-			else
-				text = display.toFixed(4) + 'x';
-
-			// Remove trailing zeros but keep at least one decimal
-			text = text.replace(/(\.\d*?)0+x$/, '$1x').replace(/\.x$/, '.0x');
-
-			this.zoomTooltipText = text;
+			this.zoomTooltipText = this.formatDuration(this.viewportDurationMs);
 			this.zoomTooltipX = clientX + 14;
 			this.zoomTooltipY = clientY - 10;
 			this.zoomTooltipVisible = true;
 
-			if (this.zoomTooltipTimer)
-				clearTimeout(this.zoomTooltipTimer);
-			this.zoomTooltipTimer = setTimeout(() =>
-			{
-				this.zoomTooltipVisible = false;
-			}, 1500);
+			if (this.zoomTooltipTimer) clearTimeout(this.zoomTooltipTimer);
+			this.zoomTooltipTimer = setTimeout(() => { this.zoomTooltipVisible = false; }, 1500);
 
-			// Track mouse for tooltip positioning
 			this._lastTooltipMouseHandler = (me) =>
 			{
 				if (this.zoomTooltipVisible)
@@ -270,33 +352,57 @@ export default {
 			this._prevTooltipMouseHandler = this._lastTooltipMouseHandler;
 		},
 
-		// --- Drag/Pan ---
+		formatDuration(ms)
+		{
+			if (ms < 1000) return ms + 'ms';
+			const s = ms / 1000;
+			if (s < 60) return s.toFixed(1) + 's';
+			const m = s / 60;
+			if (m < 60) return m.toFixed(1) + 'm';
+			const h = m / 60;
+			if (h < 24) return h.toFixed(1) + 'h';
+			return (h / 24).toFixed(1) + 'd';
+		},
+
+		// --- Drag/Pan (time-based) ---
 
 		onDragStart(clientX)
 		{
 			this.isDragging = true;
 			this.dragStartX = clientX;
-			this.dragStartScroll = this.scrollOffset;
+			this.dragStartEndUtc = this.viewportEndUtcEffective;
 		},
 
-		onMouseUp()
-		{
-			this.isDragging = false;
-		},
+		onMouseUp() { this.isDragging = false; },
 
 		onDocMouseMove(e)
 		{
 			if (!this.isDragging) return;
-
+			const w = this.graphAreaWidth;
 			const dx = e.clientX - this.dragStartX;
-			const ppp = this.effectivePixelsPerPing;
-			// Dragging right = grab and slide data right = see older data (increase offset)
-			const scrollDelta = Math.round(dx / ppp);
-			const newScroll = this.dragStartScroll + scrollDelta;
+			// Drag right = grab and pan to older data = decrease viewportEndUtc.
+			const dtMs = (dx / w) * this.viewportDurationMs;
+			this._setEnd(this.dragStartEndUtc - dtMs);
+		},
 
-			this.scrollOffset = Math.max(0, newScroll);
-			if (this.scrollOffset === 0)
-				this.liveUntil = Date.now() + 1000;
+		_setEnd(newEnd)
+		{
+			const now = Date.now();
+			// Snap to live if within a small fraction of duration of "now".
+			if (newEnd >= now - this.viewportDurationMs * 0.02)
+			{
+				this.viewportEndUtc = null;
+				this.liveNow = now;
+				return;
+			}
+			// Clamp to earliest session start.
+			const earliest = this.earliestSessionStartUtc;
+			if (earliest != null)
+			{
+				const minEnd = earliest + this.viewportDurationMs * 0.05;
+				if (newEnd < minEnd) newEnd = minEnd;
+			}
+			this.viewportEndUtc = newEnd;
 		},
 
 		// --- Keyboard ---
@@ -305,33 +411,30 @@ export default {
 		{
 			if (this.graphRows.length === 0) return;
 
-			const graphEl = this.$refs.graphArea;
-			const w = graphEl ? graphEl.clientWidth : 800;
-			const visiblePings = Math.floor(w / this.effectivePixelsPerPing);
-
 			switch (e.key)
 			{
 				case 'Home':
-				case '9':
-					this.scrollOffset = Math.max(0, VIRTUAL_PING_HISTORY - visiblePings);
+				case '9': {
+					const earliest = this.earliestSessionStartUtc;
+					if (earliest != null)
+						this._setEnd(earliest + this.viewportDurationMs);
 					e.preventDefault();
 					break;
+				}
 				case 'End':
 				case '0':
-					this.scrollOffset = 0;
-					this.liveUntil = Date.now() + 1000;
+					this.viewportEndUtc = null;
+					this.liveNow = Date.now();
 					e.preventDefault();
 					break;
 				case 'PageUp':
 				case '-':
-					this.scrollOffset = Math.max(0, this.scrollOffset + visiblePings);
+					this._setEnd(this.viewportEndUtcEffective - this.viewportDurationMs);
 					e.preventDefault();
 					break;
 				case 'PageDown':
 				case '=':
-					this.scrollOffset = Math.max(0, this.scrollOffset - visiblePings);
-					if (this.scrollOffset === 0)
-						this.liveUntil = Date.now() + 1000;
+					this._setEnd(this.viewportEndUtcEffective + this.viewportDurationMs);
 					e.preventDefault();
 					break;
 			}
@@ -362,7 +465,6 @@ export default {
 
 		onConfigClose()
 		{
-			// Revert ping rate if it was changed during preview
 			if (this.savedConfigBackup && this.store.isRunning && this.previewConfig
 				&& (this.previewConfig.rate !== this.savedConfigBackup.rate
 					|| this.previewConfig.pingsPerSecond !== this.savedConfigBackup.pingsPerSecond))
@@ -377,7 +479,6 @@ export default {
 		onConfigPreview(config)
 		{
 			this.previewConfig = config;
-			// Apply ping rate changes to server immediately
 			if (this.savedConfigBackup && this.store.isRunning
 				&& (config.rate !== this.savedConfigBackup.rate
 					|| config.pingsPerSecond !== this.savedConfigBackup.pingsPerSecond))

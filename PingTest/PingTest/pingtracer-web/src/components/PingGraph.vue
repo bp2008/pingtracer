@@ -6,17 +6,8 @@
 <script>
 import { toRaw } from 'vue';
 
-const IPStatus_Success = 0;
-
-// Colors matching the WinForms PingGraphControl
-const COLOR_BG = '#000000';
-const COLOR_SUCCESS = '#408040';
-const COLOR_BAD = '#808000';
-const COLOR_WORSE = '#ffff00';
-const COLOR_FAILURE = '#ff0000';
 const COLOR_TEXT = '#ffffff';
-const COLOR_BG_BAD = '#232300';
-const COLOR_BG_WORSE = '#280000';
+const COLOR_SEAM = '#00b0b0';
 
 // Pre-computed Uint32 ABGR pixel values for direct ImageData manipulation.
 // On little-endian (all modern browsers): byte order [R,G,B,A] → 0xAABBGGRR.
@@ -27,26 +18,28 @@ const U32_WORSE = 0xFF00FFFF;
 const U32_FAILURE = 0xFF0000FF;
 const U32_BG_BAD = 0xFF002323;
 const U32_BG_WORSE = 0xFF000028;
+const U32_SEAM = 0xFFB0B000; // teal/cyan-ish in ABGR (little-endian)
 
 const SCALING_CLASSIC = 0;
 const SCALING_ZOOM = 1;
 const SCALING_ZOOM_UNLIMITED = 2;
 const SCALING_FIXED = 3;
 
-// Sentinel value for "timeout" — treated as highest possible ms for aggregation
-const TIMEOUT_VALUE = 999999;
-
 export default {
 	name: 'PingGraph',
 	props: {
-		pings: { type: Array, required: true },
+		/**
+		 * Array of series segments to render in this row, each:
+		 * { address, hostname, seriesStartUtc, seriesEndUtc|null,
+		 *   buckets: [{t, min, max, avg, lossPct, samples}] }
+		 */
+		segments: { type: Array, required: true },
 		displayName: { type: String, default: '' },
 		config: { type: Object, default: () => ({}) },
-		/** CSS pixels per ping (zoom level) */
-		pixelsPerPing: { type: Number, required: true },
-		/** Scroll offset in pings from the right (0 = live) */
-		scrollOffset: { type: Number, required: true },
+		viewportStartUtc: { type: Number, required: true },
+		viewportEndUtc: { type: Number, required: true },
 		isLive: { type: Boolean, default: false },
+		scrollOffsetMs: { type: Number, default: 0 },
 	},
 	emits: ['wheel', 'dragStart'],
 	data()
@@ -60,25 +53,23 @@ export default {
 	},
 	created()
 	{
-		// Non-reactive rendering cache — stored directly on the instance
-		// to bypass Vue reactivity proxy overhead entirely.
 		this._rc = {
-			offscreen: null,    // offscreen canvas for cached bar rendering
-			offCtx: null,       // 2D context of offscreen canvas
-			cacheKey: '',       // stringified viewport+data fingerprint
-			stats: null,        // cached statistics from last bar render
-			yAxis: null,        // cached Y-axis parameters
-			// Reusable typed arrays (grow-only, never shrunk)
-			bucketMaxBuf: null,
-			bucketFailBuf: null,
-			bucketBufLen: 0,
-			// Reusable ImageData buffer for pixel-level bar rendering
+			offscreen: null,
+			offCtx: null,
+			cacheKey: '',
+			stats: null,
+			yAxis: null,
 			imgData: null,
-			pixels: null,       // Uint32Array view of imgData.data.buffer
+			pixels: null,
 		};
 	},
 	computed: {
-		pingCount() { return this.pings.length; },
+		bucketCount()
+		{
+			let n = 0;
+			for (const seg of this.segments) n += seg.buckets.length;
+			return n;
+		},
 		badThreshold() { return this.config?.badThreshold ?? 100; },
 		worseThreshold() { return this.config?.worseThreshold ?? 200; },
 		upperLimit() { return this.config?.upperLimit ?? 300; },
@@ -93,13 +84,11 @@ export default {
 		drawLimitText() { return this.config?.drawLimitText ?? false; },
 	},
 	watch: {
-		pingCount() { this.scheduleRender(); },
-		pixelsPerPing() { this.scheduleRender(); },
-		scrollOffset() { this.scheduleRender(); },
-		config: {
-			deep: true,
-			handler() { this.scheduleRender(); }
-		}
+		bucketCount() { this.scheduleRender(); },
+		viewportStartUtc() { this.scheduleRender(); },
+		viewportEndUtc() { this.scheduleRender(); },
+		segments: { deep: true, handler() { this.scheduleRender(); } },
+		config: { deep: true, handler() { this.scheduleRender(); } },
 	},
 	mounted()
 	{
@@ -114,16 +103,9 @@ export default {
 	},
 	beforeUnmount()
 	{
-		if (this.resizeObserver)
-			this.resizeObserver.disconnect();
-		if (this.animFrameId)
-			cancelAnimationFrame(this.animFrameId);
-		if (this._rc)
-		{
-			this._rc.offscreen = null;
-			this._rc.offCtx = null;
-			this._rc = null;
-		}
+		if (this.resizeObserver) this.resizeObserver.disconnect();
+		if (this.animFrameId) cancelAnimationFrame(this.animFrameId);
+		this._rc = null;
 	},
 	methods: {
 		updateCanvasSize()
@@ -134,7 +116,6 @@ export default {
 			const dpr = window.devicePixelRatio || 1;
 			canvas.width = rect.width * dpr;
 			canvas.height = rect.height * dpr;
-			// Invalidate bar cache on resize
 			if (this._rc) this._rc.cacheKey = '';
 		},
 
@@ -148,43 +129,33 @@ export default {
 			});
 		},
 
-		/**
-		 * Main render entry point.  Uses an offscreen canvas cache so that
-		 * mouse-only updates (the most frequent trigger) skip the expensive
-		 * data-aggregation and bar-drawing pipeline entirely.
-		 */
 		render()
 		{
 			const canvas = this.$refs.canvas;
 			if (!canvas) return;
 			const ctx = canvas.getContext('2d');
 			const dpr = window.devicePixelRatio || 1;
-			const physW = canvas.width;   // physical pixels
+			const physW = canvas.width;
 			const physH = canvas.height;
-			const logicalW = physW / dpr; // CSS pixels
+			const logicalW = physW / dpr;
 			const logicalH = physH / dpr;
 
 			if (logicalH <= 0 || logicalW <= 0) return;
 
-			// Bypass Vue reactivity proxy for the hot path
-			const pings = toRaw(this.pings);
-			const ppp = this.pixelsPerPing;
-			const totalPings = pings ? pings.length : 0;
-			const scrollOffset = this.scrollOffset;
+			const segments = toRaw(this.segments);
+			const vStart = this.viewportStartUtc;
+			const vEnd = this.viewportEndUtc;
+			const vDur = Math.max(1, vEnd - vStart);
 
-			// Cache key covers every input that affects bar rendering.
-			// Text-only inputs (showPacketLoss, displayName, mouse pos) are
-			// excluded so that mouse hover is essentially free.
-			const cacheKey = totalPings + '|' + ppp + '|' + scrollOffset + '|'
+			// Cache key: viewport + bucket count + thresholds.
+			const cacheKey = vStart + '|' + vEnd + '|' + this.bucketCount + '|'
 				+ physW + '|' + physH + '|'
 				+ this.scalingMethod + '|' + this.badThreshold + '|'
 				+ this.worseThreshold + '|' + this.upperLimit + '|' + this.lowerLimit;
 
 			const rc = this._rc;
-
 			if (cacheKey !== rc.cacheKey)
 			{
-				// Ensure offscreen canvas exists with correct physical size
 				if (!rc.offscreen || rc.offscreen.width !== physW || rc.offscreen.height !== physH)
 				{
 					rc.offscreen = document.createElement('canvas');
@@ -192,57 +163,29 @@ export default {
 					rc.offscreen.height = physH;
 					rc.offCtx = rc.offscreen.getContext('2d');
 				}
-
-				const result = this._renderBars(
-					rc.offCtx, dpr, logicalW, logicalH,
-					pings, totalPings, ppp, scrollOffset, physW, physH
-				);
+				const result = this._renderBars(rc.offCtx, dpr, logicalW, logicalH, segments, vStart, vEnd, vDur, physW, physH);
 				rc.stats = result.stats;
 				rc.yAxis = result.yAxis;
 				rc.cacheKey = cacheKey;
 			}
 
-			// Blit cached bars to the visible canvas (fast GPU copy)
 			ctx.setTransform(1, 0, 0, 1, 0, 0);
 			ctx.drawImage(rc.offscreen, 0, 0);
 			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-			// Draw text overlay (always — depends on mouse position & live state)
-			this._renderOverlay(ctx, logicalW, logicalH, pings, ppp, rc.stats, rc.yAxis);
+			this._renderOverlay(ctx, logicalW, logicalH, segments, vStart, vDur, rc.stats, rc.yAxis);
 		},
 
-		/**
-		 * Renders backgrounds, threshold zones, and ping bars onto the
-		 * offscreen canvas.  Returns cached stats and Y-axis parameters
-		 * for the overlay to reuse.
-		 */
-		_renderBars(ctx, dpr, logicalW, logicalH, pings, totalPings, ppp, scrollOffset, physW, physH)
+		_renderBars(ctx, dpr, logicalW, logicalH, segments, vStart, vEnd, vDur, physW, physH)
 		{
 			const graphHeight = logicalH;
 
-			// Cache config values as locals for the hot path
 			const badThreshold = this.badThreshold;
 			const worseThreshold = this.worseThreshold;
 			const upperLimit = this.upperLimit;
 			const lowerLimit = this.lowerLimit;
 			const scalingMethod = this.scalingMethod;
 
-			const MAX_DATA_POINTS_PER_PIXEL = 1.0;
-
-			const visiblePingCount = logicalW / ppp;
-
-			// Viewport in ping-index space
-			const rightIdx = totalPings - scrollOffset;
-			const leftIdx = rightIdx - visiblePingCount;
-
-			const maxColumns = Math.ceil(physW * MAX_DATA_POINTS_PER_PIXEL);
-			const bucketSize = Math.max(1, Math.ceil(visiblePingCount / maxColumns));
-
-			// Visible ping range (clamped to available data)
-			const visStart = Math.max(0, Math.floor(leftIdx));
-			const visEnd = Math.min(totalPings, Math.ceil(rightIdx));
-
-			// --- Get or grow reusable ImageData buffer ---
 			const rc = this._rc;
 			if (!rc.imgData || rc.imgData.width !== physW || rc.imgData.height !== physH)
 			{
@@ -251,77 +194,36 @@ export default {
 			}
 			const pixels = rc.pixels;
 
-			if (visStart >= visEnd)
+			// --- Pass 1: compute stats from all visible buckets ---
+			let statMin = Infinity, statMax = -Infinity, statSum = 0, statSucc = 0;
+			let statTotal = 0, statFail = 0, statLastT = -1, statLast = 0;
+
+			for (const seg of segments)
 			{
-				// No visible data — render empty background
-				pixels.fill(U32_BG);
-				ctx.putImageData(rc.imgData, 0, 0);
-				return {
-					stats: { avg: 0, statMin: 0, statMax: 0, statLast: 0, packetLoss: 0, statTotal: 0, statSucc: 0 },
-					yAxis: { lowerLimitDraw: 0, upperLimitDraw: graphHeight, vScale: 1, leftIdx },
-				};
-			}
-
-			// Absolute bucket index range covering visible pings
-			const firstBucket = Math.floor(visStart / bucketSize);
-			const lastBucket = Math.floor((visEnd - 1) / bucketSize);
-			const numBuckets = lastBucket - firstBucket + 1;
-
-			// --- Reuse typed arrays (grow-only to avoid repeated allocation) ---
-			if (rc.bucketBufLen < numBuckets)
-			{
-				const newLen = Math.max(numBuckets, (rc.bucketBufLen * 2) || 256);
-				rc.bucketMaxBuf = new Float32Array(newLen);
-				rc.bucketFailBuf = new Uint8Array(newLen);
-				rc.bucketBufLen = newLen;
-			}
-			const bucketMax = rc.bucketMaxBuf;
-			const bucketFail = rc.bucketFailBuf;
-			for (let i = 0; i < numBuckets; i++) { bucketMax[i] = -1; bucketFail[i] = 0; }
-
-			// --- Single pass: compute stats AND bucket aggregation ---
-			let statMin = Infinity, statMax = -Infinity, statSum = 0, statSucc = 0, statLast = 0;
-			let statTotal = 0;
-
-			const rangeStart = Math.max(0, firstBucket * bucketSize);
-			const rangeEnd = Math.min(totalPings, (lastBucket + 1) * bucketSize);
-
-			let bIdx = 0;
-			let nextBucketBoundary = (firstBucket + 1) * bucketSize;
-
-			for (let i = rangeStart; i < rangeEnd; i++)
-			{
-				if (i >= nextBucketBoundary)
+				for (const b of seg.buckets)
 				{
-					bIdx++;
-					nextBucketBoundary += bucketSize;
-				}
-
-				const p = pings[i];
-				if (!p) continue;
-
-				statTotal++;
-
-				if (p.s === 0)
-				{
-					const ms = p.ms;
-					statSucc++;
-					statLast = ms;
-					statSum += ms;
-					if (ms > statMax) statMax = ms;
-					if (ms < statMin) statMin = ms;
-					if (ms > bucketMax[bIdx]) bucketMax[bIdx] = ms;
-				}
-				else
-				{
-					bucketFail[bIdx] = 1;
+					if (b.t < vStart || b.t > vEnd) continue;
+					statTotal += b.samples || 1;
+					if (b.avg != null)
+					{
+						const succThis = Math.max(1, Math.round((b.samples || 1) * (1 - (b.lossPct || 0) / 100)));
+						statSucc += succThis;
+						statSum += b.avg * succThis;
+						if (b.max > statMax) statMax = b.max;
+						if (b.min < statMin) statMin = b.min;
+						if (b.t > statLastT) { statLastT = b.t; statLast = b.avg; }
+					}
+					else
+					{
+						statFail += b.samples || 1;
+					}
 				}
 			}
 
 			const avg = statSucc > 0 ? Math.round(statSum / statSucc) : 0;
 			if (statMin === Infinity) statMin = 0;
 			if (statMax === -Infinity) statMax = 0;
-			const packetLoss = statTotal > 0 ? ((statTotal - statSucc) / statTotal * 100) : 0;
+			const packetLoss = statTotal > 0 ? (statFail / statTotal * 100) : 0;
 
 			// Y-axis scaling
 			let lowerLimitDraw, upperLimitDraw;
@@ -330,10 +232,8 @@ export default {
 				case SCALING_CLASSIC:
 					lowerLimitDraw = lowerLimit;
 					upperLimitDraw = lowerLimit + graphHeight;
-					if (statMax > upperLimitDraw)
-						upperLimitDraw = Math.ceil(statMax * 1.1);
-					if (upperLimitDraw > upperLimit)
-						upperLimitDraw = upperLimit;
+					if (statMax > upperLimitDraw) upperLimitDraw = Math.ceil(statMax * 1.1);
+					if (upperLimitDraw > upperLimit) upperLimitDraw = upperLimit;
 					break;
 				case SCALING_ZOOM:
 					lowerLimitDraw = Math.max(statMin - 1, lowerLimit);
@@ -351,99 +251,109 @@ export default {
 					lowerLimitDraw = 0;
 					upperLimitDraw = graphHeight;
 			}
-			if (upperLimitDraw <= lowerLimitDraw)
-				upperLimitDraw = lowerLimitDraw + 1;
+			if (upperLimitDraw <= lowerLimitDraw) upperLimitDraw = lowerLimitDraw + 1;
 
 			const drawRange = upperLimitDraw - lowerLimitDraw;
 			const vScale = graphHeight / drawRange;
 
-			// --- ImageData pixel rendering (bypasses GPU anti-aliasing) ---
-			// Fill background
+			// --- Background + threshold zones ---
 			pixels.fill(U32_BG);
 
-			// Draw threshold background zones as horizontal bands.
-			// TypedArray.fill() on contiguous row spans is essentially memset.
 			const scaledBadLine = (badThreshold - lowerLimitDraw) * vScale;
 			const scaledWorseLine = (worseThreshold - lowerLimitDraw) * vScale;
-
 			const worseEndPhys = Math.max(0, Math.min(physH, Math.round((graphHeight - scaledWorseLine) * dpr)));
 			const badEndPhys = Math.max(0, Math.min(physH, Math.round((graphHeight - scaledBadLine) * dpr)));
+			if (worseEndPhys > 0) pixels.fill(U32_BG_WORSE, 0, worseEndPhys * physW);
+			if (badEndPhys > worseEndPhys) pixels.fill(U32_BG_BAD, worseEndPhys * physW, badEndPhys * physW);
 
-			if (worseEndPhys > 0)
-				pixels.fill(U32_BG_WORSE, 0, worseEndPhys * physW);
-			if (badEndPhys > worseEndPhys)
-				pixels.fill(U32_BG_BAD, worseEndPhys * physW, badEndPhys * physW);
-
-			// --- Draw bars via direct pixel writes ---
-			// Each bar is snapped to physical pixel boundaries and written
-			// row-by-row using TypedArray.fill(), avoiding all GPU compositing.
 			const vScaleDpr = vScale * dpr;
+			const pxPerMs = physW / vDur;
 
-			for (let b = 0; b < numBuckets; b++)
+			// --- Pass 2: draw bars ---
+			for (const seg of segments)
 			{
-				const val = bucketMax[b];
-				if (val < 0) continue; // no data
+				const buckets = seg.buckets;
+				if (buckets.length === 0) continue;
 
-				const absBucket = firstBucket + b;
-				const rawX = (absBucket * bucketSize - leftIdx) * ppp;
-				const rawXEnd = ((absBucket + 1) * bucketSize - leftIdx) * ppp;
+				for (let i = 0; i < buckets.length; i++)
+				{
+					const b = buckets[i];
+					if (b.t < vStart || b.t > vEnd) continue;
 
-				// Snap to physical pixel grid
-				const pxLeft = Math.max(0, Math.round(rawX * dpr));
-				const pxRight = Math.min(physW, Math.max(pxLeft + 1, Math.round(rawXEnd * dpr)));
+					// Bar spans from this bucket's t to the next bucket's t (or vEnd).
+					const tEnd = (i + 1 < buckets.length) ? buckets[i + 1].t : b.t + (vDur / Math.max(1, physW));
+					const xLeft = (b.t - vStart) * pxPerMs;
+					const xRight = (Math.min(tEnd, vEnd) - vStart) * pxPerMs;
 
-				let colorU32, pxTop;
-				if (bucketFail[b])
-				{
-					colorU32 = U32_FAILURE;
-					pxTop = 0;
-				}
-				else if (val <= lowerLimitDraw)
-				{
-					continue; // below visible range
-				}
-				else
-				{
-					const barPhysH = Math.max(1, Math.round((val - lowerLimitDraw) * vScaleDpr));
-					pxTop = Math.max(0, physH - barPhysH);
-					if (val < badThreshold)
-						colorU32 = U32_SUCCESS;
-					else if (val < worseThreshold)
-						colorU32 = U32_BAD;
+					const pxLeft = Math.max(0, Math.round(xLeft));
+					const pxRight = Math.min(physW, Math.max(pxLeft + 1, Math.round(xRight)));
+
+					let colorU32, pxTop;
+					if (b.avg == null)
+					{
+						colorU32 = U32_FAILURE;
+						pxTop = 0;
+					}
 					else
-						colorU32 = U32_WORSE;
-				}
+					{
+						const heightFromVal = b.max != null ? b.max : b.avg;
+						if (heightFromVal <= lowerLimitDraw) continue;
+						const barPhysH = Math.max(1, Math.round((heightFromVal - lowerLimitDraw) * vScaleDpr));
+						pxTop = Math.max(0, physH - barPhysH);
+						if (heightFromVal < badThreshold) colorU32 = U32_SUCCESS;
+						else if (heightFromVal < worseThreshold) colorU32 = U32_BAD;
+						else colorU32 = U32_WORSE;
+					}
 
-				// Fill rectangle row-by-row with TypedArray.fill()
-				for (let row = pxTop; row < physH; row++)
-				{
-					const offset = row * physW;
-					pixels.fill(colorU32, offset + pxLeft, offset + pxRight);
+					for (let row = pxTop; row < physH; row++)
+					{
+						const offset = row * physW;
+						pixels.fill(colorU32, offset + pxLeft, offset + pxRight);
+					}
+
+					// Loss overlay: thin red bar at bottom proportional to lossPct.
+					if (b.avg != null && b.lossPct > 0)
+					{
+						const lossRows = Math.max(1, Math.round(physH * 0.05 * (b.lossPct / 100)));
+						const lossTop = physH - lossRows;
+						for (let row = lossTop; row < physH; row++)
+						{
+							const offset = row * physW;
+							pixels.fill(U32_FAILURE, offset + pxLeft, offset + pxRight);
+						}
+					}
 				}
 			}
 
-			// Write pixel buffer to canvas (ignores transform, pure CPU→GPU copy)
+			// --- Pass 3: seam markers between segments ---
+			for (let s = 1; s < segments.length; s++)
+			{
+				const seamT = segments[s].seriesStartUtc;
+				if (seamT < vStart || seamT > vEnd) continue;
+				const x = Math.round((seamT - vStart) * pxPerMs);
+				if (x < 0 || x >= physW) continue;
+				for (let row = 0; row < physH; row++)
+				{
+					pixels[row * physW + x] = U32_SEAM;
+				}
+			}
+
 			ctx.putImageData(rc.imgData, 0, 0);
 
 			return {
 				stats: { avg, statMin, statMax, statLast, packetLoss, statTotal, statSucc },
-				yAxis: { lowerLimitDraw, upperLimitDraw, vScale, leftIdx },
+				yAxis: { lowerLimitDraw, upperLimitDraw, vScale },
 			};
 		},
 
-		/**
-		 * Draws the lightweight text overlay (limit labels, status line,
-		 * mouse hint) on top of the cached bar image.
-		 */
-		_renderOverlay(ctx, logicalW, logicalH, pings, ppp, stats, yAxis)
+		_renderOverlay(ctx, logicalW, logicalH, segments, vStart, vDur, stats, yAxis)
 		{
 			if (!stats || !yAxis) return;
 
 			const graphHeight = logicalH;
-			const { lowerLimitDraw, upperLimitDraw, vScale, leftIdx } = yAxis;
+			const { lowerLimitDraw, upperLimitDraw, vScale } = yAxis;
 			const { avg, statMin, statMax, statLast, packetLoss } = stats;
 
-			// Draw limit text
 			if (this.drawLimitText)
 			{
 				ctx.font = '11px sans-serif';
@@ -456,16 +366,13 @@ export default {
 				ctx.fillText(upperLabel, logicalW - upperW - 2, 12);
 			}
 
-			// Build status text
 			let statusStr = '';
-
-			if (this.scrollOffset > 0)
-				statusStr += 'NOT LIVE -' + this.scrollOffset + ': ';
+			if (this.scrollOffsetMs > 0)
+				statusStr += 'NOT LIVE -' + this.formatScrollOffset(this.scrollOffsetMs) + ': ';
 			else if (this.isLive)
 				statusStr += 'LIVE ';
 
-			if (this.showPacketLoss)
-				statusStr += packetLoss.toFixed(2) + '% ';
+			if (this.showPacketLoss) statusStr += packetLoss.toFixed(2) + '% ';
 
 			const intVals = [];
 			if (this.showLastPing) intVals.push(statLast);
@@ -473,11 +380,9 @@ export default {
 			if (this.showJitter) intVals.push(Math.abs(statMax - statMin));
 			if (this.showMinMax) { intVals.push(statMin); intVals.push(statMax); }
 
-			if (intVals.length > 0)
-				statusStr += '[' + intVals.join(',') + '] ';
+			if (intVals.length > 0) statusStr += '[' + intVals.join(',') + '] ';
 
-			// Mouseover hint
-			const hintText = this.getMouseoverHint(pings, leftIdx, ppp, graphHeight, vScale, lowerLimitDraw);
+			const hintText = this.getMouseoverHint(segments, vStart, vDur, logicalW, graphHeight, vScale, lowerLimitDraw);
 			if (hintText)
 			{
 				if (this.displayName) statusStr += this.displayName + ' ';
@@ -488,49 +393,75 @@ export default {
 				statusStr += this.displayName;
 			}
 
-			// Draw status text
 			ctx.font = '12px sans-serif';
 			ctx.fillStyle = COLOR_TEXT;
 			ctx.fillText(statusStr, 3, 14);
+
+			// Seam labels: draw a small marker at the top of each seam.
+			if (segments.length > 1)
+			{
+				ctx.fillStyle = COLOR_SEAM;
+				ctx.font = '10px sans-serif';
+				const pxPerMs = logicalW / vDur;
+				for (let s = 1; s < segments.length; s++)
+				{
+					const seamT = segments[s].seriesStartUtc;
+					if (seamT < vStart || seamT > vStart + vDur) continue;
+					const x = (seamT - vStart) * pxPerMs;
+					ctx.fillText('▼', x - 4, 10);
+				}
+			}
 		},
 
-		getMouseoverHint(pings, leftIdx, ppp, graphHeight, vScale, lowerLimitDraw)
+		formatScrollOffset(ms)
+		{
+			if (ms < 1000) return ms + 'ms';
+			const s = ms / 1000;
+			if (s < 60) return s.toFixed(0) + 's';
+			const m = s / 60;
+			if (m < 60) return m.toFixed(1) + 'm';
+			const h = m / 60;
+			if (h < 24) return h.toFixed(1) + 'h';
+			return (h / 24).toFixed(1) + 'd';
+		},
+
+		getMouseoverHint(segments, vStart, vDur, logicalW, graphHeight, vScale, lowerLimitDraw)
 		{
 			if (this.mouseX < 0 || this.mouseY < 0) return '';
 
 			const mouseMs = Math.round(((graphHeight - this.mouseY) / graphHeight) * (graphHeight / vScale) + lowerLimitDraw);
+			const mouseT = vStart + (this.mouseX / logicalW) * vDur;
 
-			if (ppp <= 0 || !pings || pings.length === 0) return 'Mouse ms: ' + mouseMs;
+			// Find nearest bucket across all segments.
+			let best = null, bestDist = Infinity;
+			for (const seg of segments)
+			{
+				for (const b of seg.buckets)
+				{
+					const d = Math.abs(b.t - mouseT);
+					if (d < bestDist) { bestDist = d; best = { b, seg }; }
+				}
+			}
 
-			const dataIdx = Math.floor(leftIdx + this.mouseX / ppp);
+			const time = new Date(mouseT).toLocaleTimeString();
+			if (!best) return time + ', Mouse ms: ' + mouseMs;
 
-			if (dataIdx < 0 || dataIdx >= pings.length)
-				return 'Mouse ms: ' + mouseMs;
+			// Only show bucket info if the cursor is reasonably close.
+			const tolerance = vDur / Math.max(1, logicalW) * 4;
+			if (bestDist > tolerance) return time + ', Mouse ms: ' + mouseMs;
 
-			const p = pings[dataIdx];
-			if (!p) return 'Waiting for response, Mouse ms: ' + mouseMs;
-
-			const time = new Date(p.t).toLocaleTimeString();
-			if (p.s !== IPStatus_Success)
-				return time + ': ' + this.getStatusName(p.s) + ', Mouse ms: ' + mouseMs;
-
-			return time + ': ' + p.ms + ' ms, Mouse ms: ' + mouseMs;
-		},
-
-		getStatusName(status)
-		{
-			const names = {
-				0: 'Success', 11001: 'BufferTooSmall', 11002: 'DestinationNetUnreachable',
-				11003: 'DestinationHostUnreachable', 11004: 'DestinationProtocolUnreachable',
-				11005: 'DestinationPortUnreachable', 11006: 'NoResources', 11007: 'BadOption',
-				11008: 'HardwareError', 11009: 'PacketTooBig', 11010: 'TimedOut',
-				11011: 'BadRoute', 11012: 'TtlExpired', 11013: 'TtlReassemblyTimeExceeded',
-				11014: 'ParameterProblem', 11015: 'SourceQuench', 11016: 'BadDestination',
-				11018: 'DestinationUnreachable', 11032: 'TimeExceeded', 11033: 'BadHeader',
-				11034: 'UnrecognizedNextHeader', 11035: 'IcmpError', 11036: 'DestinationScopeMismatch',
-				65536: 'Unknown'
-			};
-			return names[status] || 'Status ' + status;
+			const b = best.b;
+			const seg = best.seg;
+			const bt = new Date(b.t).toLocaleTimeString();
+			let info;
+			if (b.avg == null)
+				info = bt + ': lost (' + b.samples + ' sent)';
+			else if (b.samples === 1)
+				info = bt + ': ' + b.avg + ' ms';
+			else
+				info = bt + ': avg ' + b.avg + ' (' + b.min + '-' + b.max + ', n=' + b.samples + ', loss ' + b.lossPct.toFixed(1) + '%)';
+			info += ' [' + seg.address + ']';
+			return info + ', Mouse ms: ' + mouseMs;
 		},
 
 		// --- Input Handlers ---
@@ -552,10 +483,7 @@ export default {
 
 		onMouseDown(e)
 		{
-			if (e.button === 0)
-			{
-				this.$emit('dragStart', e.clientX);
-			}
+			if (e.button === 0) this.$emit('dragStart', e.clientX);
 		},
 
 		onWheel(e)
