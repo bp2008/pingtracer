@@ -229,6 +229,12 @@ export const usePingStore = defineStore('ping', () =>
 			if (arr.length > LIVE_TAIL_CAP)
 				arr.splice(0, arr.length - LIVE_TAIL_CAP);
 
+			// seriesStartUtc=0 = server-emitted synthetic "unresponsive hop"
+			// pingUpdate. Make sure a placeholder segment exists in hopHistory
+			// so graphRows can build a row for hops that have never responded.
+			if (msg.seriesStartUtc === 0)
+				_recordSeries(msg.sessionIndex, msg.hopNumber, '*', '', 0, null);
+
 			if (msg.ms === 0xFFFF) failedPings.value++;
 			else successfulPings.value++;
 		});
@@ -288,7 +294,15 @@ export const usePingStore = defineStore('ping', () =>
 
 	function selectConfig(guid) { pingTracerWS.selectConfig(guid); }
 	function startPinging() { pingTracerWS.start(); }
-	function stopPinging() { pingTracerWS.stop(); }
+	function stopPinging()
+	{
+		// Optimistic local flip so the UI responds immediately. The server's
+		// `stopped`/`status` events will reconcile this if it changes before
+		// the shutdown finishes flushing.
+		isRunning.value = false;
+		status.value = 'Stopping...';
+		pingTracerWS.stop();
+	}
 
 	function saveConfig(config)
 	{

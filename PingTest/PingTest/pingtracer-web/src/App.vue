@@ -60,7 +60,6 @@ const DEFAULT_VIEWPORT_DURATION_MS = 60 * 1000;       // 1 minute
 const MIN_VIEWPORT_DURATION_MS = 1000;                // 1 second
 const MAX_VIEWPORT_DURATION_MS = 7 * 86400 * 1000;    // 7 days
 const LIVE_QUERY_THRESHOLD_MS = 5 * 60 * 1000;        // beyond 5 minutes, live mode also queries
-const LIVE_TICK_MS = 250;                             // re-render rate while live
 
 export default {
 	name: 'App',
@@ -96,7 +95,7 @@ export default {
 			zoomTooltipText: '',
 			zoomTooltipTimer: null,
 
-			_liveTimer: null,
+			_liveRafId: null,
 			_lastQueryViewport: null,
 		};
 	},
@@ -156,7 +155,9 @@ export default {
 					{
 						const segStart = seg.seriesStartUtc;
 						const segEnd = seg.seriesEndUtc != null ? seg.seriesEndUtc : Number.POSITIVE_INFINITY;
-						if (segEnd < vStart || segStart > vEnd) continue;
+						// Always include synthetic unresponsive segment (start=0).
+						// Real segments must overlap the viewport to be considered.
+						if (segStart !== 0 && (segEnd < vStart || segStart > vEnd)) continue;
 
 						const k = keyFor(sIdx, hopNumber, seg.seriesStartUtc);
 						const histEntry = history[k];
@@ -165,22 +166,18 @@ export default {
 						// Build bucket list. History buckets first (already aggregated),
 						// then live-tail entries as 1-sample buckets after the last
 						// history bucket's timestamp (to avoid double-drawing).
+						// We do not filter buckets by viewport here — the renderer
+						// uses the next bucket's t for bar widths and needs adjacent
+						// out-of-viewport buckets to render edge bars correctly.
 						const buckets = [];
 						const lastHistT = histEntry && histEntry.points.length > 0
 							? histEntry.points[histEntry.points.length - 1].t
 							: -1;
 						if (histEntry)
-						{
-							for (const p of histEntry.points)
-							{
-								if (p.t < vStart - this.viewportDurationMs || p.t > vEnd) continue;
-								buckets.push(p);
-							}
-						}
+							for (const p of histEntry.points) buckets.push(p);
 						for (const p of tail)
 						{
 							if (p.t <= lastHistT) continue;
-							if (p.t < vStart - this.viewportDurationMs || p.t > vEnd) continue;
 							const isFail = p.ms === 0xFFFF || p.ms === 0xFFFE;
 							buckets.push({
 								t: p.t,
@@ -208,9 +205,11 @@ export default {
 					else if (segs.length > 0) labelSeg = segs[segs.length - 1];
 					if (!labelSeg) continue;
 
-					const label = labelSeg.hostname && labelSeg.hostname.length > 0
-						? `${hopNumber + 1}. ${labelSeg.hostname} [${labelSeg.address}]`
-						: `${hopNumber + 1}. ${labelSeg.address}`;
+					const label = labelSeg.address === '*'
+						? `${hopNumber + 1}. (no response)`
+						: labelSeg.hostname && labelSeg.hostname.length > 0
+							? `${hopNumber + 1}. ${labelSeg.hostname} [${labelSeg.address}]`
+							: `${hopNumber + 1}. ${labelSeg.address}`;
 
 					rows.push({
 						key: `${sIdx}:${hopNumber}`,
@@ -254,10 +253,13 @@ export default {
 		document.addEventListener('mouseup', this.onMouseUp);
 		document.addEventListener('mousemove', this.onDocMouseMove);
 
-		this._liveTimer = setInterval(() =>
+		// rAF-driven live tick: ~60fps when tab is visible, paused when not.
+		const tick = () =>
 		{
 			if (this.isLive) this.liveNow = Date.now();
-		}, LIVE_TICK_MS);
+			this._liveRafId = requestAnimationFrame(tick);
+		};
+		this._liveRafId = requestAnimationFrame(tick);
 
 		this._onBeforeUnload = () => this.store.disconnect();
 		window.addEventListener('beforeunload', this._onBeforeUnload);
@@ -269,7 +271,7 @@ export default {
 		document.removeEventListener('mouseup', this.onMouseUp);
 		document.removeEventListener('mousemove', this.onDocMouseMove);
 		if (this.zoomTooltipTimer) clearTimeout(this.zoomTooltipTimer);
-		if (this._liveTimer) clearInterval(this._liveTimer);
+		if (this._liveRafId) cancelAnimationFrame(this._liveRafId);
 	},
 	methods: {
 		graphStyle(index)
@@ -388,8 +390,8 @@ export default {
 		_setEnd(newEnd)
 		{
 			const now = Date.now();
-			// Snap to live if within a small fraction of duration of "now".
-			if (newEnd >= now - this.viewportDurationMs * 0.02)
+			// Anything at or past now snaps to live (no future allowed).
+			if (newEnd >= now - 250)
 			{
 				this.viewportEndUtc = null;
 				this.liveNow = now;

@@ -537,18 +537,23 @@ namespace PingTracer.Services
 
 		private void OnHopDiscovered(MonitoringSession session, HopTimeSeries series)
 		{
+			BroadcastLog($"Hop {series.HopNumber + 1} active: {series.Address}");
+
 			// Subscribe so async DNS resolution reaches clients. Use a closure
 			// keyed off the series so we capture the right address.
 			series.HostnameUpdated += s =>
 			{
 				try { BroadcastBinary(BuildHostnameUpdatedFrame(s.Address, s.Hostname ?? string.Empty)); }
 				catch { }
+				if (!string.IsNullOrEmpty(s.Hostname))
+					BroadcastLog($"Resolved {s.Address} -> {s.Hostname}");
 			};
 			// If hostname was already resolved (race), emit immediately.
 			if (!string.IsNullOrEmpty(series.Hostname))
 			{
 				try { BroadcastBinary(BuildHostnameUpdatedFrame(series.Address, series.Hostname)); }
 				catch { }
+				BroadcastLog($"Resolved {series.Address} -> {series.Hostname}");
 			}
 		}
 
@@ -556,27 +561,42 @@ namespace PingTracer.Services
 		{
 			byte idx = ResolveSessionIndex(session);
 			if (idx == BinaryFrameType.NoSession) return;
+			BroadcastLog($"Hop {hop + 1} deactivated: {address}");
 			try { BroadcastBinary(BuildHopDeactivatedFrame(idx, hop, address, DateTime.UtcNow)); }
 			catch { }
 		}
 
+		private void BroadcastLog(string message)
+		{
+			OnLogCreated(message);
+		}
+
 		private void OnPingRecordCompleted(MonitoringSession session, TraceRouteHostResult result, HopTimeSeries series, RecordHandle? handle)
 		{
-			if (series == null || result == null) return;
+			if (result == null) return;
 			byte idx = ResolveSessionIndex(session);
 			if (idx == BinaryFrameType.NoSession) return;
-
-			ushort rtt;
-			if (result.success)
-				rtt = (ushort)Math.Min(Math.Max(result.roundTripTime, 0), 65533L);
-			else
-				rtt = PingRecordStatus.Timeout;
 
 			DateTime ts = result.sentTimestampUtc;
 			if (ts == default) ts = DateTime.UtcNow;
 
-			try { BroadcastBinary(BuildPingUpdateFrame(idx, series, ts, rtt)); }
-			catch { }
+			if (series != null)
+			{
+				ushort rtt = result.success
+					? (ushort)Math.Min(Math.Max(result.roundTripTime, 0), 65533L)
+					: PingRecordStatus.Timeout;
+				try { BroadcastBinary(BuildPingUpdateFrame(idx, series, ts, rtt)); }
+				catch { }
+			}
+			else if (result.ttl > 0 && result.ttl <= 255)
+			{
+				// Hop has no active HopTimeSeries — i.e. it has never responded
+				// (or its previous series has been closed). Emit a synthetic
+				// pingUpdate keyed by seriesStartUtc=0 so the client can render
+				// a row of timeouts for the unresponsive hop.
+				try { BroadcastBinary(BuildPingUpdateUnresponsiveFrame(idx, (byte)(result.ttl - 1), ts)); }
+				catch { }
+			}
 		}
 
 		private void OnRouteChanged(MonitoringSession session, RouteSnapshot oldRoute, RouteSnapshot newRoute)
@@ -700,6 +720,17 @@ namespace PingTracer.Services
 			w.WriteUnixMs(series.StartTimeUtc);
 			w.WriteUnixMs(timestampUtc);
 			w.WriteUInt16(rtt);
+			return w.ToArray();
+		}
+
+		private static byte[] BuildPingUpdateUnresponsiveFrame(byte sessionIndex, byte hopNumber, DateTime timestampUtc)
+		{
+			var w = new BinaryFrameWriter(BinaryFrameType.PingUpdate, sessionIndex);
+			w.WriteByte(hopNumber);
+			// seriesStartUtc=0 marks the synthetic "unresponsive hop" series.
+			w.WriteUInt64(0);
+			w.WriteUnixMs(timestampUtc);
+			w.WriteUInt16(PingRecordStatus.Timeout);
 			return w.ToArray();
 		}
 

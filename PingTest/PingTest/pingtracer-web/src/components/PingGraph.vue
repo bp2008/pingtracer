@@ -194,29 +194,41 @@ export default {
 			}
 			const pixels = rc.pixels;
 
+			// Build a flat list of (bucket, segment) tuples sorted by t. This
+			// lets each bar span from its t to the next bar's t regardless of
+			// segment boundaries, which butts segments together and eliminates
+			// "holes" between consecutive series within the same hop.
+			const flat = [];
+			for (const seg of segments)
+				for (const b of seg.buckets)
+					flat.push({ b, seg });
+			flat.sort((a, b) => a.b.t - b.b.t);
+
 			// --- Pass 1: compute stats from all visible buckets ---
+			// "Visible" includes any bucket whose [t, nextT] band overlaps the
+			// viewport, so we do not under-count edge-clipped bars.
 			let statMin = Infinity, statMax = -Infinity, statSum = 0, statSucc = 0;
 			let statTotal = 0, statFail = 0, statLastT = -1, statLast = 0;
 
-			for (const seg of segments)
+			for (let i = 0; i < flat.length; i++)
 			{
-				for (const b of seg.buckets)
+				const b = flat[i].b;
+				const nextT = (i + 1 < flat.length) ? flat[i + 1].b.t : Number.POSITIVE_INFINITY;
+				if (nextT < vStart || b.t > vEnd) continue;
+
+				statTotal += b.samples || 1;
+				if (b.avg != null)
 				{
-					if (b.t < vStart || b.t > vEnd) continue;
-					statTotal += b.samples || 1;
-					if (b.avg != null)
-					{
-						const succThis = Math.max(1, Math.round((b.samples || 1) * (1 - (b.lossPct || 0) / 100)));
-						statSucc += succThis;
-						statSum += b.avg * succThis;
-						if (b.max > statMax) statMax = b.max;
-						if (b.min < statMin) statMin = b.min;
-						if (b.t > statLastT) { statLastT = b.t; statLast = b.avg; }
-					}
-					else
-					{
-						statFail += b.samples || 1;
-					}
+					const succThis = Math.max(1, Math.round((b.samples || 1) * (1 - (b.lossPct || 0) / 100)));
+					statSucc += succThis;
+					statSum += b.avg * succThis;
+					if (b.max != null && b.max > statMax) statMax = b.max;
+					if (b.min != null && b.min < statMin) statMin = b.min;
+					if (b.t > statLastT) { statLastT = b.t; statLast = b.avg; }
+				}
+				else
+				{
+					statFail += b.samples || 1;
 				}
 			}
 
@@ -270,62 +282,63 @@ export default {
 			const pxPerMs = physW / vDur;
 
 			// --- Pass 2: draw bars ---
-			for (const seg of segments)
+			// Each bar spans from its t to the next bar's t (regardless of
+			// segment) so consecutive series butt up with no visual hole.
+			// Bars whose extent crosses the viewport edges are clipped to the
+			// edge but still rendered, so partial bars at the left/right
+			// remain visible when zoomed in.
+			for (let i = 0; i < flat.length; i++)
 			{
-				const buckets = seg.buckets;
-				if (buckets.length === 0) continue;
+				const b = flat[i].b;
+				const nextT = (i + 1 < flat.length) ? flat[i + 1].b.t : vEnd;
+				const tStart = b.t;
+				const tEnd = nextT;
+				if (tEnd < vStart || tStart > vEnd) continue;
 
-				for (let i = 0; i < buckets.length; i++)
+				const xLeft = (tStart - vStart) * pxPerMs;
+				const xRight = (tEnd - vStart) * pxPerMs;
+
+				const pxLeft = Math.max(0, Math.round(xLeft));
+				const pxRight = Math.min(physW, Math.max(pxLeft + 1, Math.round(xRight)));
+
+				let colorU32, pxTop;
+				if (b.avg == null)
 				{
-					const b = buckets[i];
-					if (b.t < vStart || b.t > vEnd) continue;
+					colorU32 = U32_FAILURE;
+					pxTop = 0;
+				}
+				else
+				{
+					const heightFromVal = b.max != null ? b.max : b.avg;
+					if (heightFromVal <= lowerLimitDraw) continue;
+					const barPhysH = Math.max(1, Math.round((heightFromVal - lowerLimitDraw) * vScaleDpr));
+					pxTop = Math.max(0, physH - barPhysH);
+					if (heightFromVal < badThreshold) colorU32 = U32_SUCCESS;
+					else if (heightFromVal < worseThreshold) colorU32 = U32_BAD;
+					else colorU32 = U32_WORSE;
+				}
 
-					// Bar spans from this bucket's t to the next bucket's t (or vEnd).
-					const tEnd = (i + 1 < buckets.length) ? buckets[i + 1].t : b.t + (vDur / Math.max(1, physW));
-					const xLeft = (b.t - vStart) * pxPerMs;
-					const xRight = (Math.min(tEnd, vEnd) - vStart) * pxPerMs;
+				for (let row = pxTop; row < physH; row++)
+				{
+					const offset = row * physW;
+					pixels.fill(colorU32, offset + pxLeft, offset + pxRight);
+				}
 
-					const pxLeft = Math.max(0, Math.round(xLeft));
-					const pxRight = Math.min(physW, Math.max(pxLeft + 1, Math.round(xRight)));
-
-					let colorU32, pxTop;
-					if (b.avg == null)
-					{
-						colorU32 = U32_FAILURE;
-						pxTop = 0;
-					}
-					else
-					{
-						const heightFromVal = b.max != null ? b.max : b.avg;
-						if (heightFromVal <= lowerLimitDraw) continue;
-						const barPhysH = Math.max(1, Math.round((heightFromVal - lowerLimitDraw) * vScaleDpr));
-						pxTop = Math.max(0, physH - barPhysH);
-						if (heightFromVal < badThreshold) colorU32 = U32_SUCCESS;
-						else if (heightFromVal < worseThreshold) colorU32 = U32_BAD;
-						else colorU32 = U32_WORSE;
-					}
-
-					for (let row = pxTop; row < physH; row++)
+				// Loss overlay: thin red bar at bottom proportional to lossPct.
+				if (b.avg != null && b.lossPct > 0)
+				{
+					const lossRows = Math.max(1, Math.round(physH * 0.05 * (b.lossPct / 100)));
+					const lossTop = physH - lossRows;
+					for (let row = lossTop; row < physH; row++)
 					{
 						const offset = row * physW;
-						pixels.fill(colorU32, offset + pxLeft, offset + pxRight);
-					}
-
-					// Loss overlay: thin red bar at bottom proportional to lossPct.
-					if (b.avg != null && b.lossPct > 0)
-					{
-						const lossRows = Math.max(1, Math.round(physH * 0.05 * (b.lossPct / 100)));
-						const lossTop = physH - lossRows;
-						for (let row = lossTop; row < physH; row++)
-						{
-							const offset = row * physW;
-							pixels.fill(U32_FAILURE, offset + pxLeft, offset + pxRight);
-						}
+						pixels.fill(U32_FAILURE, offset + pxLeft, offset + pxRight);
 					}
 				}
 			}
 
 			// --- Pass 3: seam markers between segments ---
+			// Place a vertical line wherever one segment ends and the next begins.
 			for (let s = 1; s < segments.length; s++)
 			{
 				const seamT = segments[s].seriesStartUtc;
@@ -432,36 +445,57 @@ export default {
 			const mouseMs = Math.round(((graphHeight - this.mouseY) / graphHeight) * (graphHeight / vScale) + lowerLimitDraw);
 			const mouseT = vStart + (this.mouseX / logicalW) * vDur;
 
-			// Find nearest bucket across all segments.
-			let best = null, bestDist = Infinity;
+			// Pick the segment whose [start, end) window contains the mouse
+			// time. This makes the address shown reflect the actual segment
+			// the cursor is over, not the segment of the nearest bucket
+			// (which would mislabel positions near a series boundary).
+			let activeSeg = null;
 			for (const seg of segments)
 			{
-				for (const b of seg.buckets)
+				const segStart = seg.seriesStartUtc;
+				const segEnd = seg.seriesEndUtc != null ? seg.seriesEndUtc : Number.POSITIVE_INFINITY;
+				if (mouseT >= segStart && mouseT <= segEnd) { activeSeg = seg; break; }
+			}
+			// Fallback: nearest segment by midpoint, in case windows don't cover mouseT.
+			if (!activeSeg && segments.length > 0)
+			{
+				let bestDist = Infinity;
+				for (const seg of segments)
+				{
+					const mid = (seg.seriesStartUtc + (seg.seriesEndUtc != null ? seg.seriesEndUtc : Date.now())) / 2;
+					const d = Math.abs(mid - mouseT);
+					if (d < bestDist) { bestDist = d; activeSeg = seg; }
+				}
+			}
+
+			// Within the active segment, find the bucket nearest mouseT.
+			let bucket = null;
+			if (activeSeg)
+			{
+				let bestDist = Infinity;
+				for (const b of activeSeg.buckets)
 				{
 					const d = Math.abs(b.t - mouseT);
-					if (d < bestDist) { bestDist = d; best = { b, seg }; }
+					if (d < bestDist) { bestDist = d; bucket = b; }
 				}
 			}
 
 			const time = new Date(mouseT).toLocaleTimeString();
-			if (!best) return time + ', Mouse ms: ' + mouseMs;
+			const addrStr = activeSeg ? ' [' + activeSeg.address
+				+ (activeSeg.hostname ? ' ' + activeSeg.hostname : '') + ']' : '';
 
-			// Only show bucket info if the cursor is reasonably close.
-			const tolerance = vDur / Math.max(1, logicalW) * 4;
-			if (bestDist > tolerance) return time + ', Mouse ms: ' + mouseMs;
+			if (!bucket) return time + addrStr + ', Mouse ms: ' + mouseMs;
 
-			const b = best.b;
-			const seg = best.seg;
-			const bt = new Date(b.t).toLocaleTimeString();
+			const bt = new Date(bucket.t).toLocaleTimeString();
 			let info;
-			if (b.avg == null)
-				info = bt + ': lost (' + b.samples + ' sent)';
-			else if (b.samples === 1)
-				info = bt + ': ' + b.avg + ' ms';
+			if (bucket.avg == null)
+				info = bt + ': lost' + (bucket.samples > 1 ? ' (' + bucket.samples + ' sent)' : '');
+			else if (bucket.samples === 1)
+				info = bt + ': ' + bucket.avg + ' ms';
 			else
-				info = bt + ': avg ' + b.avg + ' (' + b.min + '-' + b.max + ', n=' + b.samples + ', loss ' + b.lossPct.toFixed(1) + '%)';
-			info += ' [' + seg.address + ']';
-			return info + ', Mouse ms: ' + mouseMs;
+				info = bt + ': avg ' + bucket.avg + ' (' + bucket.min + '-' + bucket.max
+					+ ', n=' + bucket.samples + ', loss ' + bucket.lossPct.toFixed(1) + '%)';
+			return info + addrStr + ', Mouse ms: ' + mouseMs;
 		},
 
 		// --- Input Handlers ---
