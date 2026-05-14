@@ -71,8 +71,27 @@ namespace PingTracer.Services
 		/// </summary>
 		public event Action<TraceRouteHostResult, HopTimeSeries, RecordHandle?> PingRecordCompleted;
 
+		/// <summary>
+		/// Fired when a hop was probed but no record was recorded on any series
+		/// (no active series existed at dispatch and either the result was a
+		/// failure or its replyFrom didn't match any active series). Carries
+		/// (hopNumber, sentAtUtc) so the live UI can render a synthetic timeout
+		/// for hops that have never responded.
+		/// </summary>
+		public event Action<byte, DateTime> UnresponsiveHopProbed;
+
 		/// <summary>Fired when a cycle throws an unexpected exception.</summary>
 		public event Action<Exception> CycleFaulted;
+
+		/// <summary>
+		/// Fired when the destination's hop number is first discovered or when it
+		/// changes (route rerouted such that the destination now sits at a different
+		/// TTL). Carries the new TTL (1-based, the same value reported in trace
+		/// results) and the previous TTL or 0 if not previously known.
+		/// </summary>
+		public event Action<byte, byte> DestinationHopChanged;
+
+		private byte _lastDestinationTtl; // 0 = not yet known
 
 		public ContinuousRouteMonitor(
 			IPAddress target,
@@ -253,14 +272,23 @@ namespace PingTracer.Services
 					RecordHandle h = active.BeginPendingRecord(sentAt);
 					active.CompleteRecord(h, ClampRtt(result.roundTripTime));
 
-					// Broadcast the deferred completion so first-cycle hops render
-					// real data immediately rather than waiting for cycle 2.
-					if (state.PendingSeries[idx] == null)
-						PingRecordCompleted?.Invoke(result, active, h);
+					// Broadcast the deferred completion so first-cycle hops AND
+					// address-change cases render real data live. Without this,
+					// the address-change case stores the success on the new series
+					// but never emits a live frame for it, so the new series stays
+					// blank until aggregated history catches up.
+					PingRecordCompleted?.Invoke(result, active, h);
 				}
-				// Failed/non-matching results without a pre-existing series produce
-				// no broadcast — the hop will simply have no data point for this cycle
-				// rather than a synthetic timeout that would render as a red bar.
+				else if (state.PendingSeries[idx] == null && state.WasDispatched[idx])
+				{
+					// We sent a probe at this TTL but produced no record on any
+					// series — the hop is unresponsive. Emit a synthetic frame so
+					// the UI can render an "unresponsive" placeholder row instead
+					// of leaving the hop invisible.
+					DateTime sentAt = state.SendTimes[idx];
+					if (sentAt == default) sentAt = DateTime.UtcNow;
+					UnresponsiveHopProbed?.Invoke((byte)idx, sentAt);
+				}
 			}
 		}
 
@@ -286,6 +314,13 @@ namespace PingTracer.Services
 				Volatile.Write(ref _consecutiveDestinationMisses, 0);
 				if (destinationTtl.HasValue && destinationTtl.Value < _maxHops)
 					_maxHops = destinationTtl.Value;
+
+				if (destinationTtl.HasValue && destinationTtl.Value != _lastDestinationTtl)
+				{
+					byte oldTtl = _lastDestinationTtl;
+					_lastDestinationTtl = destinationTtl.Value;
+					DestinationHopChanged?.Invoke(destinationTtl.Value, oldTtl);
+				}
 			}
 			else
 			{

@@ -64,6 +64,9 @@ namespace PingTracer.Services
 		/// <summary>Raised once per ping completion, bubbled from the underlying monitors.</summary>
 		public event Action<MonitoringSession, TraceRouteHostResult, HopTimeSeries, RecordHandle?> PingRecordCompleted;
 
+		/// <summary>Raised when an unresponsive hop position was probed but no series received a record.</summary>
+		public event Action<MonitoringSession, byte, DateTime> UnresponsiveHopProbed;
+
 		/// <summary>Raised when a session's route topology changes.</summary>
 		public event Action<MonitoringSession, RouteSnapshot, RouteSnapshot> RouteChanged;
 
@@ -119,9 +122,10 @@ namespace PingTracer.Services
 			{
 				IPAddress ip;
 				string resolvedName;
+				string trimmedRaw = raw.Trim();
 				try
 				{
-					ip = StringToIp(raw.Trim(), preferIpv4, out resolvedName);
+					ip = StringToIp(trimmedRaw, preferIpv4, out resolvedName);
 				}
 				catch (Exception ex)
 				{
@@ -129,6 +133,12 @@ namespace PingTracer.Services
 					continue;
 				}
 				if (ip == null) continue;
+
+				// Log the resolved IP whenever the user supplied a hostname rather
+				// than a literal IP, so the output log makes clear which address
+				// pings are actually being sent to.
+				if (!IPAddress.TryParse(trimmedRaw, out _))
+					LogCreated?.Invoke($"Resolved {trimmedRaw} -> {ip}");
 
 				string displayName = ip.ToString();
 				if (!string.IsNullOrWhiteSpace(resolvedName))
@@ -298,6 +308,23 @@ namespace PingTracer.Services
 
 				PingRecordCompleted?.Invoke(session, result, series, handle);
 			};
+
+			monitor.UnresponsiveHopProbed += (hop, sentAt) =>
+			{
+				Interlocked.Increment(ref _failedPings);
+				UnresponsiveHopProbed?.Invoke(session, hop, sentAt);
+			};
+
+			if (monitor is ContinuousRouteMonitor crm)
+			{
+				crm.DestinationHopChanged += (newTtl, oldTtl) =>
+				{
+					if (oldTtl == 0)
+						LogCreated?.Invoke($"Destination {session.TargetAddress} reached at hop {newTtl}");
+					else if (newTtl != oldTtl)
+						LogCreated?.Invoke($"Destination {session.TargetAddress} hop changed: {oldTtl} -> {newTtl}");
+				};
+			}
 		}
 
 		private IPingMonitor DefaultMonitorFactory(IPAddress target, string displayName, bool useTraceRoute, int intervalMs, MonitoringSession session)

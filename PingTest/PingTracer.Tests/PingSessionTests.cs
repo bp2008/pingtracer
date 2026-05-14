@@ -24,6 +24,7 @@ namespace PingTracer.Tests
 			public int StopCalls;
 
 			public event Action<TraceRouteHostResult, HopTimeSeries, RecordHandle?> PingRecordCompleted;
+			public event Action<byte, DateTime> UnresponsiveHopProbed;
 
 			public FakeMonitor(IPAddress target, MonitoringSession session, bool useTraceRoute, int intervalMs)
 			{

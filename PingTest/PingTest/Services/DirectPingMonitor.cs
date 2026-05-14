@@ -51,6 +51,12 @@ namespace PingTracer.Services
 
 		public event Action<TraceRouteHostResult, HopTimeSeries, RecordHandle?> PingRecordCompleted;
 
+		// Direct mode pings the target itself; there is no concept of an
+		// unresponsive intermediate hop, so this event is never fired.
+#pragma warning disable CS0067
+		public event Action<byte, DateTime> UnresponsiveHopProbed;
+#pragma warning restore CS0067
+
 		public DirectPingMonitor(
 			IPAddress target,
 			MonitoringSession session,

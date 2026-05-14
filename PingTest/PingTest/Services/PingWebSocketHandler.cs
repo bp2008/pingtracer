@@ -323,6 +323,7 @@ namespace PingTracer.Services
 				currentSession.HopDiscovered += OnHopDiscovered;
 				currentSession.HopDeactivated += OnHopDeactivated;
 				currentSession.PingRecordCompleted += OnPingRecordCompleted;
+				currentSession.UnresponsiveHopProbed += OnUnresponsiveHopProbed;
 				currentSession.RouteChanged += OnRouteChanged;
 				currentSession.StatusChanged += OnStatusChanged;
 				currentSession.LogCreated += OnLogCreated;
@@ -582,10 +583,29 @@ namespace PingTracer.Services
 
 			if (series == null) return;
 
-			ushort rtt = result.success
+			// Only treat the reply as a hit for THIS series when the responding IP
+			// matches. Otherwise the storage layer records a Timeout for this series
+			// (the reply belongs to a different hop / address change), so the live
+			// frame must do the same — else the bar renders green and then turns red
+			// when aggregated history overwrites the live tail.
+			bool isHitForSeries = result.success
+				&& result.replyFrom != null
+				&& series.Address != null
+				&& result.replyFrom.Equals(series.Address);
+
+			ushort rtt = isHitForSeries
 				? (ushort)Math.Min(Math.Max(result.roundTripTime, 0), 65533L)
 				: PingRecordStatus.Timeout;
 			try { BroadcastBinary(BuildPingUpdateFrame(idx, series, ts, rtt)); }
+			catch { }
+		}
+
+		private void OnUnresponsiveHopProbed(MonitoringSession session, byte hopNumber, DateTime sentAtUtc)
+		{
+			byte idx = ResolveSessionIndex(session);
+			if (idx == BinaryFrameType.NoSession) return;
+			DateTime ts = sentAtUtc == default ? DateTime.UtcNow : sentAtUtc;
+			try { BroadcastBinary(BuildUnresponsiveHopFrame(idx, hopNumber, ts)); }
 			catch { }
 		}
 
@@ -710,6 +730,19 @@ namespace PingTracer.Services
 			w.WriteUnixMs(series.StartTimeUtc);
 			w.WriteUnixMs(timestampUtc);
 			w.WriteUInt16(rtt);
+			return w.ToArray();
+		}
+
+		// Synthetic PingUpdate frame for hops that have never responded. Uses
+		// seriesStartUtc=0 as the placeholder marker that the front-end already
+		// recognizes (it creates a synthetic '*' segment so the row renders).
+		private static byte[] BuildUnresponsiveHopFrame(byte sessionIndex, byte hopNumber, DateTime timestampUtc)
+		{
+			var w = new BinaryFrameWriter(BinaryFrameType.PingUpdate, sessionIndex);
+			w.WriteByte(hopNumber);
+			w.WriteUnixMs(default(DateTime)); // seriesStartUtc=0 = unresponsive placeholder
+			w.WriteUnixMs(timestampUtc);
+			w.WriteUInt16(PingRecordStatus.Timeout);
 			return w.ToArray();
 		}
 

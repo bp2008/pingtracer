@@ -169,14 +169,26 @@ export default {
 						// We do not filter buckets by viewport here — the renderer
 						// uses the next bucket's t for bar widths and needs adjacent
 						// out-of-viewport buckets to render edge bars correctly.
+						//
+						// PingTracer tradition (mirroring the WinForms client's
+						// `delayMostRecentPing` setting): hold back the most recent
+						// live-tail entry. The trailing bar otherwise paints the
+						// in-flight ping's time interval with the previous ping's
+						// color; when the in-flight ping later resolves to a
+						// timeout, that region visibly flashes from green to red.
+						// Holding it back means each rendered bar is fully resolved
+						// and the area for the in-flight ping stays empty (black).
 						const buckets = [];
 						const lastHistT = histEntry && histEntry.points.length > 0
 							? histEntry.points[histEntry.points.length - 1].t
 							: -1;
 						if (histEntry)
 							for (const p of histEntry.points) buckets.push(p);
-						for (const p of tail)
+						const trimFromEnd = 0;
+						const tailRenderEnd = Math.max(0, tail.length - trimFromEnd);
+						for (let i = 0; i < tailRenderEnd; i++)
 						{
+							const p = tail[i];
 							if (p.t <= lastHistT) continue;
 							const isFail = p.ms === 0xFFFF || p.ms === 0xFFFE;
 							buckets.push({

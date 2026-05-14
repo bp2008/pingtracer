@@ -3,7 +3,8 @@
     "allow": [
       "Bash(dotnet build *)",
       "Bash(dotnet test *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(tasklist)"
     ]
   }
 }

@@ -28,5 +28,14 @@ namespace PingTracer.Services
 		/// reconciliation.
 		/// </summary>
 		event Action<TraceRouteHostResult, HopTimeSeries, RecordHandle?> PingRecordCompleted;
+
+		/// <summary>
+		/// Fired when a hop position was probed but produced no record on any
+		/// series (no active series existed and the response, if any, did not
+		/// resolve to an active series). Carries (hopNumber, sentAtUtc) so a
+		/// synthetic timeout frame can be emitted for live rendering of hops
+		/// that have never responded.
+		/// </summary>
+		event Action<byte, DateTime> UnresponsiveHopProbed;
 	}
 }

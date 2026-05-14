@@ -135,25 +135,37 @@ namespace PingTracer.Storage
 
 		private static AggregatedPoint[] BuildSinglePointBuckets(List<(DateTime timestamp, ushort rtt)> raw)
 		{
-			var pts = new AggregatedPoint[raw.Count];
+			// Pending records are in-flight pings whose result has not arrived. Skip
+			// them entirely: they encode as avg=0xFFFF/lossPct=0 on the wire, which
+			// the renderer paints as a full-height red bar identical to a Timeout.
+			// That made queries fire while a ping was in flight overwrite the live
+			// tail's eventual success with a permanent red bar.
+			int emit = 0;
+			for (int i = 0; i < raw.Count; i++)
+				if (raw[i].rtt != PingRecordStatus.Pending) emit++;
+
+			var pts = new AggregatedPoint[emit];
+			int j = 0;
 			for (int i = 0; i < raw.Count; i++)
 			{
 				var (ts, rtt) = raw[i];
-				pts[i].TimestampUtc = ts;
-				pts[i].SampleCount = 1;
-				pts[i].AvgRtt = double.NaN;
-				pts[i].MinRtt = double.NaN;
-				pts[i].MaxRtt = double.NaN;
+				if (rtt == PingRecordStatus.Pending) continue;
+				pts[j].TimestampUtc = ts;
+				pts[j].SampleCount = 1;
+				pts[j].AvgRtt = double.NaN;
+				pts[j].MinRtt = double.NaN;
+				pts[j].MaxRtt = double.NaN;
 				if (rtt == PingRecordStatus.Timeout)
 				{
-					pts[i].PacketLossPercent = 100.0;
+					pts[j].PacketLossPercent = 100.0;
 				}
-				else if (rtt != PingRecordStatus.Pending)
+				else
 				{
-					pts[i].AvgRtt = rtt;
-					pts[i].MinRtt = rtt;
-					pts[i].MaxRtt = rtt;
+					pts[j].AvgRtt = rtt;
+					pts[j].MinRtt = rtt;
+					pts[j].MaxRtt = rtt;
 				}
+				j++;
 			}
 			return pts;
 		}
@@ -201,6 +213,15 @@ namespace PingTracer.Storage
 				}
 			}
 
+			// Compact: only emit buckets that actually contain data. Empty buckets
+			// would serialize as avg=0xFFFF/lossPct=0/samples=0 — which the renderer
+			// paints as a red bar. Emitting maxPoints worth of empty buckets meant
+			// any zoomed-out viewport rendered as a wall of red between real pings.
+			int emit = 0;
+			for (int i = 0; i < maxPoints; i++) if (hasData[i]) emit++;
+
+			var compact = new AggregatedPoint[emit];
+			int j = 0;
 			for (int i = 0; i < maxPoints; i++)
 			{
 				if (!hasData[i]) continue;
@@ -209,9 +230,10 @@ namespace PingTracer.Storage
 					pts[i].PacketLossPercent = 100.0 * timeoutCount[i] / total;
 				if (successCount[i] > 0)
 					pts[i].AvgRtt = sumRtt[i] / successCount[i];
+				compact[j++] = pts[i];
 			}
 
-			return pts;
+			return compact;
 		}
 
 		/// <summary>
