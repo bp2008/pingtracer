@@ -35,6 +35,25 @@ namespace PingTracer.Tracer
 		/// If true, addresses that responded to the intial traceroute but refuse to respond to regular pings will continue to be monitored indefinitely.  If false, such addresses will be removed from monitoring after a timeout period.  This only applies to traceroute hops, not the main hosts being pinged.
 		/// </summary>
 		public bool monitorUnresponsiveHops = false;
+		/// <summary>
+		/// How long to wait (in milliseconds) for a ping response before the ping is recorded as timed out.  A response which arrives later than this is discarded by the operating system and is graphed as a timeout.
+		/// </summary>
+		public int pingTimeoutMs = 5000;
+		/// <summary>
+		/// Lower bound for <see cref="pingTimeoutMs"/>.
+		/// </summary>
+		public const int pingTimeoutMsMin = 100;
+		/// <summary>
+		/// Upper bound for <see cref="pingTimeoutMs"/>.  Response times are stored as 16-bit signed integers, so the timeout must stay below 32768 ms.
+		/// </summary>
+		public const int pingTimeoutMsMax = 30000;
+		/// <summary>
+		/// Gets <see cref="pingTimeoutMs"/> clamped to the supported range.
+		/// </summary>
+		public int GetPingTimeoutMs()
+		{
+			return Math.Max(pingTimeoutMsMin, Math.Min(pingTimeoutMsMax, pingTimeoutMs));
+		}
 
 		// --- Graph display options ---
 

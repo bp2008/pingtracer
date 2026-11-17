@@ -268,6 +268,7 @@ namespace PingTracer
 				trackBarRate.Value = PingRateToTrackBar(cfg.rate, cfg.pingsPerSecond);
 				cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.Checked = !cfg.monitorUnresponsiveHops;
 				UpdateRateLabel();
+				nudPingTimeout.Value = cfg.GetPingTimeoutMs();
 
 				// Graph options
 				cbAlwaysShowServerNames.Checked = cfg.drawServerNames;
@@ -343,6 +344,8 @@ namespace PingTracer
 				cfg.pingsPerSecond = true;
 			}
 
+			cfg.pingTimeoutMs = (int)nudPingTimeout.Value;
+
 			cfg.drawServerNames = cbAlwaysShowServerNames.Checked;
 			cfg.drawLastPing = cbLastPing.Checked;
 			cfg.drawAverage = cbAverage.Checked;
@@ -374,6 +377,7 @@ namespace PingTracer
 				cbTraceroute.Checked,
 				cbReverseDNS.Checked,
 				trackBarRate.Value,
+				nudPingTimeout.Value,
 				cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.Checked,
 				cbAlwaysShowServerNames.Checked,
 				cbLastPing.Checked,
