@@ -205,6 +205,44 @@ namespace PingTracer
 			Interlocked.Exchange(ref _nextIndexOffset, -1);
 			this.Invalidate();
 		}
+		/// <summary>
+		/// Writes every completed ping currently held in the buffer, oldest first, as CSV rows (Host,Time,Result,RoundTripMs).  Does not write a header row.
+		/// </summary>
+		/// <param name="writer">Destination for the CSV rows.</param>
+		/// <returns>The number of rows written.</returns>
+		public int WriteCsvRows(System.IO.TextWriter writer)
+		{
+			PingLog[] buffer = pings;
+			long newest = Interlocked.Read(ref _nextIndexOffset);
+			if (newest < 0)
+				return 0;
+			long total = Math.Min(newest + 1, buffer.Length);
+			string hostColumn = "\"" + DisplayName.Replace("\"", "\"\"") + "\",";
+			System.Globalization.CultureInfo invariant = System.Globalization.CultureInfo.InvariantCulture;
+			int written = 0;
+			for (long n = newest + 1 - total; n <= newest; n++)
+			{
+				PingLog p = buffer[n % buffer.Length];
+				if (p == null)
+					continue; // Never sent, or still waiting for a response.
+				writer.Write(hostColumn);
+				writer.Write(p.startTime.ToString("yyyy-MM-dd HH:mm:ss.fff", invariant));
+				if (p.result == IPStatus.Success)
+				{
+					writer.Write(",Success,");
+					writer.Write(p.pingTime.ToString(invariant));
+				}
+				else
+				{
+					writer.Write(',');
+					writer.Write(p.result.ToString());
+					writer.Write(',');
+				}
+				writer.WriteLine();
+				written++;
+			}
+			return written;
+		}
 
 		int timestampsHeight = 13;
 		public int TimestampsHeight

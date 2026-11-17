@@ -899,6 +899,47 @@ namespace PingTracer
 			}
 		}
 
+		private void mi_exportCsv_Click(object sender, EventArgs e)
+		{
+			if (pingGraphs.Count == 0)
+			{
+				MessageBox.Show("There is no ping data to export yet.");
+				return;
+			}
+			using (SaveFileDialog dialog = new SaveFileDialog())
+			{
+				dialog.Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*";
+				dialog.FileName = "PingTracer " + (currentIPAddress ?? "pings") + " " + DateTime.Now.ToString(fileNameFriendlyDateFormatString) + ".csv";
+				if (dialog.ShowDialog(this) != DialogResult.OK)
+					return;
+				try
+				{
+					ExportPingsToCsv(dialog.FileName);
+				}
+				catch (Exception ex)
+				{
+					MessageBox.Show("Unable to export ping data: " + ex.Message);
+				}
+			}
+		}
+
+		/// <summary>
+		/// Writes the buffered pings of every graph to a CSV file.
+		/// </summary>
+		/// <param name="path">File to create or overwrite.</param>
+		/// <returns>The number of pings written.</returns>
+		public static int ExportPingsToCsv(string path)
+		{
+			int rows = 0;
+			using (StreamWriter writer = new StreamWriter(path, false, new UTF8Encoding(true), 65536))
+			{
+				writer.WriteLine("Host,Time,Result,RoundTripMs");
+				foreach (PingGraphControl graph in pingGraphs.Values)
+					rows += graph.WriteCsvRows(writer);
+			}
+			return rows;
+		}
+
 		#endregion
 
 		#region Mouse graph events
