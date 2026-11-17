@@ -454,7 +454,7 @@ namespace PingTracer
 					}
 					if (target != null)
 					{
-						foreach (TracertEntry entry in Tracert.Trace(target, 64, 5000, settings.pingPayloadSizeBytes))
+						foreach (TracertEntry entry in Tracert.Trace(target, 64, pingTimeoutMs, settings.pingPayloadSizeBytes))
 						{
 							if (self.CancellationPending)
 								break;
