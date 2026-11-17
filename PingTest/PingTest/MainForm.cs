@@ -490,7 +490,9 @@ namespace PingTracer
 
 				CreateLogEntry("Now beginning pings");
 				UpdateStatus("Pinging Active" + statusNote);
-				Stopwatch sw = null;
+				// Pings are sent on a fixed timeline measured by this stopwatch, so a late wake-up delays one ping without pushing back all the following ones.
+				Stopwatch sw = Stopwatch.StartNew();
+				long nextPingDueMs = 0;
 				byte[] buffer = new byte[settings.pingPayloadSizeBytes];
 
 				long numberOfPingLoopIterations = 0;
@@ -536,18 +538,15 @@ namespace PingTracer
 							Thread.Sleep(100);
 						if (!self.CancellationPending)
 						{
-							int msToWait = sw == null ? 0 : (int)(pingDelay - sw.ElapsedMilliseconds);
+							long msToWait = GetPingWaitMs(ref nextPingDueMs, sw.ElapsedMilliseconds, pingDelay);
 							while (!self.CancellationPending && msToWait > 0)
 							{
-								Thread.Sleep(Math.Min(msToWait, 100));
-								msToWait = sw == null ? 0 : (int)(pingDelay - sw.ElapsedMilliseconds);
+								Thread.Sleep((int)Math.Min(msToWait, 100));
+								msToWait = GetPingWaitMs(ref nextPingDueMs, sw.ElapsedMilliseconds, pingDelay);
 							}
 							if (!self.CancellationPending)
 							{
-								if (sw == null)
-									sw = Stopwatch.StartNew();
-								else
-									sw.Restart();
+								nextPingDueMs = GetNextPingDueMs(nextPingDueMs, sw.ElapsedMilliseconds, pingDelay);
 								DateTime lastPingAt = DateTime.Now;
 								// We can't re-use the same Ping instance because it is only capable of one ping at a time.
 								foreach (KeyValuePair<int, IPAddress> targetMapping in pingTargets)
@@ -587,6 +586,31 @@ namespace PingTracer
 				if (isRunning)
 					btnStart_Click(btnStart, new EventArgs());
 			}
+		}
+
+		/// <summary>
+		/// Returns how long to wait before the next ping is due.  If the interval was shortened while waiting, the due time is pulled in so the new rate takes effect within one interval.
+		/// </summary>
+		/// <param name="dueMs">Stopwatch time at which the next ping is due.</param>
+		/// <param name="nowMs">Current stopwatch time.</param>
+		/// <param name="intervalMs">Current interval between pings.</param>
+		public static long GetPingWaitMs(ref long dueMs, long nowMs, int intervalMs)
+		{
+			if (dueMs - nowMs > intervalMs)
+				dueMs = nowMs + intervalMs;
+			return dueMs - nowMs;
+		}
+
+		/// <summary>
+		/// Returns the stopwatch time at which the ping after the one being sent now is due.  Due times advance by exactly one interval so timing errors do not accumulate; if the schedule has fallen a whole interval or more behind (e.g. the computer was asleep), it restarts from now instead of sending a burst.
+		/// </summary>
+		/// <param name="dueMs">Stopwatch time at which the ping being sent now was due.</param>
+		/// <param name="nowMs">Current stopwatch time.</param>
+		/// <param name="intervalMs">Current interval between pings.</param>
+		public static long GetNextPingDueMs(long dueMs, long nowMs, int intervalMs)
+		{
+			long next = dueMs + intervalMs;
+			return next < nowMs ? nowMs : next;
 		}
 
 		void pinger_PingCompleted(object sender, PingCompletedEventArgs e)
