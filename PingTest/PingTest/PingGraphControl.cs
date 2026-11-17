@@ -273,13 +273,17 @@ namespace PingTracer
 			min = int.MaxValue;
 			int sum = 0;
 			int successCount = 0;
+			int completedCount = 0;
 
 			// Loop through pings to calculate min, max, and average values
 			for (int i = 0; i < count; i++)
 			{
 				int idx = (start + i) % pings.Length;
 				PingLog p = pings[idx];
-				if (p != null && p.result == IPStatus.Success)
+				if (p == null)
+					continue; // Still waiting for a response; neither a success nor a loss yet.
+				completedCount++;
+				if (p.result == IPStatus.Success)
 				{
 					successCount++;
 					last = p.pingTime;
@@ -290,8 +294,8 @@ namespace PingTracer
 			}
 
 			decimal packetLoss = 0;
-			if (count > 0)
-				packetLoss = ((count - successCount) / (decimal)count) * 100;
+			if (completedCount > 0)
+				packetLoss = ((completedCount - successCount) / (decimal)completedCount) * 100;
 
 			avg = sum == 0 || successCount == 0 ? 0 : (int)((double)sum / (double)successCount);
 			if (min == int.MaxValue)
