@@ -474,7 +474,8 @@
 			this.cbJitter.Size = new System.Drawing.Size(48, 17);
 			this.cbJitter.TabIndex = 5;
 			this.cbJitter.Text = "Jitter";
-			this.toolTip1.SetToolTip(this.cbJitter, "If checked, the jitter (across visible ping times) is overlaid in text form.");
+			this.toolTip1.SetToolTip(this.cbJitter, "If checked, the jitter (average change in response time between consecutive visi" +
+        "ble pings) is overlaid in text form.");
 			this.cbJitter.UseVisualStyleBackColor = true;
 			this.cbJitter.CheckedChanged += new System.EventHandler(this.AnyControl_Changed);
 			// 

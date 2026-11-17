@@ -225,7 +225,7 @@ namespace PingTracer
 				return isInvalidatedSync;
 			}
 		}
-		int min = 0, avg = 0, max = 0, last = 0, height = short.MaxValue;
+		int min = 0, avg = 0, max = 0, last = 0, jitter = 0, height = short.MaxValue;
 		int mouseX = -1;
 		int mouseY = -1;
 		/// <summary>
@@ -274,6 +274,9 @@ namespace PingTracer
 			int sum = 0;
 			int successCount = 0;
 			int completedCount = 0;
+			long jitterSum = 0;
+			int jitterSamples = 0;
+			int previousTime = -1; // Response time of the previous ping, or -1 if it did not get a response.
 
 			// Loop through pings to calculate min, max, and average values
 			for (int i = 0; i < count; i++)
@@ -281,7 +284,10 @@ namespace PingTracer
 				int idx = (start + i) % pings.Length;
 				PingLog p = pings[idx];
 				if (p == null)
+				{
+					previousTime = -1;
 					continue; // Still waiting for a response; neither a success nor a loss yet.
+				}
 				completedCount++;
 				if (p.result == IPStatus.Success)
 				{
@@ -290,8 +296,19 @@ namespace PingTracer
 					sum += last;
 					max = Math.Max(max, last);
 					min = Math.Min(min, last);
+					if (previousTime >= 0)
+					{
+						jitterSum += Math.Abs(last - previousTime);
+						jitterSamples++;
+					}
+					previousTime = last;
 				}
+				else
+					previousTime = -1;
 			}
+
+			// Jitter is the mean absolute difference between the response times of consecutive pings.
+			jitter = jitterSamples == 0 ? 0 : (int)Math.Round((double)jitterSum / jitterSamples);
 
 			decimal packetLoss = 0;
 			if (completedCount > 0)
@@ -486,7 +503,7 @@ namespace PingTracer
 			if (ShowAverage)
 				intVals.Add(avg);
 			if (ShowJitter)
-				intVals.Add(Math.Abs(max - min));
+				intVals.Add(jitter);
 			if (ShowMinMax)
 			{
 				intVals.Add(min);
