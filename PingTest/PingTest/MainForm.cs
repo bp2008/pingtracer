@@ -22,6 +22,10 @@ namespace PingTracer
 		public bool graphsMaximized { get; private set; } = false;
 		private BackgroundWorker controllerWorker;
 		private volatile int pingDelay = 1000;
+		/// <summary>
+		/// Milliseconds to wait for each ping response before it is considered timed out.  Set from the current configuration.
+		/// </summary>
+		private volatile int pingTimeoutMs = 5000;
 
 		private long successfulPings = 0;
 		private long failedPings = 0;
@@ -554,7 +558,7 @@ namespace PingTracer
 									pinger.PingCompleted += pinger_PingCompleted;
 									if (buffer.Length != settings.pingPayloadSizeBytes)
 										buffer = new byte[settings.pingPayloadSizeBytes];
-									pinger.SendAsync(targetMapping.Value, 5000, buffer, new object[] { lastPingAt, offset, graph, targetMapping.Key, targetMapping.Value, pinger });
+									pinger.SendAsync(targetMapping.Value, pingTimeoutMs, buffer, new object[] { lastPingAt, offset, graph, targetMapping.Key, targetMapping.Value, pinger });
 								}
 							}
 						}
@@ -868,6 +872,8 @@ namespace PingTracer
 					pingDelay = Math.Max(100, (int)(1000 / currentConfiguration.rate));
 				else
 					pingDelay = Math.Max(100, (int)(1000 * currentConfiguration.rate));
+
+				pingTimeoutMs = currentConfiguration.GetPingTimeoutMs();
 
 				if (currentConfiguration.hosts != null && currentConfiguration.hosts.Count > 1)
 					traceRoute = false;
@@ -1397,6 +1403,10 @@ namespace PingTracer
 			// Update ping rate in current config
 			currentConfiguration.rate = cfg.rate;
 			currentConfiguration.pingsPerSecond = cfg.pingsPerSecond;
+
+			// Update ping timeout (applies to pings sent from now on)
+			pingTimeoutMs = cfg.GetPingTimeoutMs();
+			currentConfiguration.pingTimeoutMs = cfg.pingTimeoutMs;
 
 			// Update non-live properties (take effect on next start)
 			currentConfiguration.hosts = cfg.hosts;

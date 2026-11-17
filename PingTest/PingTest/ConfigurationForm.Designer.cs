@@ -36,6 +36,9 @@
 			this.lblRate = new System.Windows.Forms.Label();
 			this.lblRateValue = new System.Windows.Forms.Label();
 			this.trackBarRate = new System.Windows.Forms.TrackBar();
+			this.lblPingTimeout = new System.Windows.Forms.Label();
+			this.nudPingTimeout = new System.Windows.Forms.NumericUpDown();
+			this.lblPingTimeoutUnit = new System.Windows.Forms.Label();
 			this.grpGraphOptions = new System.Windows.Forms.GroupBox();
 			this.cbAlwaysShowServerNames = new System.Windows.Forms.CheckBox();
 			this.cbPacketLoss = new System.Windows.Forms.CheckBox();
@@ -70,6 +73,7 @@
 			this.panelEditor.SuspendLayout();
 			this.grpMonitoring.SuspendLayout();
 			((System.ComponentModel.ISupportInitialize)(this.trackBarRate)).BeginInit();
+			((System.ComponentModel.ISupportInitialize)(this.nudPingTimeout)).BeginInit();
 			this.grpGraphOptions.SuspendLayout();
 			((System.ComponentModel.ISupportInitialize)(this.nudBadThreshold)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.nudWorseThreshold)).BeginInit();
@@ -213,6 +217,9 @@
 			this.grpMonitoring.Controls.Add(this.lblRate);
 			this.grpMonitoring.Controls.Add(this.lblRateValue);
 			this.grpMonitoring.Controls.Add(this.trackBarRate);
+			this.grpMonitoring.Controls.Add(this.lblPingTimeout);
+			this.grpMonitoring.Controls.Add(this.nudPingTimeout);
+			this.grpMonitoring.Controls.Add(this.lblPingTimeoutUnit);
 			this.grpMonitoring.Location = new System.Drawing.Point(8, 196);
 			this.grpMonitoring.Name = "grpMonitoring";
 			this.grpMonitoring.Size = new System.Drawing.Size(576, 91);
@@ -306,6 +313,61 @@
         "econd is recommended for long-term monitoring.");
 			this.trackBarRate.Value = 1;
 			this.trackBarRate.ValueChanged += new System.EventHandler(this.trackBarRate_ValueChanged);
+			//
+			// lblPingTimeout
+			//
+			this.lblPingTimeout.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+			this.lblPingTimeout.AutoSize = true;
+			this.lblPingTimeout.Location = new System.Drawing.Point(398, 66);
+			this.lblPingTimeout.Name = "lblPingTimeout";
+			this.lblPingTimeout.Size = new System.Drawing.Size(72, 13);
+			this.lblPingTimeout.TabIndex = 26;
+			this.lblPingTimeout.Text = "Ping Timeout:";
+			this.toolTip1.SetToolTip(this.lblPingTimeout, "How long to wait for a ping response before the ping is shown as timed out.\r\nA re" +
+        "sponse which arrives later than this is discarded.\r\nIncrease this value for very" +
+        " slow links.");
+			//
+			// nudPingTimeout
+			//
+			this.nudPingTimeout.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+			this.nudPingTimeout.Increment = new decimal(new int[] {
+            500,
+            0,
+            0,
+            0});
+			this.nudPingTimeout.Location = new System.Drawing.Point(476, 63);
+			this.nudPingTimeout.Maximum = new decimal(new int[] {
+            30000,
+            0,
+            0,
+            0});
+			this.nudPingTimeout.Minimum = new decimal(new int[] {
+            100,
+            0,
+            0,
+            0});
+			this.nudPingTimeout.Name = "nudPingTimeout";
+			this.nudPingTimeout.Size = new System.Drawing.Size(64, 20);
+			this.nudPingTimeout.TabIndex = 27;
+			this.toolTip1.SetToolTip(this.nudPingTimeout, "How long to wait for a ping response before the ping is shown as timed out.\r\nA re" +
+        "sponse which arrives later than this is discarded.\r\nIncrease this value for very" +
+        " slow links.");
+			this.nudPingTimeout.Value = new decimal(new int[] {
+            5000,
+            0,
+            0,
+            0});
+			this.nudPingTimeout.ValueChanged += new System.EventHandler(this.AnyControl_Changed);
+			//
+			// lblPingTimeoutUnit
+			//
+			this.lblPingTimeoutUnit.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+			this.lblPingTimeoutUnit.AutoSize = true;
+			this.lblPingTimeoutUnit.Location = new System.Drawing.Point(544, 66);
+			this.lblPingTimeoutUnit.Name = "lblPingTimeoutUnit";
+			this.lblPingTimeoutUnit.Size = new System.Drawing.Size(20, 13);
+			this.lblPingTimeoutUnit.TabIndex = 28;
+			this.lblPingTimeoutUnit.Text = "ms";
 			// 
 			// grpGraphOptions
 			// 
@@ -683,6 +745,7 @@
 			this.grpMonitoring.ResumeLayout(false);
 			this.grpMonitoring.PerformLayout();
 			((System.ComponentModel.ISupportInitialize)(this.trackBarRate)).EndInit();
+			((System.ComponentModel.ISupportInitialize)(this.nudPingTimeout)).EndInit();
 			this.grpGraphOptions.ResumeLayout(false);
 			this.grpGraphOptions.PerformLayout();
 			((System.ComponentModel.ISupportInitialize)(this.nudBadThreshold)).EndInit();
@@ -740,6 +803,9 @@
 		private System.Windows.Forms.Label lblRate;
 		private System.Windows.Forms.TrackBar trackBarRate;
 		private System.Windows.Forms.Label lblRateValue;
+		private System.Windows.Forms.Label lblPingTimeout;
+		private System.Windows.Forms.NumericUpDown nudPingTimeout;
+		private System.Windows.Forms.Label lblPingTimeoutUnit;
 		private System.Windows.Forms.CheckBox cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings;
 	}
 }
