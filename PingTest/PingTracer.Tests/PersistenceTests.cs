@@ -96,6 +96,26 @@ namespace PingTracer.Tests
 		}
 
 		[Fact]
+		public void SessionEndComesFromTheDataNotTheFileTime()
+		{
+			MonitoringSession s = BuildSession();
+			long builtAt = ServerClock.NowUnixMs; // the last records and the route event are stamped just before this
+			string path = Path.Combine(dir, PingDataFile.BuildSessionFileName(s.TargetAddress, s.StartUnixMs));
+			using (new PingDataWriter(s, path, 3600)) { }
+			// Copying or restoring a file changes its modification time; the listed end must not.
+			File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddHours(5));
+			long end = PingDataFile.ListSessionFiles(dir)[0].EndUnixMs;
+			Assert.InRange(end, builtAt - 2000, builtAt);
+
+			// A truncated final block is ignored rather than failing the scan.
+			long full = new FileInfo(path).Length;
+			using (FileStream fs = new FileStream(path, FileMode.Open))
+				fs.SetLength(full - 7);
+			long truncatedEnd = PingDataFile.ListSessionFiles(dir)[0].EndUnixMs;
+			Assert.InRange(truncatedEnd, s.StartUnixMs, end);
+		}
+
+		[Fact]
 		public void QueryFrameEncodesOnlyNonEmptyColumns()
 		{
 			MonitoringSession s = BuildSession();

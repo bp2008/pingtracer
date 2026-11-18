@@ -149,9 +149,81 @@ namespace PingTracer.Storage
 			public long SizeBytes;
 			public long StartUnixMs;
 			public long LastWriteUnixMs;
+			/// <summary>Time of the latest record or route event (the file's modification time is unreliable: copying or restoring a file changes it).</summary>
+			public long EndUnixMs;
 			public string DisplayName;
 			public string Target;
 			public SessionMode Mode;
+		}
+
+		private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (long size, long lastWrite, long end)> endTimeCache
+			= new System.Collections.Concurrent.ConcurrentDictionary<string, (long, long, long)>(StringComparer.OrdinalIgnoreCase);
+
+		/// <summary>The session's end time, from a cache keyed on the file's size and modification time.</summary>
+		private static long GetEndUnixMs(Stream afterHeader, string path, long size, long lastWrite, long startUnixMs)
+		{
+			if (endTimeCache.TryGetValue(path, out var c) && c.size == size && c.lastWrite == lastWrite)
+				return c.end;
+			long end = startUnixMs + ReadLastTimeMs(afterHeader);
+			endTimeCache[path] = (size, lastWrite, end);
+			return end;
+		}
+
+		/// <summary>
+		/// Scans the blocks after the header for the latest record or route event time (session-relative milliseconds, 0 if
+		/// none).  Records within a block are not necessarily in time order, so every record time is examined.  A truncated
+		/// final block ends the scan.
+		/// </summary>
+		public static long ReadLastTimeMs(Stream s)
+		{
+			long last = 0;
+			byte[] head = new byte[5];
+			byte[] body = Array.Empty<byte>();
+			BufferedStream bs = new BufferedStream(s, 1 << 16);
+			while (true)
+			{
+				if (bs.ReadAtLeast(head, 5, throwOnEndOfStream: false) < 5) break;
+				byte type = head[0];
+				int len = BitConverter.ToInt32(head, 1);
+				if (len < 0) break;
+				if (type != BlockRecords && type != BlockRouteEvent)
+				{
+					if (!Skip(bs, len)) break;
+					continue;
+				}
+				if (body.Length < len) body = new byte[Math.Max(len, body.Length * 2)];
+				if (bs.ReadAtLeast(body.AsSpan(0, len), len, throwOnEndOfStream: false) < len) break;
+				if (type == BlockRouteEvent && len >= 8)
+					last = Math.Max(last, BitConverter.ToInt64(body, 0));
+				else if (type == BlockRecords && len >= 11)
+				{
+					long baseTime = BitConverter.ToInt64(body, 1);
+					int count = BitConverter.ToUInt16(body, 9);
+					int maxDt = -1;
+					for (int i = 0, o = 11; i < count && o + 2 <= len; i++, o += RecordBytes)
+						maxDt = Math.Max(maxDt, BitConverter.ToUInt16(body, o));
+					if (maxDt >= 0) last = Math.Max(last, baseTime + maxDt);
+				}
+			}
+			return last;
+		}
+
+		private static bool Skip(Stream s, int count)
+		{
+			if (s.CanSeek)
+			{
+				if (s.Position + count > s.Length) return false;
+				s.Seek(count, SeekOrigin.Current);
+				return true;
+			}
+			byte[] tmp = new byte[Math.Min(count, 8192)];
+			while (count > 0)
+			{
+				int n = s.Read(tmp, 0, Math.Min(count, tmp.Length));
+				if (n <= 0) return false;
+				count -= n;
+			}
+			return true;
 		}
 
 		/// <summary>Lists readable session files in a directory, newest first.</summary>
@@ -168,13 +240,15 @@ namespace PingTracer.Storage
 					using FileStream fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
 					using BinaryReader r = new BinaryReader(fs);
 					Header h = ReadHeader(r);
+					long lastWrite = new DateTimeOffset(fi.LastWriteTimeUtc).ToUnixTimeMilliseconds();
 					list.Add(new FileInfoSummary
 					{
 						FileName = fi.Name,
 						FullPath = fi.FullName,
 						SizeBytes = fi.Length,
 						StartUnixMs = h.StartUnixMs,
-						LastWriteUnixMs = new DateTimeOffset(fi.LastWriteTimeUtc).ToUnixTimeMilliseconds(),
+						LastWriteUnixMs = lastWrite,
+						EndUnixMs = GetEndUnixMs(fs, fi.FullName, fi.Length, lastWrite, h.StartUnixMs),
 						DisplayName = h.DisplayName,
 						Target = h.Target.ToString(),
 						Mode = h.Mode,

@@ -60,7 +60,9 @@
 		<SettingsDialog v-if="showSettings" :settings="store.settings" @close="showSettings = false" @save="onSaveSettings" />
 
 		<div class="toasts">
-			<div v-for="e in store.errors" :key="e.id" class="toast" @click="store.dismissError(e.id)">{{ e.message }}</div>
+			<div v-for="e in store.errors" :key="e.id" class="toast" role="alert" title="Click to dismiss" @click="store.dismissError(e.id)">
+				{{ e.message }}<span class="toast-close" aria-hidden="true">&times;</span>
+			</div>
 		</div>
 	</div>
 </template>
@@ -360,5 +362,14 @@ kbd {
 	cursor: pointer;
 	max-width: 420px;
 	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+
+.toast-close {
+	margin-left: 12px;
+	opacity: 0.7;
+}
+
+.toast:hover .toast-close {
+	opacity: 1;
 }
 </style>

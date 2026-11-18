@@ -528,9 +528,14 @@ namespace PingTracer.Services
 						cfg.hosts.Add(new Host { hostname = hostname.Trim() });
 				}
 			}
+			if (cfg.hosts == null || cfg.hosts.Count == 0)
+			{
+				BroadcastError("A configuration needs at least one host.");
+				return;
+			}
 			if (string.IsNullOrWhiteSpace(cfg.displayName))
 				cfg.displayName = cfg.GetHostString();
-			cfg.rate = Math.Clamp(t.Value<int?>("rate") ?? cfg.rate, 1, 100);
+			cfg.rate = Math.Clamp(IntOrNull(t, "rate") ?? cfg.rate, 1, 100);
 			cfg.pingsPerSecond = t.Value<bool?>("pingsPerSecond") ?? cfg.pingsPerSecond;
 			cfg.doTraceRoute = t.Value<bool?>("doTraceRoute") ?? cfg.doTraceRoute;
 			cfg.reverseDnsLookup = t.Value<bool?>("reverseDnsLookup") ?? cfg.reverseDnsLookup;
@@ -543,13 +548,18 @@ namespace PingTracer.Services
 			cfg.drawMinMax = t.Value<bool?>("drawMinMax") ?? cfg.drawMinMax;
 			cfg.drawPacketLoss = t.Value<bool?>("drawPacketLoss") ?? cfg.drawPacketLoss;
 			cfg.drawLimitText = t.Value<bool?>("drawLimitText") ?? cfg.drawLimitText;
-			cfg.badThreshold = t.Value<int?>("badThreshold") ?? cfg.badThreshold;
-			cfg.worseThreshold = t.Value<int?>("worseThreshold") ?? cfg.worseThreshold;
-			cfg.upperLimit = t.Value<int?>("upperLimit") ?? cfg.upperLimit;
-			cfg.lowerLimit = t.Value<int?>("lowerLimit") ?? cfg.lowerLimit;
-			cfg.ScalingMethodID = t.Value<int?>("scalingMethodID") ?? cfg.ScalingMethodID;
+			cfg.badThreshold = IntOrNull(t, "badThreshold") ?? cfg.badThreshold;
+			cfg.worseThreshold = IntOrNull(t, "worseThreshold") ?? cfg.worseThreshold;
+			cfg.upperLimit = IntOrNull(t, "upperLimit") ?? cfg.upperLimit;
+			cfg.lowerLimit = IntOrNull(t, "lowerLimit") ?? cfg.lowerLimit;
+			cfg.ScalingMethodID = IntOrNull(t, "scalingMethodID") ?? cfg.ScalingMethodID;
 			cfg.logFailures = t.Value<bool?>("logFailures") ?? cfg.logFailures;
 			cfg.logSuccesses = t.Value<bool?>("logSuccesses") ?? cfg.logSuccesses;
+			cfg.badThreshold = Math.Max(0, cfg.badThreshold);
+			cfg.worseThreshold = Math.Max(0, cfg.worseThreshold);
+			cfg.lowerLimit = Math.Max(0, cfg.lowerLimit);
+			if (cfg.upperLimit <= cfg.lowerLimit)
+				cfg.upperLimit = cfg.lowerLimit + 1;
 
 			PingConfigurations.SaveSingleConfiguration(cfg);
 			Broadcast(BuildConfigurationsJson());
@@ -559,6 +569,22 @@ namespace PingTracer.Services
 			// A newly created configuration becomes the selected one (unless a session is running), so Start runs it.
 			if (currentConfigGuid == null || (isNew && currentRun?.IsRunning != true))
 				HandleSelectConfig(cfg.guid);
+		}
+
+		/// <summary>Reads an integer field, accepting numbers or numeric strings; anything else (missing, empty, not a number) is null.</summary>
+		private static int? IntOrNull(JToken t, string name)
+		{
+			JToken v = t[name];
+			if (v == null) return null;
+			if (v.Type == JTokenType.Integer) return (int)Math.Clamp(v.Value<long>(), int.MinValue, int.MaxValue);
+			if (v.Type == JTokenType.Float)
+			{
+				double d = v.Value<double>();
+				return double.IsFinite(d) ? (int)Math.Clamp(Math.Round(d), int.MinValue, int.MaxValue) : null;
+			}
+			if (v.Type == JTokenType.String && int.TryParse(v.Value<string>(), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int i))
+				return i;
+			return null;
 		}
 
 		private void HandleDeleteConfig(string guid)
@@ -612,6 +638,7 @@ namespace PingTracer.Services
 					sizeBytes = f.SizeBytes,
 					startMs = f.StartUnixMs,
 					lastWriteMs = f.LastWriteUnixMs,
+					endMs = f.EndUnixMs,
 					displayName = f.DisplayName,
 					target = f.Target,
 					mode = f.Mode == SessionMode.Direct ? "direct" : "trace",

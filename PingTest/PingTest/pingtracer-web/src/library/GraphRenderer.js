@@ -13,8 +13,8 @@
  *   changed.  Scrolling and changes of vertical scale need no recomputation at all.
  * - The bars are painted from the column buffer by a backend (see BarsBackend.js): normally a WebGL2 fragment shader,
  *   which repaints the whole graph for a negligible CPU cost, with a Canvas 2D rasterizer as fallback.
- * - Text (labels, statistics, hover crosshair) lives on a separate overlay canvas that is redrawn at most a few times per
- *   second unless the user is interacting.
+ * - Labels and statistics live on an overlay canvas that is redrawn only when their text changes, and the hover
+ *   crosshair on a canvas of its own, so neither panning nor pointer movement redraws text needlessly.
  * - Nothing here touches Vue reactivity.
  */
 import dataStore, { CHUNK_COLS, ADDR_NONE, FLAG_MULTI_ADDR } from './DataStore';
@@ -43,6 +43,40 @@ const AXIS_FMT = {
 
 /** While the view merely follows the clock, row statistics (labels, vertical scale) are refreshed at most this often. */
 const STATS_INTERVAL_MS = 250;
+const FONT_MAIN = '12px "Segoe UI", system-ui, sans-serif';
+const FONT_SMALL = '10.5px "Segoe UI", system-ui, sans-serif';
+
+const textWidths = new Map();
+
+/**
+ * Sets a context's font, remembering it in `ctx.fontName`: reading `ctx.font` back is slow (the browser serializes it).
+ * Resizing a canvas resets its context state, so the renderer clears `fontName` then.
+ */
+function setFont(ctx, font)
+{
+	if (ctx.fontName !== font)
+	{
+		ctx.font = font;
+		ctx.fontName = font;
+	}
+}
+
+/** Width of `text` in the font last set with setFont.  Cached: the same labels and figures are measured again and again. */
+function textWidth(ctx, text)
+{
+	const key = ctx.fontName + '\u0000' + text;
+	let w = textWidths.get(key);
+	if (w === undefined)
+	{
+		if (textWidths.size >= 4096) textWidths.clear();
+		w = ctx.measureText(text).width;
+		textWidths.set(key, w);
+	}
+	return w;
+}
+
+/** Increments a diagnostic counter in renderer.perf. */
+function perfCount(r, name) { r.perf[name] = (r.perf[name] || 0) + 1; }
 
 /** True if msPerCol is usable as a zoom level (any whole number of milliseconds within the zoom range). */
 export function isValidZoom(ms)
@@ -94,9 +128,11 @@ export class GraphRenderer
 		root.appendChild(this.layer);
 		this.bars = this._canvas();
 		this.overlay = this._canvas();
+		this.hoverCanvas = this._canvas();
 		this.axis = this._canvas();
 		this.backend = this._createBackend(opts.backend);
 		this.ctxOverlay = this.overlay.getContext('2d');
+		this.ctxHover = this.hoverCanvas.getContext('2d');
 		this.ctxAxis = this.axis.getContext('2d', { alpha: false });
 
 		this.dpr = 1;
@@ -106,7 +142,7 @@ export class GraphRenderer
 		this.msPerCol = 500;
 		this.live = true;
 		/** Whether a displayed session was monitoring at the last metadata change (see _onData). */
-		this.wasRunning = false;
+		this.wasRunning = dataStore.getSessions().some(s => s.meta.running);
 		this.rightCol = 0;
 
 		this.rows = [];
@@ -154,6 +190,14 @@ export class GraphRenderer
 	{
 		const c = document.createElement('canvas');
 		c.style.cssText = 'position:absolute;left:0;display:block;image-rendering:pixelated;';
+		// A 2D context restored after a GPU reset has lost its state and contents.
+		c.addEventListener('contextrestored', () =>
+		{
+			for (const ctx of [this.ctxOverlay, this.ctxHover, this.ctxAxis]) if (ctx) ctx.fontName = null;
+			this.labelKey = null;
+			this.hoverDirty = true;
+			this.invalidateAll();
+		});
 		this.layer.appendChild(c);
 		return c;
 	}
@@ -217,7 +261,9 @@ export class GraphRenderer
 			this.W = W;
 			this.H = H;
 			this.axisH = axisH;
-			for (const c of [this.bars, this.overlay])
+			this.labelKey = null; // resizing clears the canvases and resets their contexts
+			for (const ctx of [this.ctxOverlay, this.ctxHover, this.ctxAxis]) ctx.fontName = null;
+			for (const c of [this.bars, this.overlay, this.hoverCanvas])
 			{
 				c.width = W;
 				c.height = H;
@@ -306,8 +352,10 @@ export class GraphRenderer
 	/** Pans by a number of device pixels (positive = towards older data). */
 	panBy(dxDevice)
 	{
-		const rc = this.currentRightCol() - Math.round(dxDevice);
-		this._setRightCol(rc);
+		const cur = this.currentRightCol();
+		this._setRightCol(cur - Math.round(dxDevice));
+		// Panning towards the past never moves the view forward (the clamp in _setRightCol follows the clock).
+		if (dxDevice > 0 && !this.live && this.rightCol > cur) this.rightCol = cur;
 	}
 
 	_setRightCol(rc)
@@ -330,7 +378,8 @@ export class GraphRenderer
 			let minRc = Math.floor(minMs / this.msPerCol) + Math.floor(this.W * 0.75);
 			const endMs = this._latestEnd();
 			if (endMs != null) minRc = Math.min(minRc, Math.floor(endMs / this.msPerCol) + Math.floor(this.W * 0.02));
-			if (rc < minRc) rc = Math.min(minRc, now);
+			// A request for a time before now (dragging, Home) pauses the view even when the clamp leaves nothing to scroll.
+			if (rc < minRc) rc = Math.min(minRc, now - 1);
 		}
 		if (rc >= now && !stopped)
 		{
@@ -437,7 +486,7 @@ export class GraphRenderer
 	setHover(cssX, cssY)
 	{
 		this.hover = cssX == null ? null : { x: cssX, y: cssY };
-		this.overlayDirty = true;
+		this.hoverDirty = true;
 	}
 
 	// ------------------------------------------------------------------ data notifications
@@ -510,7 +559,7 @@ export class GraphRenderer
 	{
 		if (this.W <= 1 || this.H <= 1) return;
 		const now = this.opts.serverNow();
-		const cfg = this.opts.getConfig() || {};
+		const cfg = sanitizeConfig(this.opts.getConfig());
 		const configKey = [cfg.badThreshold, cfg.worseThreshold, cfg.upperLimit, cfg.lowerLimit, cfg.scalingMethodID,
 			cfg.drawServerNames, cfg.monitorUnresponsiveHops, cfg.drawLastPing, cfg.drawAverage, cfg.drawJitter, cfg.drawMinMax, cfg.drawPacketLoss, cfg.drawLimitText].join(',');
 		if (configKey !== this.configKey)
@@ -656,9 +705,16 @@ export class GraphRenderer
 		if (this.overlayDirty || (this.overlayStatsStale && t - this.lastOverlayDraw > 250))
 		{
 			this._drawOverlay(renderCtx);
+			// The value under the pointer depends on the row scales, which may have changed too.
+			this.hoverDirty = this.hoverDirty || this.overlayDirty;
 			this.overlayDirty = false;
 			this.overlayStatsStale = false;
 			this.lastOverlayDraw = t;
+		}
+		if (this.hoverDirty)
+		{
+			this._drawHover();
+			this.hoverDirty = false;
 		}
 		if (this.axisDirty || rc !== this.lastAxisRightCol)
 		{
@@ -793,9 +849,9 @@ export class GraphRenderer
 				const base = ci * CHUNK_COLS;
 				const i0 = Math.max(0, lc - base), i1 = Math.min(CHUNK_COLS - 1, rc - base);
 				if (i0 === 0 && i1 === CHUNK_COLS - 1 && base + CHUNK_COLS <= recentFrom)
-					mergeStats(st, votes, chunkSummary(h), base); // whole chunk in view: use its cached summary
+					mergeStats(st, votes, chunkSummary(h), base, null); // whole chunk in view: use its cached summary
 				else
-					accumulateColumns(h, base, i0, i1, st, votes, recentFrom, recentVotes);
+					accumulateRange(h, base, i0, i1, st, votes, recentFrom, recentVotes);
 			}
 		}
 		let dominant = ADDR_NONE, best = -1;
@@ -1102,27 +1158,21 @@ export class GraphRenderer
 		return showNames && a.host ? `${a.host} [${a.ip}]` : a.ip;
 	}
 
+	/**
+	 * Draws the row labels and statistics.  Text drawing is the most expensive part of a frame, so the labels are first
+	 * built as plain data and only redrawn when that data (or the canvas size) changed: panning or new data usually
+	 * leaves the label text as it was.
+	 */
 	_drawOverlay(rc_)
 	{
 		const { cfg } = rc_;
-		const ctx = this.ctxOverlay;
 		const dpr = this.dpr;
-		ctx.setTransform(1, 0, 0, 1, 0, 0);
-		ctx.clearRect(0, 0, this.W, this.H);
-		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-		ctx.textBaseline = 'top';
-		const fontMain = '12px "Segoe UI", system-ui, sans-serif';
-		const fontSmall = '10.5px "Segoe UI", system-ui, sans-serif';
-
+		const labels = [];
 		for (const row of this.rows)
 		{
-			const yCss = row.y0 / dpr;
 			if (row.collapsed)
 			{
-				ctx.font = fontSmall;
-				ctx.fillStyle = '#6c6c78';
-				const label = `${row.ttl}  ${this._rowName(row, cfg) || '* no reply'}`;
-				ctx.fillText(label, 5, yCss + Math.max(0, (row.plotH / dpr - 11) / 2));
+				labels.push({ collapsed: true, y0: row.y0, plotH: row.plotH, text: `${row.ttl}  ${this._rowName(row, cfg) || '* no reply'}` });
 				continue;
 			}
 			const st = row.stats;
@@ -1135,105 +1185,133 @@ export class GraphRenderer
 			if ((cfg.drawJitter ?? false) && st.jitterN > 0) ints.push(`jitter ${Math.round(st.jitterSum / st.jitterN)}`);
 			if ((cfg.drawMinMax ?? false) && st.succ > 0) ints.push(`min ${st.min}`, `max ${st.max}`);
 			if (ints.length) parts.push(ints.join('  '));
+			const hasSwatch = row.strip && row.labelAddr !== ADDR_NONE;
+			labels.push({
+				y0: row.y0, plotH: row.plotH, strip: row.strip,
+				prefix: row.ttl === 0 ? '' : `${row.ttl}  `,
+				name: this._rowName(row, cfg),
+				others: row.votes.size - 1,
+				stats: parts.filter(p => p).join('   '),
+				dim: st.n === 0,
+				lossy: st.n > 0 && st.lost > 0,
+				swatch: hasSwatch ? ADDRESS_PALETTE_CSS[s_addrIndex(row, row.labelAddr) % ADDRESS_PALETTE_CSS.length] : null,
+				limits: cfg.drawLimitText ? [String(Math.round(row.hi)), String(Math.round(row.lo))] : null,
+			});
+		}
+		const key = JSON.stringify([this.W, this.H, dpr, this.emptyMessage, labels]);
+		if (key === this.labelKey) return;
+		this.labelKey = key;
+		perfCount(this, 'labelDraws');
 
-			let name = this._rowName(row, cfg);
-			const others = row.votes.size - 1;
-			const prefix = row.ttl === 0 ? '' : `${row.ttl}  `;
-			const statsText = parts.filter(p => p).join('   ');
+		const ctx = this.ctxOverlay;
+		ctx.setTransform(1, 0, 0, 1, 0, 0);
+		ctx.clearRect(0, 0, this.W, this.H);
+		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+		ctx.textBaseline = 'top';
+		const wCss = this.W / dpr;
 
-			ctx.font = fontMain;
-			const statsW = statsText ? ctx.measureText(statsText).width : 0;
-			const othersW = others > 0 ? ctx.measureText(`  +${others}`).width : 0;
-			const swatchW = row.strip && row.labelAddr !== ADDR_NONE ? 12 : 0;
+		for (const l of labels)
+		{
+			const yCss = l.y0 / dpr;
+			if (l.collapsed)
+			{
+				setFont(ctx, FONT_SMALL);
+				ctx.fillStyle = '#6c6c78';
+				ctx.fillText(l.text, 5, yCss + Math.max(0, (l.plotH / dpr - 11) / 2));
+				continue;
+			}
+			setFont(ctx, FONT_MAIN);
+			const othersText = l.others > 0 ? `  +${l.others}` : '';
+			const statsW = l.stats ? textWidth(ctx, l.stats) : 0;
+			const othersW = othersText ? textWidth(ctx, othersText) : 0;
+			const swatchW = l.swatch ? 12 : 0;
 			// In a narrow window, shorten the name rather than push the statistics out of view.
-			const nameRoom = this.W / dpr - 14 - swatchW - othersW - (statsText ? statsW + 16 : 0) - ctx.measureText(prefix).width;
-			name = fitText(ctx, name, Math.max(nameRoom, 40));
-			const nameText = prefix + name + (others > 0 ? `  +${others}` : '');
-			const nameW = ctx.measureText(nameText).width;
-			const y = yCss + row.strip / dpr + 2;
-			const boxW = nameW + (statsText ? statsW + 16 : 0) + 8 + (row.strip && row.labelAddr !== ADDR_NONE ? 12 : 0);
+			const nameRoom = wCss - 14 - swatchW - othersW - (l.stats ? statsW + 16 : 0) - textWidth(ctx, l.prefix);
+			const head = l.prefix + fitText(ctx, l.name, Math.max(nameRoom, 40));
+			const headW = textWidth(ctx, head);
+			const y = yCss + l.strip / dpr + 2;
 			ctx.fillStyle = 'rgba(0,0,0,0.62)';
-			ctx.fillRect(1, y - 1, boxW, 16);
+			ctx.fillRect(1, y - 1, headW + othersW + (l.stats ? statsW + 16 : 0) + 8 + swatchW, 16);
 			let x = 5;
-			if (row.strip && row.labelAddr !== ADDR_NONE)
+			if (l.swatch)
 			{
 				// Swatch matching the address strip color.
-				ctx.fillStyle = ADDRESS_PALETTE_CSS[s_addrIndex(row, row.labelAddr) % ADDRESS_PALETTE_CSS.length];
+				ctx.fillStyle = l.swatch;
 				ctx.fillRect(x, y + 3, 8, 8);
 				x += 12;
 			}
-			ctx.fillStyle = row.stats.n === 0 ? '#9a9aa6' : '#f0f0f0';
-			ctx.fillText(prefix + name, x, y);
-			x += ctx.measureText(prefix + name).width;
-			if (others > 0)
+			ctx.fillStyle = l.dim ? '#9a9aa6' : '#f0f0f0';
+			ctx.fillText(head, x, y);
+			x += headW;
+			if (othersText)
 			{
 				ctx.fillStyle = '#8fd8ff';
-				ctx.fillText(`  +${others}`, x, y);
-				x += ctx.measureText(`  +${others}`).width;
+				ctx.fillText(othersText, x, y);
+				x += othersW;
 			}
-			if (statsText)
+			if (l.stats)
 			{
-				const lossPct = st.n > 0 ? st.lost / st.n : 0;
-				ctx.fillStyle = lossPct > 0 ? '#ff9a9a' : '#b8c4b8';
-				ctx.fillText(statsText, x + 16, y);
+				ctx.fillStyle = l.lossy ? '#ff9a9a' : '#b8c4b8';
+				ctx.fillText(l.stats, x + 16, y);
 			}
-
-			if (cfg.drawLimitText)
+			if (l.limits)
 			{
-				ctx.font = fontSmall;
+				const [hiT, loT] = l.limits;
+				setFont(ctx, FONT_SMALL);
 				ctx.fillStyle = '#c0c0c0';
-				const hiT = String(Math.round(row.hi)), loT = String(Math.round(row.lo));
-				const wCss = this.W / dpr;
-				ctx.fillText(hiT, wCss - ctx.measureText(hiT).width - 4, y);
+				ctx.fillText(hiT, wCss - textWidth(ctx, hiT) - 4, y);
 				ctx.textBaseline = 'bottom';
-				ctx.fillText(loT, wCss - ctx.measureText(loT).width - 4, (row.y0 + row.plotH) / dpr - 1);
+				ctx.fillText(loT, wCss - textWidth(ctx, loT) - 4, (l.y0 + l.plotH) / dpr - 1);
 				ctx.textBaseline = 'top';
 			}
 		}
 
 		if (this.emptyMessage)
 		{
-			ctx.font = '14px "Segoe UI", system-ui, sans-serif';
+			setFont(ctx, '14px "Segoe UI", system-ui, sans-serif');
 			ctx.fillStyle = '#777';
-			const tw = ctx.measureText(this.emptyMessage).width;
-			ctx.fillText(this.emptyMessage, (this.W / dpr - tw) / 2, this.H / dpr / 2 - 8);
+			const tw = textWidth(ctx, this.emptyMessage);
+			ctx.fillText(this.emptyMessage, (wCss - tw) / 2, this.H / dpr / 2 - 8);
 		}
+	}
 
-		// Hover crosshair.
-		if (this.hover)
-		{
-			const xDev = Math.floor(this.hover.x * dpr);
-			const xCss = (xDev + 0.5) / dpr;
-			ctx.strokeStyle = 'rgba(255,255,255,0.45)';
-			ctx.lineWidth = 1 / dpr;
-			ctx.beginPath();
-			ctx.moveTo(xCss, 0);
-			ctx.lineTo(xCss, this.H / dpr);
-			ctx.stroke();
-			const row = this.rowAt(this.hover.y * dpr);
-			if (row && !row.collapsed)
-			{
-				const yDev = Math.floor(this.hover.y * dpr);
-				const plotTop = row.y0 + row.strip, plotBottom = row.y0 + row.plotH;
-				if (yDev >= plotTop && yDev < plotBottom)
-				{
-					const yCss2 = (yDev + 0.5) / dpr;
-					ctx.beginPath();
-					ctx.moveTo(0, yCss2);
-					ctx.lineTo(this.W / dpr, yCss2);
-					ctx.stroke();
-					const msVal = row.lo + (plotBottom - yDev) / (plotBottom - plotTop) * (row.hi - row.lo);
-					const t = `${Math.round(msVal)} ms`;
-					ctx.font = fontSmall;
-					const tw = ctx.measureText(t).width;
-					const lx = this.hover.x + 8 + tw > this.W / dpr ? this.hover.x - tw - 8 : this.hover.x + 8;
-					ctx.fillStyle = 'rgba(0,0,0,0.7)';
-					ctx.fillRect(lx - 2, yCss2 - 14, tw + 4, 13);
-					ctx.fillStyle = '#fff';
-					ctx.fillText(t, lx, yCss2 - 13);
-				}
-			}
-		}
+	/** Draws the hover crosshair and the value under the pointer on its own canvas, so pointer moves do not redraw text. */
+	_drawHover()
+	{
+		const ctx = this.ctxHover;
+		const dpr = this.dpr;
+		ctx.setTransform(1, 0, 0, 1, 0, 0);
+		ctx.clearRect(0, 0, this.W, this.H);
+		if (!this.hover) return;
+		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+		const xDev = Math.floor(this.hover.x * dpr);
+		const xCss = (xDev + 0.5) / dpr;
+		ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+		ctx.lineWidth = 1 / dpr;
+		ctx.beginPath();
+		ctx.moveTo(xCss, 0);
+		ctx.lineTo(xCss, this.H / dpr);
+		ctx.stroke();
+		const row = this.rowAt(this.hover.y * dpr);
+		if (!row || row.collapsed) return;
+		const yDev = Math.floor(this.hover.y * dpr);
+		const plotTop = row.y0 + row.strip, plotBottom = row.y0 + row.plotH;
+		if (yDev < plotTop || yDev >= plotBottom) return;
+		const yCss = (yDev + 0.5) / dpr;
+		ctx.beginPath();
+		ctx.moveTo(0, yCss);
+		ctx.lineTo(this.W / dpr, yCss);
+		ctx.stroke();
+		const msVal = row.lo + (plotBottom - yDev) / (plotBottom - plotTop) * (row.hi - row.lo);
+		const t = `${Math.round(msVal)} ms`;
+		setFont(ctx, FONT_SMALL);
+		ctx.textBaseline = 'top';
+		const tw = textWidth(ctx, t);
+		const lx = this.hover.x + 8 + tw > this.W / dpr ? this.hover.x - tw - 8 : this.hover.x + 8;
+		ctx.fillStyle = 'rgba(0,0,0,0.7)';
+		ctx.fillRect(lx - 2, yCss - 14, tw + 4, 13);
+		ctx.fillStyle = '#fff';
+		ctx.fillText(t, lx, yCss - 13);
 	}
 
 	// ------------------------------------------------------------------ time axis
@@ -1259,7 +1337,7 @@ export class GraphRenderer
 		const startMs = lc * ms, endMs = (rc + 1) * ms;
 		const tz = -new Date(startMs).getTimezoneOffset() * 60000;
 		let t = Math.ceil((startMs + tz) / interval) * interval - tz;
-		ctx.font = `${Math.round(11 * dpr)}px "Segoe UI", system-ui, sans-serif`;
+		setFont(ctx, `${Math.round(11 * dpr)}px "Segoe UI", system-ui, sans-serif`);
 		ctx.textBaseline = 'middle';
 		for (; t <= endMs; t += interval)
 		{
@@ -1268,7 +1346,7 @@ export class GraphRenderer
 			ctx.fillRect(x, 1, 1, Math.round(5 * dpr));
 			const { label, isMidnight } = this._axisLabel(t, interval);
 			const lx = x + Math.round(3 * dpr);
-			if (lx + ctx.measureText(label).width > W) continue; // would be cut off at the right edge
+			if (lx + textWidth(ctx, label) > W) continue; // would be cut off at the right edge
 			ctx.fillStyle = isMidnight ? '#e6e6a0' : '#b4b4c0';
 			ctx.fillText(label, lx, H / 2 + 1);
 		}
@@ -1436,8 +1514,60 @@ function chunkSummary(h)
 	return st;
 }
 
-/** Adds a chunk summary to running row statistics, as if its columns had been accumulated one by one. */
-function mergeStats(st, votes, sm, base)
+/** Columns per block summary within a chunk (see accumulateRange). */
+const BLOCK_COLS = 16;
+
+/** Statistics of one block of BLOCK_COLS columns of a hop chunk, cached until the chunk changes. lastCol is relative to the chunk. */
+function blockSummary(h, b)
+{
+	if (h.blockVersion !== h.version)
+	{
+		h.blocks = new Array(CHUNK_COLS / BLOCK_COLS);
+		h.blockVersion = h.version;
+	}
+	let sm = h.blocks[b];
+	if (sm === undefined)
+	{
+		sm = newStats();
+		const votes = new Map();
+		accumulateColumns(h, 0, b * BLOCK_COLS, b * BLOCK_COLS + BLOCK_COLS - 1, sm, votes, 0, null);
+		sm.votes = votes;
+		h.blocks[b] = sm;
+	}
+	return sm;
+}
+
+/**
+ * Adds columns [i0, i1] of a hop chunk to running row statistics, using cached block summaries for whole blocks (that
+ * do not straddle `recentFrom`) and single columns elsewhere.  The result equals accumulateColumns over the same range.
+ */
+function accumulateRange(h, base, i0, i1, st, votes, recentFrom, recentVotes)
+{
+	let i = i0;
+	while (i <= i1)
+	{
+		const b = Math.floor(i / BLOCK_COLS), bStart = b * BLOCK_COLS, bEnd = bStart + BLOCK_COLS - 1;
+		if (i === bStart && bEnd <= i1)
+		{
+			const allRecent = base + bStart >= recentFrom, noneRecent = base + bEnd < recentFrom;
+			if (allRecent || noneRecent)
+			{
+				mergeStats(st, votes, blockSummary(h, b), base, allRecent ? recentVotes : null);
+				i = bEnd + 1;
+				continue;
+			}
+		}
+		const end = Math.min(i1, bEnd);
+		accumulateColumns(h, base, i, end, st, votes, recentFrom, recentVotes);
+		i = end + 1;
+	}
+}
+
+/**
+ * Adds a chunk or block summary to running row statistics, as if its columns had been accumulated one by one.  Its
+ * address votes also go to `recentVotes` when that is given (all of its columns are in the recent region).
+ */
+function mergeStats(st, votes, sm, base, recentVotes)
 {
 	if (sm.n === 0) return;
 	st.n += sm.n;
@@ -1453,7 +1583,11 @@ function mergeStats(st, votes, sm, base)
 	st.jitterSum += sm.jitterSum;
 	st.jitterN += sm.jitterN;
 	st.prevAvg = sm.prevAvg;
-	for (const [a, v] of sm.votes) votes.set(a, (votes.get(a) || 0) + v);
+	for (const [a, v] of sm.votes)
+	{
+		votes.set(a, (votes.get(a) || 0) + v);
+		if (recentVotes) recentVotes.set(a, (recentVotes.get(a) || 0) + v);
+	}
 }
 
 function mod(a, n)
@@ -1485,15 +1619,34 @@ function _fillAllows(x, p1, p2, p3, fillCols, maxBack)
 	return x - p1 <= allow;
 }
 
+const CONFIG_NUMBER_DEFAULTS = { badThreshold: 100, worseThreshold: 200, upperLimit: 300, lowerLimit: 0, scalingMethodID: 0 };
+
+/**
+ * The configuration with its numeric settings made usable: while the user edits a field it can be empty or not a
+ * number (the editor previews every keystroke), and such a value falls back to the default instead of breaking the
+ * scale arithmetic.
+ */
+function sanitizeConfig(cfg)
+{
+	const out = { ...(cfg || {}) };
+	for (const [key, def] of Object.entries(CONFIG_NUMBER_DEFAULTS))
+	{
+		const v = out[key];
+		out[key] = (typeof v === 'number' && Number.isFinite(v)) ? v
+			: (typeof v === 'string' && v.trim() !== '' && Number.isFinite(+v)) ? +v : def;
+	}
+	return out;
+}
+
 /** Shortens text with an ellipsis so that it fits in `maxWidth` (in the context's current font). */
 function fitText(ctx, text, maxWidth)
 {
-	if (!text || ctx.measureText(text).width <= maxWidth) return text;
+	if (!text || textWidth(ctx, text) <= maxWidth) return text;
 	let lo = 0, hi = text.length;
 	while (lo < hi)
 	{
 		const mid = (lo + hi + 1) >> 1;
-		if (ctx.measureText(text.slice(0, mid) + '…').width <= maxWidth) lo = mid; else hi = mid - 1;
+		if (textWidth(ctx, text.slice(0, mid) + '…') <= maxWidth) lo = mid; else hi = mid - 1;
 	}
 	return text.slice(0, lo).trimEnd() + '…';
 }

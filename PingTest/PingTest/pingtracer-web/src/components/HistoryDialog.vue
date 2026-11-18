@@ -20,7 +20,7 @@
 							<tr v-for="f in history.files" :key="f.fileName" :class="{ current: f.fileName === openFileName }"
 								@dblclick="open(f)">
 								<td>{{ formatDateTime(f.startMs) }}</td>
-								<td>{{ formatSpan(Math.max(0, f.lastWriteMs - f.startMs)) }}</td>
+								<td>{{ formatSpan(Math.max(0, (f.endMs || f.lastWriteMs) - f.startMs)) }}</td>
 								<td class="target" :title="f.fileName">
 									{{ f.displayName }}
 									<span class="mode">{{ f.mode === 'trace' ? 'route' : 'direct' }}</span>

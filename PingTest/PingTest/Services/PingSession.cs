@@ -263,6 +263,7 @@ namespace PingTracer.Services
 			Interlocked.Exchange(ref pruneTimer, null)?.Dispose();
 			Interlocked.Exchange(ref resolveTimer, null)?.Dispose();
 			await Task.WhenAll(ms.Select(m => m.StopAsync())).ConfigureAwait(false);
+			FlushLossSummaries();
 			foreach (PingDataWriter w in ws)
 			{
 				try { w.Dispose(); } catch { }
@@ -313,7 +314,7 @@ namespace PingTracer.Services
 
 		private void WireSessionEvents(MonitoringSession session)
 		{
-			LossTracker tracker = new LossTracker();
+			LossTracker tracker = new LossTracker(t => FormatTime(session, t));
 			lock (stateLock) lossTrackers[session] = tracker;
 
 			session.SampleCompleted += (s, ttl, record) =>
@@ -343,30 +344,95 @@ namespace PingTracer.Services
 
 		private void TrackDestinationResult(MonitoringSession s, LossTracker t, PingSample record)
 		{
-			if (record.IsLost)
+			if (Configuration.logFailures)
 			{
-				if (t.LostInRow == 0)
-					t.FirstLostTimeMs = record.TimeMs;
-				t.LostInRow++;
-				if (t.LostInRow == 1 && Configuration.logFailures)
-					Log?.Invoke($"{s.DisplayName}: ping lost at {FormatTime(s, record.TimeMs)}");
+				string summary = t.Add(record.IsLost, record.TimeMs, Environment.TickCount64);
+				if (summary != null)
+					Log?.Invoke(s.DisplayName + ": " + summary);
 			}
-			else
+			if (!record.IsLost && Configuration.logSuccesses)
+				Log?.Invoke($"{s.DisplayName}: reply in {record.Rtt} ms at {FormatTime(s, record.TimeMs)}");
+		}
+
+		/// <summary>Logs the loss summaries that are still being collected (when monitoring stops).</summary>
+		private void FlushLossSummaries()
+		{
+			List<KeyValuePair<MonitoringSession, LossTracker>> all;
+			lock (stateLock) all = lossTrackers.ToList();
+			foreach ((MonitoringSession s, LossTracker t) in all)
 			{
-				if (t.LostInRow > 1 && Configuration.logFailures)
-					Log?.Invoke($"{s.DisplayName}: replies resumed after {t.LostInRow} lost pings ({FormatTime(s, t.FirstLostTimeMs)} to {FormatTime(s, record.TimeMs)})");
-				t.LostInRow = 0;
-				if (Configuration.logSuccesses)
-					Log?.Invoke($"{s.DisplayName}: reply in {record.Rtt} ms at {FormatTime(s, record.TimeMs)}");
+				string summary = t.Flush();
+				if (summary != null)
+					Log?.Invoke(s.DisplayName + ": " + summary);
 			}
 		}
 
 		private static string FormatTime(MonitoringSession s, long timeMs) => ServerClock.ToDateTime(s.ToUnixMs(timeMs)).ToLocalTime().ToString("HH:mm:ss");
 
-		private sealed class LossTracker
+		/// <summary>
+		/// Turns the destination's lost pings into log lines: one summary per <see cref="WindowMs"/> of results that had
+		/// any loss, e.g. "12 of 100 pings lost (12%) from 13:58:10 to 13:58:19".  Per-ping lines flood the log at high ping
+		/// rates, and results do not arrive in order (a lost ping reports at its timeout, after newer replies), so
+		/// "loss started / replies resumed" messages cannot be derived from the arrival order.
+		/// </summary>
+		internal sealed class LossTracker
 		{
-			public int LostInRow;
-			public long FirstLostTimeMs;
+			public const int WindowMs = 10_000;
+			private readonly Func<long, string> formatTime;
+			private long windowStartTick = -1;
+			private int total, lost;
+			private long firstLostMs = long.MaxValue, lastLostMs = long.MinValue;
+
+			/// <param name="formatTime">Formats a record time for the log.</param>
+			public LossTracker(Func<long, string> formatTime) { this.formatTime = formatTime; }
+
+			/// <summary>Counts one result.  Returns a summary line when this result closes a window that had loss.</summary>
+			public string Add(bool isLost, long timeMs, long nowTick)
+			{
+				lock (this)
+				{
+					string summary = null;
+					if (windowStartTick >= 0 && nowTick - windowStartTick >= WindowMs)
+						summary = FlushLocked();
+					if (windowStartTick < 0)
+						windowStartTick = nowTick;
+					total++;
+					if (isLost)
+					{
+						lost++;
+						firstLostMs = Math.Min(firstLostMs, timeMs);
+						lastLostMs = Math.Max(lastLostMs, timeMs);
+					}
+					return summary;
+				}
+			}
+
+			private static string FormatPercent(double p) => p < 1 ? "<1%" : Math.Round(p) + "%";
+
+			/// <summary>Ends the current window.  Returns its summary, or null if it had no loss.</summary>
+			public string Flush()
+			{
+				lock (this) return FlushLocked();
+			}
+
+			private string FlushLocked()
+			{
+				string summary = null;
+				if (lost == 1)
+					summary = "ping lost at " + formatTime(firstLostMs);
+				else if (lost > 1)
+				{
+					string range = "from " + formatTime(firstLostMs) + " to " + formatTime(lastLostMs);
+					summary = lost == total
+						? $"all {lost} pings lost {range}"
+						: $"{lost} of {total} pings lost ({FormatPercent(100.0 * lost / total)}) {range}";
+				}
+				windowStartTick = -1;
+				total = lost = 0;
+				firstLostMs = long.MaxValue;
+				lastLostMs = long.MinValue;
+				return summary;
+			}
 		}
 
 		/// <summary>Resolves a host string to an address. Also handles the simulated-network <c>sim:</c> prefix.</summary>

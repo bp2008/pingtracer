@@ -13,7 +13,7 @@
 				</div>
 
 				<div class="form-group">
-					<label>Hosts <span class="hint">(comma or newline separated; one host traces the route, several hosts are pinged directly. Enter <code>sim:demo</code> for a simulated network.)</span></label>
+					<label>Hosts <span class="hint">(separated by commas, spaces or new lines; one host traces the route, several hosts are pinged directly. Enter <code>sim:demo</code> for a simulated network.)</span></label>
 					<textarea v-model="hostsText" class="form-input form-textarea" rows="3"
 						placeholder="8.8.8.8, google.com" ref="hosts"></textarea>
 				</div>
@@ -88,6 +88,7 @@
 				</div>
 			</div>
 
+			<div v-if="error" class="form-error" role="alert">{{ error }}</div>
 			<div class="modal-footer">
 				<button v-if="!isNew" class="btn btn-danger" @click="onDelete">Delete</button>
 				<div class="spacer"></div>
@@ -138,6 +139,7 @@ export default {
 		return {
 			form,
 			hostsText: (form.hosts || []).join(', '),
+			error: '',
 		};
 	},
 	computed: {
@@ -165,11 +167,26 @@ export default {
 	methods: {
 		onSave()
 		{
+			// Hosts may be separated by commas, spaces or new lines (the server splits them the same way).
 			const hosts = this.hostsText
-				.split(/[,\n]+/)
+				.split(/[,\s]+/)
 				.map(s => s.trim())
 				.filter(s => s.length > 0);
-			this.$emit('save', { ...this.form, hosts });
+			const f = this.form;
+			const isNum = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+			if (hosts.length === 0)
+				return this.fail('Enter at least one host to ping.', 'hosts');
+			if (![f.badThreshold, f.worseThreshold, f.upperLimit, f.lowerLimit].every(isNum))
+				return this.fail('Thresholds and limits must be whole numbers of milliseconds, 0 or more.');
+			if (f.upperLimit <= f.lowerLimit)
+				return this.fail('The upper limit must be greater than the lower limit.');
+			this.error = '';
+			this.$emit('save', { ...f, hosts });
+		},
+		fail(message, focusRef)
+		{
+			this.error = message;
+			if (focusRef && this.$refs[focusRef]) this.$refs[focusRef].focus();
 		},
 		onDelete()
 		{
@@ -253,6 +270,16 @@ export default {
 
 .spacer {
 	flex: 1;
+}
+
+.form-error {
+	margin: 0 16px 10px;
+	padding: 6px 10px;
+	border-radius: 4px;
+	background: #3a1414;
+	border: 1px solid #7a2a2a;
+	color: #ffb4b4;
+	font-size: 13px;
 }
 
 .form-group {

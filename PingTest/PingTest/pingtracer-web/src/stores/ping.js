@@ -3,6 +3,9 @@ import { ref, computed, shallowRef } from 'vue';
 import socket from '@/library/WebSocketService';
 import dataStore from '@/library/DataStore';
 
+/** How long an error notice stays on screen. */
+const ERROR_TOAST_MS = 8000;
+
 /**
  * Reactive control-plane state: connection, configurations, run status, logs, and light session metadata.
  * Ping data itself lives in the non-reactive DataStore.
@@ -72,7 +75,10 @@ export const usePingStore = defineStore('ping', () =>
 			});
 			socket.on('error', (m) =>
 			{
-				errors.value = [...errors.value.slice(-20), { id: Date.now() + Math.random(), message: m.message }];
+				const id = Date.now() + Math.random();
+				errors.value = [...errors.value.slice(-20), { id, message: m.message }];
+				// Error notices go away on their own (or when clicked); the event log keeps a record of problems.
+				setTimeout(() => dismissError(id), ERROR_TOAST_MS);
 			});
 			// Make sure the data store is instantiated so it hears session messages.
 			void dataStore;

@@ -50,6 +50,32 @@ function setView(renderers, msPerCol, rightCol)
 	}
 }
 
+/**
+ * Checks each row's label statistics (computed from cached per-chunk summaries) against a plain sum over the visible
+ * columns.  Returns null when they agree, otherwise the first difference.
+ */
+function checkStats(r)
+{
+	const ms = r.msPerCol, rc = r.drawnRightCol, lc = rc - r.W + 1;
+	for (const row of r.rows)
+	{
+		let n = 0, lost = 0, sum = 0, min = Infinity, max = -Infinity;
+		for (let c = lc; c <= rc; c++)
+		{
+			const d = r._col(row.session, ms, row.ttl, c);
+			if (!d || d.n[d.i] === 0) continue;
+			const i = d.i;
+			n += d.n[i]; lost += d.lost[i]; sum += d.sum[i];
+			if (d.n[i] > d.lost[i]) { min = Math.min(min, d.min[i]); max = Math.max(max, d.max[i]); }
+		}
+		const st = row.stats;
+		const ok = st.n === n && st.lost === lost && Math.abs(st.sum - sum) <= 1e-6 * Math.max(1, sum)
+			&& (n === lost || (st.min === min && st.max === max));
+		if (!ok) return { ttl: row.ttl, expected: { n, lost, sum, min, max }, actual: { n: st.n, lost: st.lost, sum: st.sum, min: st.min, max: st.max } };
+	}
+	return null;
+}
+
 /** Repaints both renderers from scratch and compares their pixels. */
 function compareFull(gl, cpu)
 {
@@ -126,6 +152,9 @@ async function runSelfTestOnce(renderer, GraphRenderer, options)
 				const d = compareFull(renderer, cpu);
 				const name = `pixels identical at ${ms} ms/px, view end ${new Date(at).toISOString()}`;
 				if (d.n === 0) pass(name); else fail(name, d);
+				const sd = checkStats(renderer);
+				const sname = `row statistics correct at ${ms} ms/px, view end ${new Date(at).toISOString()}`;
+				if (sd === null) pass(sname); else fail(sname, sd);
 			}
 		}
 
@@ -153,7 +182,8 @@ async function runSelfTestOnce(renderer, GraphRenderer, options)
 			const fullGl = renderer.backend.readPixels(), fullCpu = cpu.backend.readPixels();
 			const a = diff(incGl, fullGl, renderer.W), b = diff(incCpu, fullCpu, renderer.W), c = diff(fullGl, fullCpu, renderer.W);
 			const name = `incremental painting at ${ms} ms/px after 20 random pans`;
-			if (a.n === 0 && b.n === 0 && c.n === 0) pass(name); else fail(name, { webgl: a, canvas2d: b, webglVsCanvas2d: c });
+			const views = both.map(r => ({ rightCol: r.drawnRightCol, live: r.live, msPerCol: r.msPerCol }));
+			if (a.n === 0 && b.n === 0 && c.n === 0) pass(name); else fail(name, { webgl: a, canvas2d: b, webglVsCanvas2d: c, views });
 		}
 
 		// 3. Timings (CPU time spent in frame(); GPU work is asynchronous).

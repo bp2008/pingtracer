@@ -2,7 +2,8 @@
 	<div class="toolbar">
 		<div class="group">
 			<select :value="selectedConfigGuid || ''" @change="$emit('selectConfig', $event.target.value)"
-				:disabled="isRunning || !connected" class="config-select" title="Configuration">
+				:disabled="isRunning || !connected" class="config-select"
+				:title="isRunning ? 'Stop monitoring to choose another configuration' : 'Configuration'">
 				<option value="" disabled>Select a configuration…</option>
 				<option v-for="cfg in configurations" :key="cfg.guid" :value="cfg.guid">{{ cfg.displayName }}</option>
 			</select>

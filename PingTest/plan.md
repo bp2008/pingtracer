@@ -60,15 +60,19 @@
 >   integers computed on the CPU, so there is no floating-point rounding on the GPU. That keeps the output pixel-exact
 >   and identical to the Canvas 2D fallback, which rasterizes the same buffer (used when WebGL2 is unavailable, when
 >   the view is wider than the GPU's maximum texture size, or with `?renderer=cpu`).
-> - Row statistics (labels, vertical scale) use cached per-chunk summaries, and while the view merely follows the
->   clock they are refreshed at most four times per second. Axis labels are cached.
+> - Row statistics (labels, vertical scale) use cached summaries of whole chunks and of 16-column blocks, so a view
+>   needs at most a few dozen single columns per row; while the view merely follows the clock they are refreshed at
+>   most four times per second. Labels are redrawn only when their text changes, the hover crosshair has a canvas of its
+>   own, and text widths and axis labels are cached.
 > - Measured at 2000×1143 device pixels (DPR 1.25) on the 3-day synthetic session: a full redraw costs about 0.55
 >   to 0.7 ms of CPU (it was about 4.5 ms with `ImageData`, plus GPU upload time the timer did not see), a one-column pan about
->   0.3 ms including statistics, and live scrolling 0.04–0.11 ms per frame on average. The shader pass itself takes
+>   0.2 ms including statistics and labels (about half of it the browser drawing label text), a pointer move 0.013 ms,
+>   and live scrolling 0.04–0.11 ms per frame on average. The shader pass itself takes
 >   about 0.03 ms on the GPU. The Canvas 2D fallback needs about 3.2 ms for a full redraw and 0.3 ms per scroll step.
 > - **Self-test:** `await __pingtracer.selfTest()` in the browser console (`{ quick: true }` for a short run) compares
->   the WebGL2 and Canvas 2D output pixel for pixel at every suitable zoom level, checks that incremental painting
->   after random pans matches a repaint from scratch, and reports frame costs. It runs on whatever is displayed, so open
+>   the WebGL2 and Canvas 2D output pixel for pixel at every suitable zoom level, checks the row statistics against a
+>   plain sum over the visible columns, checks that incremental painting after random pans matches a repaint from
+>   scratch, and reports frame costs. It runs on whatever is displayed, so open
 >   a saved session for the most thorough run.
 > - **Drawing:** classic PingTracer colors and thresholds. Aggregated columns draw the average as a solid bar and the
 >   maximum as a dimmer extension. Partial loss hangs from the top as a red "curtain" proportional to the loss fraction,
