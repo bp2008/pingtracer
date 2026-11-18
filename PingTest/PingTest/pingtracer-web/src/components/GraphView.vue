@@ -17,7 +17,7 @@
 </template>
 
 <script>
-import { GraphRenderer, ZOOM_LEVELS, ADDRESS_PALETTE_CSS } from '@/library/GraphRenderer';
+import { GraphRenderer, ZOOM_LEVELS, ADDRESS_PALETTE_CSS, isValidZoom } from '@/library/GraphRenderer';
 import socket from '@/library/WebSocketService';
 import { formatColumnRange } from '@/library/format';
 
@@ -65,10 +65,14 @@ export default {
 			serverNow: () => socket.serverNow(),
 			onViewChanged: () => this.emitView(true),
 		});
-		window.__pingtracer = { renderer: this.renderer };
+		// Diagnostics hook for the browser console (see RenderSelfTest.js).
+		window.__pingtracer = {
+			renderer: this.renderer,
+			selfTest: async (options) => (await import('@/library/RenderSelfTest')).runSelfTest(this.renderer, GraphRenderer, options),
+		};
 		let saved = 0;
 		try { saved = parseInt(localStorage.getItem(ZOOM_STORAGE_KEY), 10); } catch { /* storage unavailable */ }
-		if (ZOOM_LEVELS.includes(saved)) this.renderer.msPerCol = saved;
+		if (isValidZoom(saved)) this.renderer.msPerCol = saved;
 		const loop = () =>
 		{
 			this.raf = requestAnimationFrame(loop);
@@ -117,7 +121,7 @@ export default {
 		{
 			let saved = 0;
 			try { saved = parseInt(localStorage.getItem(ZOOM_STORAGE_KEY), 10); } catch { /* ignore */ }
-			if (ZOOM_LEVELS.includes(saved)) this.renderer.setZoom(saved);
+			if (isValidZoom(saved)) this.renderer.setZoom(saved);
 			this.renderer.setLive();
 		},
 		focus() { this.$refs.root.focus(); },

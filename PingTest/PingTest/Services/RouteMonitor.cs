@@ -2,7 +2,6 @@ using PingTracer.Services.Pinging;
 using PingTracer.Storage;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
@@ -54,6 +53,10 @@ namespace PingTracer.Services
 		private Task loopTask;
 		private PeriodicTimer timer;
 		private int inFlight;
+		/// <summary>Cycles with pings still in flight.  Guarded by Session.DataLock.</summary>
+		private readonly List<Cycle> activeCycles = new List<Cycle>();
+		/// <summary>Set (under Session.DataLock) when monitoring stops; results arriving later are ignored.</summary>
+		private bool stopped;
 		private volatile int intervalMs;
 
 		// State below is guarded by Session.DataLock.
@@ -124,8 +127,8 @@ namespace PingTracer.Services
 		}
 
 		/// <summary>
-		/// Stops dispatching new cycles and waits (bounded by the ping timeout) for pings already in flight to complete,
-		/// so that no records are left pending.
+		/// Stops dispatching new cycles.  Pings still in flight are not waited for (that would take up to the ping timeout):
+		/// once monitoring stops their outcome is unknown, so their records are voided and late results are ignored.
 		/// </summary>
 		public async Task StopAsync()
 		{
@@ -135,10 +138,27 @@ namespace PingTracer.Services
 			c.Cancel();
 			try { if (loopTask != null) await loopTask.ConfigureAwait(false); } catch { }
 			timer?.Dispose();
-			Stopwatch sw = Stopwatch.StartNew();
-			while (Volatile.Read(ref inFlight) > 0 && sw.ElapsedMilliseconds < options.TimeoutMs + 2000)
-				await Task.Delay(25).ConfigureAwait(false);
+			AbandonInFlight();
 			Session.SetRunning(false);
+		}
+
+		private void AbandonInFlight()
+		{
+			lock (Session.DataLock)
+			{
+				stopped = true;
+				foreach (Cycle cycle in activeCycles)
+				{
+					foreach ((int ttl, RecordHandle h) in cycle.Dispatched)
+					{
+						HopSeries hop = Session.GetHop(ttl);
+						if (hop != null && hop.TryGet(h, out PingSample sample) && sample.Rtt == PingRecordStatus.Pending)
+							Session.VoidPing(ttl, h);
+					}
+					cycle.MarkComplete();
+				}
+				activeCycles.Clear();
+			}
 		}
 
 		public void Dispose()
@@ -167,6 +187,8 @@ namespace PingTracer.Services
 				}
 				if (cycle.Remaining == 0)
 					cycle.MarkComplete();
+				else
+					activeCycles.Add(cycle);
 			}
 			for (int i = 0; i < cycle.Dispatched.Count; i++)
 			{
@@ -237,6 +259,8 @@ namespace PingTracer.Services
 				}
 				lock (Session.DataLock)
 				{
+					if (stopped)
+						return; // monitoring stopped while this ping was in flight; its record was voided
 					if (options.TraceRoute)
 						ProcessTraceResult(cycle, ttl, handle, outcome);
 					else
@@ -245,6 +269,7 @@ namespace PingTracer.Services
 					{
 						if (options.TraceRoute)
 							EndTraceCycle(cycle);
+						activeCycles.Remove(cycle);
 						cycle.MarkComplete();
 					}
 				}

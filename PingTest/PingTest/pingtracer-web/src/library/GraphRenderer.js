@@ -7,15 +7,24 @@
  *   so the browser composites them 1:1 without any resampling.  (Resampling a canvas whose size or position is not
  *   pixel-aligned was the main cost of the previous renderer.)
  * - One device pixel column == one time column.  Columns are aligned to absolute time (column c covers
- *   [c * msPerCol, (c + 1) * msPerCol)), so scrolling is always a whole number of pixels.  Scrolling copies the existing
- *   image sideways with one GPU blit and only the newly exposed columns are drawn.
- * - Bars are drawn into ImageData via a Uint32Array, only for "dirty" regions: newly exposed columns, columns whose data
- *   changed, the live edge (pending pings), and rows whose vertical scale changed.
+ *   [c * msPerCol, (c + 1) * msPerCol)), so scrolling is always a whole number of pixels.
+ * - The visible data is reduced to one small record per (row, column) in a column buffer, a ring indexed by absolute
+ *   column modulo the view width.  Only "dirty" columns are recomputed: newly exposed columns and columns whose data
+ *   changed.  Scrolling and changes of vertical scale need no recomputation at all.
+ * - The bars are painted from the column buffer by a backend (see BarsBackend.js): normally a WebGL2 fragment shader,
+ *   which repaints the whole graph for a negligible CPU cost, with a Canvas 2D rasterizer as fallback.
  * - Text (labels, statistics, hover crosshair) lives on a separate overlay canvas that is redrawn at most a few times per
  *   second unless the user is interacting.
  * - Nothing here touches Vue reactivity.
  */
 import dataStore, { CHUNK_COLS, ADDR_NONE, FLAG_MULTI_ADDR } from './DataStore';
+import {
+	GlBars, CpuBars, C, cssOf, ADDRESS_PALETTE,
+	KIND_DATA, KIND_OUTSIDE, KIND_EMPTY, KIND_LOST, STATE_STRIP_SHIFT, STATE_DIM, STATE_MARKER_SHIFT, STATE_LEVEL_SHIFT,
+} from './BarsBackend';
+
+export { ADDRESS_PALETTE };
+export const ADDRESS_PALETTE_CSS = ADDRESS_PALETTE.map(cssOf);
 
 /** Milliseconds per device-pixel column for each zoom step. */
 export const ZOOM_LEVELS = [
@@ -25,43 +34,29 @@ export const ZOOM_LEVELS = [
 
 const SCALING_CLASSIC = 0, SCALING_ZOOM = 1, SCALING_ZOOM_UNLIMITED = 2, SCALING_FIXED = 3;
 
-function rgb(r, g, b) { return ((0xFF << 24) | (b << 16) | (g << 8) | r) >>> 0; }
-function mix(c1, c2, f)
-{
-	const r = (c1 & 0xFF) + (((c2 & 0xFF) - (c1 & 0xFF)) * f);
-	const g = ((c1 >> 8) & 0xFF) + ((((c2 >> 8) & 0xFF) - ((c1 >> 8) & 0xFF)) * f);
-	const b = ((c1 >> 16) & 0xFF) + ((((c2 >> 16) & 0xFF) - ((c1 >> 16) & 0xFF)) * f);
-	return rgb(r | 0, g | 0, b | 0);
-}
-function cssOf(u32) { return `rgb(${u32 & 0xFF},${(u32 >> 8) & 0xFF},${(u32 >> 16) & 0xFF})`; }
-
-const C = {
-	bg: rgb(0, 0, 0),
-	bgBad: rgb(0x23, 0x23, 0x00),
-	bgWorse: rgb(0x28, 0x00, 0x00),
-	good: rgb(64, 150, 64),
-	bad: rgb(150, 150, 0),
-	worse: rgb(240, 230, 0),
-	lost: rgb(255, 0, 0),
-	lostPartial: rgb(235, 20, 20),
-	pending: rgb(26, 26, 32),
-	collapsed: rgb(12, 12, 15),
-	outside: rgb(12, 12, 20),
-	separator: rgb(48, 48, 58),
-	marker: rgb(0, 200, 255),
-	destMarker: rgb(230, 0, 230),
+const AXIS_FMT = {
+	day: new Intl.DateTimeFormat([], { month: 'short', day: 'numeric' }),
+	weekday: new Intl.DateTimeFormat([], { weekday: 'short', month: 'short', day: 'numeric' }),
+	minute: new Intl.DateTimeFormat([], { hour: 'numeric', minute: '2-digit' }),
+	second: new Intl.DateTimeFormat([], { hour: 'numeric', minute: '2-digit', second: '2-digit' }),
 };
-const RANGE_DIM = 0.42;
-const C_GOOD_RANGE = mix(C.bg, C.good, RANGE_DIM);
-const C_BAD_RANGE = mix(C.bg, C.bad, RANGE_DIM);
-const C_WORSE_RANGE = mix(C.bg, C.worse, RANGE_DIM);
 
-/** Colors for the address strip; index = order in which the address first appeared at that hop. */
-export const ADDRESS_PALETTE = [
-	rgb(0, 175, 175), rgb(255, 150, 0), rgb(175, 115, 255), rgb(255, 85, 160),
-	rgb(150, 215, 0), rgb(80, 160, 255), rgb(230, 200, 60), rgb(190, 190, 190),
-];
-export const ADDRESS_PALETTE_CSS = ADDRESS_PALETTE.map(cssOf);
+/** While the view merely follows the clock, row statistics (labels, vertical scale) are refreshed at most this often. */
+const STATS_INTERVAL_MS = 250;
+
+/** True if msPerCol is usable as a zoom level (any whole number of milliseconds within the zoom range). */
+export function isValidZoom(ms)
+{
+	return Number.isInteger(ms) && ms >= ZOOM_LEVELS[0] && ms <= ZOOM_LEVELS[ZOOM_LEVELS.length - 1];
+}
+
+/** The smallest tidy zoom level (two significant digits) of at least `want` ms per column. */
+function fitZoom(want)
+{
+	if (!(want > ZOOM_LEVELS[0])) return ZOOM_LEVELS[0];
+	const p = Math.pow(10, Math.floor(Math.log10(want)) - 1);
+	return Math.min(ZOOM_LEVELS[ZOOM_LEVELS.length - 1], Math.max(ZOOM_LEVELS[0], Math.ceil(want / p - 1e-9) * p));
+}
 
 const NICE_STEPS = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
 function niceCeil(v)
@@ -100,7 +95,7 @@ export class GraphRenderer
 		this.bars = this._canvas();
 		this.overlay = this._canvas();
 		this.axis = this._canvas();
-		this.ctxBars = this.bars.getContext('2d', { alpha: false });
+		this.backend = this._createBackend(opts.backend);
 		this.ctxOverlay = this.overlay.getContext('2d');
 		this.ctxAxis = this.axis.getContext('2d', { alpha: false });
 
@@ -121,13 +116,18 @@ export class GraphRenderer
 		this.drawnRightCol = null;
 		this.drawnMsPerCol = null;
 		this.statsDirty = true;
+		this.statsStale = false;
+		this.lastStatsTime = 0;
 		this.overlayDirty = true;
 		this.overlayStatsStale = false;
 		this.lastOverlayDraw = 0;
 		this.axisDirty = true;
 		this.lastAxisRightCol = null;
+		this.axisLabels = new Map();
 		this.hover = null;
-		this.imgCache = new Map();
+		this.colBuf = null;
+		this.colBufRows = 0;
+		this.drawnPendKey = '';
 		this.metaVersionSeen = -1;
 		this.configKey = '';
 		this.emptyMessage = '';
@@ -155,6 +155,22 @@ export class GraphRenderer
 		return c;
 	}
 
+	/** Picks the bar backend: WebGL2 unless 'cpu' is requested (or ?renderer=cpu is in the URL) or WebGL2 fails. */
+	_createBackend(preference)
+	{
+		let pref = preference;
+		try { pref = pref || new URLSearchParams(location.search).get('renderer'); } catch { /* ignore */ }
+		if (pref !== 'cpu')
+		{
+			const gl = GlBars.create(this.bars, () => this.invalidateAll());
+			if (gl) return gl;
+		}
+		return new CpuBars(this.bars);
+	}
+
+	/** Name of the active bar backend ('webgl2' or 'canvas2d'). */
+	get backendName() { return this.backend.isGl ? 'webgl2' : 'canvas2d'; }
+
 	// ------------------------------------------------------------------ layout
 
 	_onResize(entry)
@@ -167,6 +183,12 @@ export class GraphRenderer
 			W = entry.devicePixelContentBoxSize[0].inlineSize;
 			totalH = entry.devicePixelContentBoxSize[0].blockSize;
 		}
+		this.setDeviceSize(W, totalH, dpr);
+	}
+
+	/** Sizes the canvases to exactly W x totalH device pixels (graph plus time axis). */
+	setDeviceSize(W, totalH, dpr)
+	{
 		const axisH = Math.round(22 * dpr);
 		const H = Math.max(1, totalH - axisH);
 		W = Math.max(1, W);
@@ -189,7 +211,19 @@ export class GraphRenderer
 			this.axis.style.width = (W / dpr) + 'px';
 			this.axis.style.height = (axisH / dpr) + 'px';
 			this.axis.style.top = (H / dpr) + 'px';
-			this.imgCache.clear();
+			if (!this.backend.supportsWidth(W))
+			{
+				// Wider than the GPU's maximum texture size: switch to the Canvas 2D backend on a fresh canvas.
+				const old = this.bars;
+				this.bars = document.createElement('canvas');
+				this.bars.style.cssText = old.style.cssText;
+				this.bars.width = W;
+				this.bars.height = H;
+				old.replaceWith(this.bars);
+				this.backend = new CpuBars(this.bars);
+			}
+			this.backend.resize(W, H);
+			this.colBuf = null;
 			this.invalidateAll();
 		}
 		this._snapToPixelGrid();
@@ -256,11 +290,14 @@ export class GraphRenderer
 			if (!this.live) { this.live = true; this._viewChanged(); }
 			return;
 		}
-		// Do not scroll endlessly into the past beyond the oldest session.
+		// Do not scroll endlessly into the past beyond the oldest session: keep at least a quarter of the view on data,
+		// or, when all the data is narrower than that, keep its end in view.
 		const minMs = this._earliestStart();
 		if (minMs != null)
 		{
-			const minRc = Math.floor(minMs / this.msPerCol) + Math.floor(this.W * 0.75);
+			let minRc = Math.floor(minMs / this.msPerCol) + Math.floor(this.W * 0.75);
+			const endMs = this._latestEnd();
+			if (endMs != null) minRc = Math.min(minRc, Math.floor(endMs / this.msPerCol) + Math.floor(this.W * 0.02));
 			if (rc < minRc) rc = Math.min(minRc, now);
 		}
 		if (rc >= now)
@@ -326,10 +363,11 @@ export class GraphRenderer
 
 	zoomStep(direction, anchorX = null)
 	{
-		let i = ZOOM_LEVELS.indexOf(this.msPerCol);
-		if (i < 0) i = ZOOM_LEVELS.findIndex(z => z >= this.msPerCol);
-		i = Math.max(0, Math.min(ZOOM_LEVELS.length - 1, i + direction));
-		this.setZoom(ZOOM_LEVELS[i], anchorX);
+		const ms = this.msPerCol;
+		let next;
+		if (direction > 0) next = ZOOM_LEVELS.find(z => z > ms) ?? ZOOM_LEVELS[ZOOM_LEVELS.length - 1];
+		else next = [...ZOOM_LEVELS].reverse().find(z => z < ms) ?? ZOOM_LEVELS[0];
+		this.setZoom(next, anchorX);
 	}
 
 	/** Zooms to show the whole time span of all sessions. */
@@ -339,9 +377,8 @@ export class GraphRenderer
 		const end = this._latestEnd();
 		if (start == null || end == null) return;
 		const span = Math.max(1000, end - start);
-		const want = span / (this.W * 0.96);
-		let level = ZOOM_LEVELS[ZOOM_LEVELS.length - 1];
-		for (const z of ZOOM_LEVELS) if (z >= want) { level = z; break; }
+		// Not limited to the zoom steps: columns can be any whole number of milliseconds, so the data fills the view.
+		const level = fitZoom(span / (this.W * 0.96));
 		this.msPerCol = level;
 		const running = dataStore.getSessions().some(s => s.meta.running);
 		if (running)
@@ -377,9 +414,8 @@ export class GraphRenderer
 	{
 		if (ch.type === 'meta')
 		{
-			this.statsDirty = true;
-			this.overlayDirty = true;
-			this.axisDirty = true;
+			// Session bounds, route events or address lists may have changed: recompute everything (cheap).
+			this.invalidateAll();
 			return;
 		}
 		if (ch.msPerCol !== this.msPerCol || this.drawnRightCol == null) return;
@@ -388,8 +424,9 @@ export class GraphRenderer
 		if (x1 <= x0) return;
 		// A filled-forward bar may extend past the changed column.
 		this._markX(x0, Math.min(this.W, x1 + this._fillCols() + 1));
-		this.statsDirty = true;
-		this.overlayStatsStale = true;
+		// Freshly loaded chunks update the statistics at once; live pings are folded in at a limited rate.
+		if (ch.bulk) this.statsDirty = true;
+		else this.statsStale = true;
 	}
 
 	_markX(x0, x1)
@@ -420,7 +457,7 @@ export class GraphRenderer
 	}
 
 	/** Frame timing statistics, for diagnostics (window.__pingtracer.renderer.perf). */
-	resetPerf() { this.perf = { frames: 0, totalMs: 0, maxMs: 0, fullRedraws: 0, regions: 0, pixels: 0 }; }
+	resetPerf() { this.perf = { frames: 0, totalMs: 0, maxMs: 0, fullRedraws: 0, paints: 0, columns: 0 }; }
 
 	_frame()
 	{
@@ -448,75 +485,127 @@ export class GraphRenderer
 		for (const s of sessions)
 			dataStore.ensure(s.id, this.msPerCol, lc, rc, now);
 
-		if (rc !== this.drawnRightCol) this.statsDirty = true;
+		const t = performance.now();
+		if (rc !== this.drawnRightCol)
+		{
+			// Following the clock only needs statistics refreshed now and then; any other move needs them at once.
+			if (this.live) this.statsStale = true;
+			else this.statsDirty = true;
+		}
 		let layoutChanged = false;
-		if (this.statsDirty)
+		if (this.statsDirty || (this.statsStale && t - this.lastStatsTime >= STATS_INTERVAL_MS))
 		{
 			layoutChanged = this._computeRows(sessions, lc, rc, cfg);
 			this.statsDirty = false;
+			this.statsStale = false;
+			this.lastStatsTime = t;
 			this.overlayStatsStale = true;
 		}
 		if (layoutChanged) this.needFull = true;
 
-		const ctx = this.ctxBars;
-		if (!this.needFull && this.drawnRightCol != null && rc !== this.drawnRightCol)
+		const W = this.W, backend = this.backend, rows = this.rows;
+		if (!this.colBuf || this.colBufRows < rows.length)
+		{
+			this.colBufRows = Math.max(16, Math.ceil((rows.length + 1) / 16) * 16);
+			this.colBuf = new Uint16Array(this.colBufRows * W * 4);
+			this.needFull = true;
+		}
+		if (backend.ensureTexture(W, this.colBufRows)) this.needFull = true;
+
+		const scrolled = this.drawnRightCol != null && rc !== this.drawnRightCol;
+		if (!this.needFull && scrolled)
 		{
 			const d = rc - this.drawnRightCol;
-			if (Math.abs(d) >= this.W) this.needFull = true;
+			if (Math.abs(d) >= W) this.needFull = true;
 			else
 			{
-				// Scroll the existing pixels by whole device pixels, then redraw only what was exposed.
-				ctx.globalCompositeOperation = 'copy';
-				ctx.drawImage(this.bars, -d, 0);
-				ctx.globalCompositeOperation = 'source-over';
-				if (d > 0)
-				{
-					this.dirtyX0 = this.dirtyX0 === Infinity ? Infinity : this.dirtyX0 - d;
-					this.dirtyX1 = this.dirtyX1 === -Infinity ? -Infinity : this.dirtyX1 - d;
-					this._markX(this.W - d, this.W);
-				}
-				else
-				{
-					this.dirtyX0 = this.dirtyX0 === Infinity ? Infinity : this.dirtyX0 - d;
-					this.dirtyX1 = this.dirtyX1 === -Infinity ? -Infinity : this.dirtyX1 - d;
-					this._markX(0, -d);
-				}
+				// The column ring keeps every column still in view; only the exposed ones need computing.  The Canvas 2D
+				// backend moves its pixels along; WebGL simply repaints with the new ring offset.
+				if (!backend.isGl) backend.scroll(d);
+				if (this.dirtyX0 !== Infinity) { this.dirtyX0 -= d; this.dirtyX1 -= d; }
+				if (d > 0) this._markX(W - d, W);
+				else this._markX(0, -d);
 			}
 		}
-		if (this.live && rc !== this.drawnRightCol)
+
+		const renderCtx = {
+			now, cfg, lc, rc, fillCols: this._fillCols(),
+			bad: cfg.badThreshold ?? 100, worse: cfg.worseThreshold ?? 200, minCurtain: Math.max(1, Math.round(this.dpr)),
+		};
+		const pendKey = this._updateRowFrameParams(now, lc);
+		const pendChanged = pendKey !== this.drawnPendKey;
+		if (!backend.isGl && pendChanged && this.live)
 		{
-			// Pending pings near the live edge change appearance as time passes.
+			// Pending pings near the live edge change appearance as time passes; the shader handles this by itself.
 			let timeout = 4000, interval = 1000;
 			for (const s of sessions) { timeout = s.meta.timeoutMs || timeout; interval = s.meta.intervalMs || interval; }
 			const liveCols = Math.ceil((timeout + interval * 2) / this.msPerCol) + 2;
-			this._markX(Math.max(0, this.W - liveCols), this.W);
+			this._markX(Math.max(0, W - liveCols), W);
 		}
 
-		const renderCtx = { now, cfg, lc, rc, fillCols: this._fillCols() };
-		if (this.needFull)
+		const fp = this._frameParams(lc);
+		const full = this.needFull;
+		const x0 = full ? 0 : Math.max(0, this.dirtyX0), x1 = full ? W : Math.min(W, this.dirtyX1);
+		const perf = this.perf;
+		// Rows whose vertical scale changed need all their columns recomputed (positions are precomputed integers).
+		const rescaled = full || this.dirtyRows.size === 0 ? [] : rows.filter(r => this.dirtyRows.has(r.key));
+		if (x1 > x0)
 		{
-			this._renderRegion(renderCtx, 0, this.W, this.rows, 0, this.H);
-			this.needFull = false;
-			this.dirtyRows.clear();
+			this._computeColumns(renderCtx, x0, x1, null);
+			perf.columns += x1 - x0;
+		}
+		for (const row of rescaled)
+		{
+			this._computeColumns(renderCtx, 0, W, row);
+			perf.columns += W;
+		}
+		if (backend.isGl)
+		{
+			if (x1 > x0)
+			{
+				const tx0 = mod(lc + x0, W), n = x1 - x0;
+				if (tx0 + n <= W) backend.upload(this.colBuf, W, 0, rows.length, tx0, tx0 + n);
+				else
+				{
+					backend.upload(this.colBuf, W, 0, rows.length, tx0, W);
+					backend.upload(this.colBuf, W, 0, rows.length, 0, tx0 + n - W);
+				}
+			}
+			for (const row of rescaled) backend.upload(this.colBuf, W, row.texRow, 1, 0, W);
+			if (full || x1 > x0 || scrolled || pendChanged || rescaled.length > 0)
+			{
+				backend.draw(fp, rows);
+				perf.paints++;
+				if (full) perf.fullRedraws++;
+			}
+		}
+		else if (full)
+		{
+			backend.render(fp, this.colBuf, 0, W, rows, 0, this.H);
+			perf.paints++;
+			perf.fullRedraws++;
 		}
 		else
 		{
-			for (const row of this.rows)
+			for (const row of rescaled)
 			{
-				if (!this.dirtyRows.has(row.key)) continue;
-				this._renderRegion(renderCtx, 0, this.W, [row], row.y0, row.y0 + row.h);
+				backend.render(fp, this.colBuf, 0, W, [row], row.y0, row.y0 + row.h);
+				perf.paints++;
 			}
-			this.dirtyRows.clear();
-			const x0 = Math.max(0, this.dirtyX0), x1 = Math.min(this.W, this.dirtyX1);
 			if (x1 > x0)
-				this._renderRegion(renderCtx, x0, x1, this.rows, 0, this.H);
+			{
+				backend.render(fp, this.colBuf, x0, x1, rows, 0, this.H);
+				perf.paints++;
+			}
 		}
+		this.needFull = false;
+		this.dirtyRows.clear();
 		this.dirtyX0 = Infinity;
 		this.dirtyX1 = -Infinity;
+		this.drawnPendKey = pendKey;
 		this.drawnRightCol = rc;
 		this.drawnMsPerCol = this.msPerCol;
 
-		const t = performance.now();
 		if (this.overlayDirty || (this.overlayStatsStale && t - this.lastOverlayDraw > 250))
 		{
 			this._drawOverlay(renderCtx);
@@ -640,12 +729,11 @@ export class GraphRenderer
 
 	_rowFor(s, ttl, lc, rc, ms)
 	{
-		const st = { n: 0, lost: 0, succ: 0, sum: 0, min: Infinity, max: -Infinity, last: null, lastCol: -Infinity, jitterSum: 0, jitterN: 0 };
+		const st = newStats();
 		const votes = new Map();
 		// Addresses near the right edge of the view decide the label, so it describes the route "now" (in view terms).
 		const recentFrom = rc - Math.max(30, Math.floor(this.W * 0.1));
 		const recentVotes = new Map();
-		let prevAvg = null;
 		const zoom = s.zooms.get(ms);
 		if (zoom)
 		{
@@ -657,32 +745,10 @@ export class GraphRenderer
 				if (!h) continue;
 				const base = ci * CHUNK_COLS;
 				const i0 = Math.max(0, lc - base), i1 = Math.min(CHUNK_COLS - 1, rc - base);
-				const N = h.n, L = h.lost;
-				for (let i = i0; i <= i1; i++)
-				{
-					const n = N[i];
-					if (n === 0) continue;
-					const lost = L[i], succ = n - lost;
-					st.n += n;
-					st.lost += lost;
-					if (succ > 0)
-					{
-						st.succ += succ;
-						st.sum += h.sum[i];
-						if (h.min[i] < st.min) st.min = h.min[i];
-						if (h.max[i] > st.max) st.max = h.max[i];
-						const avg = h.sum[i] / succ;
-						if (base + i > st.lastCol) { st.lastCol = base + i; st.last = succ === 1 ? h.sum[i] : avg; }
-						if (prevAvg != null) { st.jitterSum += Math.abs(avg - prevAvg); st.jitterN++; }
-						prevAvg = avg;
-						const a = h.addr[i];
-						if (a !== ADDR_NONE)
-						{
-							votes.set(a, (votes.get(a) || 0) + succ);
-							if (base + i >= recentFrom) recentVotes.set(a, (recentVotes.get(a) || 0) + succ);
-						}
-					}
-				}
+				if (i0 === 0 && i1 === CHUNK_COLS - 1 && base + CHUNK_COLS <= recentFrom)
+					mergeStats(st, votes, chunkSummary(h), base); // whole chunk in view: use its cached summary
+				else
+					accumulateColumns(h, base, i0, i1, st, votes, recentFrom, recentVotes);
 			}
 		}
 		let dominant = ADDR_NONE, best = -1;
@@ -734,197 +800,173 @@ export class GraphRenderer
 		if (!(hi > lo)) hi = lo + 1;
 		row.lo = lo;
 		row.hi = hi;
+		// Rows (relative to the row top) where the threshold background zones end.
+		row.yWorse = this._rowY(row, cfg.worseThreshold ?? 200);
+		row.yBad = this._rowY(row, cfg.badThreshold ?? 100);
+	}
+
+	/** Device row (relative to the top of the graph row) of a value on the row's vertical scale, clamped to the plot. */
+	_rowY(row, v)
+	{
+		const plotTop = row.strip, plotBottom = row.plotH;
+		const y = Math.round(plotBottom - (v - row.lo) * (plotBottom - plotTop) / (row.hi - row.lo));
+		return y < plotTop ? plotTop : y > plotBottom ? plotBottom : y;
 	}
 
 	// ------------------------------------------------------------------ bars
 
-	_image(w, h)
+	/** Parameters shared by all rows for painting this frame. */
+	_frameParams(lc)
 	{
-		const key = w + 'x' + h;
-		let img = this.imgCache.get(key);
-		if (!img)
-		{
-			if (this.imgCache.size > 16) this.imgCache.clear();
-			img = this.ctxBars.createImageData(w, h);
-			img.u32 = new Uint32Array(img.data.buffer);
-			this.imgCache.set(key, img);
-		}
-		return img;
+		return {
+			W: this.W,
+			H: this.H,
+			lcMod: mod(lc, this.W),
+			dash: Math.max(2, Math.round(3 * this.dpr)),
+		};
 	}
 
-	/** Renders device columns [x0, x1) of the given rows, which lie within device rows [yTop, yBottom). */
-	_renderRegion(rc_, x0, x1, rows, yTop, yBottom)
+	/**
+	 * Assigns each row its column-buffer row and the range of view columns shaded as "awaiting reply".  Returns a key
+	 * that changes whenever any shaded range changes.
+	 */
+	_updateRowFrameParams(now, lc)
 	{
-		const w = x1 - x0, h = yBottom - yTop;
-		if (w <= 0 || h <= 0) return;
-		const img = this._image(w, h);
-		const px = img.u32;
-		this.perf.regions++;
-		this.perf.pixels += w * h;
-		if (w === this.W && h === this.H) this.perf.fullRedraws++;
-		px.fill(C.bg);
-		for (const row of rows)
-			this._renderRow(rc_, px, w, x0, yTop, row);
-		this.ctxBars.putImageData(img, x0, yTop);
-	}
-
-	_renderRow(rc_, px, w, x0, yTop, row)
-	{
-		const { cfg, lc, now } = rc_;
-		const s = row.session;
 		const ms = this.msPerCol;
-		const ttl = row.ttl;
-		const top = row.y0 - yTop;
-		const sepY = row.h > row.plotH ? top + row.plotH : -1;
-		if (sepY >= 0)
-			px.fill(C.separator, sepY * w, sepY * w + w);
-
-		if (row.collapsed)
+		let key = '';
+		for (let i = 0; i < this.rows.length; i++)
 		{
-			px.fill(C.collapsed, top * w, (top + row.plotH) * w);
-			return;
-		}
-
-		const plotTop = top + row.strip;
-		const plotBottom = top + row.plotH; // exclusive
-		const plotH = plotBottom - plotTop;
-		const lo = row.lo, hi = row.hi;
-		const scale = plotH / (hi - lo);
-		const yOf = (v) => Math.max(plotTop, Math.min(plotBottom, Math.round(plotBottom - (v - lo) * scale)));
-		const bad = cfg.badThreshold ?? 100, worse = cfg.worseThreshold ?? 200;
-		const yWorse = yOf(worse), yBad = yOf(bad);
-		const sessionStart = s.meta.startMs;
-		const sessionEnd = s.meta.endMs != null ? s.meta.endMs : Infinity;
-		const timeoutMs = s.meta.timeoutMs || 4000, intervalMs = s.meta.intervalMs || 1000;
-		// Shade pings awaiting a reply, but only on rows that are still being probed (not beyond the destination).
-		const probed = s.meta.running && !(s.meta.mode === 'trace' && s.meta.destTtl > 0 && ttl > s.meta.destTtl);
-		const pendingFrom = this.live && probed ? now - timeoutMs - intervalMs : Infinity;
-		const fillCols = rc_.fillCols;
-		const isStrip = row.strip > 0;
-		const minCurtain = Math.max(1, Math.round(this.dpr));
-
-		// Route-change markers for this row, keyed by column.
-		const markers = this._markersFor(s, ttl, lc + x0, lc + x0 + w - 1, ms);
-
-		// State for fill-forward: the last non-empty column and its values.
-		let lastCol = -Infinity, lN = 0, lLost = 0, lSum = 0, lMax = 0, lAddr = ADDR_NONE, lFlags = 0;
-		if (fillCols > 0)
-		{
-			for (let c = lc + x0 - 1; c >= lc + x0 - fillCols; c--)
+			const row = this.rows[i];
+			row.texRow = i;
+			row.pendX0 = 0x7FFFFFFF;
+			row.pendX1 = -1;
+			const s = row.session;
+			// Shade pings awaiting a reply, but only on rows that are still being probed (not beyond the destination).
+			const probed = s.meta.running && !(s.meta.mode === 'trace' && s.meta.destTtl > 0 && row.ttl > s.meta.destTtl);
+			if (this.live && probed && !row.collapsed)
 			{
-				const d = this._col(s, ms, ttl, c);
-				if (d && d.n[d.i] > 0)
-				{
-					lastCol = c; lN = d.n[d.i]; lLost = d.lost[d.i]; lSum = d.sum[d.i]; lMax = d.max[d.i]; lAddr = d.addr[d.i]; lFlags = d.flags[d.i];
-					break;
-				}
+				const pendingFrom = now - (s.meta.timeoutMs || 4000) - (s.meta.intervalMs || 1000);
+				row.pendX0 = Math.max(-1, Math.ceil(pendingFrom / ms) - lc);
+				row.pendX1 = Math.min(this.W, Math.floor(now / ms) - lc);
+				key += row.pendX0 + ',' + row.pendX1 + ';';
 			}
 		}
+		return key;
+	}
 
-		let chunkIndex = NaN, hc = null;
-		const zoom = s.zooms.get(ms);
-		for (let x = 0; x < w; x++)
+	/**
+	 * Reduces view columns [x0, x1) of every row (or only of `onlyRow`) to column-buffer records (see BarsBackend.js).
+	 * The loops work chunk by chunk with small integer indexes; absolute column numbers exceed 2^31 at fine zoom levels
+	 * and would force slow floating-point arithmetic in the inner loop.
+	 */
+	_computeColumns(rc_, x0, x1, onlyRow)
+	{
+		const { lc, fillCols, bad, worse, minCurtain } = rc_;
+		const W = this.W, buf = this.colBuf, ms = this.msPerCol;
+		const txStart = mod(lc + x0, W);
+		if (!this.markerScratch || this.markerScratch.length !== W) this.markerScratch = new Uint8Array(W);
+		const mk = this.markerScratch;
+		for (let r = 0; r < this.rows.length; r++)
 		{
-			const c = lc + x0 + x;
-			const ci = Math.floor(c / CHUNK_COLS);
-			if (ci !== chunkIndex)
-			{
-				chunkIndex = ci;
-				const chunk = zoom ? zoom.chunks.get(ci) : null;
-				hc = chunk ? chunk.hops.get(ttl) || null : null;
-			}
-			const i = c - ci * CHUNK_COLS;
-			let n = 0, lost = 0, sum = 0, max = 0, addr = ADDR_NONE, flags = 0;
-			if (hc && hc.n[i] > 0)
-			{
-				n = hc.n[i]; lost = hc.lost[i]; sum = hc.sum[i]; max = hc.max[i]; addr = hc.addr[i]; flags = hc.flags[i];
-				lastCol = c; lN = n; lLost = lost; lSum = sum; lMax = max; lAddr = addr; lFlags = flags;
-			}
-			else if (c - lastCol <= fillCols)
-			{
-				n = lN; lost = lLost; sum = lSum; max = lMax; addr = lAddr; flags = lFlags;
-			}
+			const row = this.rows[r];
+			if (row.collapsed || (onlyRow && row !== onlyRow)) continue;
+			const plotTop = row.strip, plotBottom = row.plotH, plotH = plotBottom - plotTop;
+			const lo = row.lo, scale = plotH / (row.hi - row.lo);
+			const s = row.session, ttl = row.ttl;
+			// View columns inside the session: column c is outside if it ends before the start or starts after the end.
+			const xIn0 = Math.floor(s.meta.startMs / ms) - lc;
+			const xIn1 = s.meta.endMs != null ? Math.floor(s.meta.endMs / ms) - lc : Infinity;
+			const isStrip = row.strip > 0;
+			const markers = this._markersFor(s, ttl, lc + x0, lc + x1 - 1, ms);
+			if (markers !== null) for (const [c, kind] of markers) mk[c - lc] = kind;
 
-			const colStartMs = c * ms;
-			let idx = plotTop * w + x;
-			if (n === 0)
+			// Fill-forward state: the last non-empty column (as a view x) and its values.
+			let lastX = -Infinity, lN = 0, lLost = 0, lSum = 0, lMax = 0, lAddr = ADDR_NONE, lFlags = 0;
+			if (fillCols > 0)
 			{
-				let color = C.bg;
-				if ((colStartMs + ms) <= sessionStart || colStartMs > sessionEnd) color = C.outside;
-				else if (colStartMs >= pendingFrom && colStartMs <= now) color = C.pending;
-				if (color !== C.bg)
-					for (let y = plotTop; y < plotBottom; y++, idx += w) px[idx] = color;
-				else
+				for (let c = lc + x0 - 1; c >= lc + x0 - fillCols; c--)
 				{
-					// Threshold zone backgrounds.
-					for (let y = plotTop; y < plotBottom; y++, idx += w)
-						px[idx] = y < yWorse ? C.bgWorse : y < yBad ? C.bgBad : C.bg;
-				}
-			}
-			else
-			{
-				const succ = n - lost;
-				const lossFrac = lost / n;
-				let barTop = plotBottom, rangeTop = plotBottom, barColor = C.good, rangeColor = C_GOOD_RANGE;
-				if (succ > 0)
-				{
-					const avg = sum / succ;
-					barTop = yOf(avg);
-					rangeTop = yOf(max);
-					if (barTop === plotBottom && avg > lo) barTop = plotBottom - 1; // always show at least one pixel
-					if (avg >= worse) { barColor = C.worse; rangeColor = C_WORSE_RANGE; }
-					else if (avg >= bad) { barColor = C.bad; rangeColor = C_BAD_RANGE; }
-				}
-				if (lossFrac >= 1)
-				{
-					for (let y = plotTop; y < plotBottom; y++, idx += w) px[idx] = C.lost;
-				}
-				else
-				{
-					// Partial loss hangs from the top of the column like a curtain whose height is the loss fraction,
-					// so it can be read quantitatively and light loss spread over many pings stays unobtrusive.
-					const curtainBottom = lost > 0 ? plotTop + Math.max(minCurtain, Math.round(lossFrac * plotH)) : plotTop;
-					for (let y = plotTop; y < plotBottom; y++, idx += w)
+					const d = this._col(s, ms, ttl, c);
+					if (d && d.n[d.i] > 0)
 					{
-						let color;
-						if (y < curtainBottom) color = C.lostPartial;
-						else if (y >= barTop) color = barColor;
-						else if (y >= rangeTop) color = rangeColor;
-						else color = y < yWorse ? C.bgWorse : y < yBad ? C.bgBad : C.bg;
-						px[idx] = color;
+						lastX = c - lc; lN = d.n[d.i]; lLost = d.lost[d.i]; lSum = d.sum[d.i]; lMax = d.max[d.i]; lAddr = d.addr[d.i]; lFlags = d.flags[d.i];
+						break;
 					}
 				}
 			}
 
-			// Address strip.
-			if (isStrip)
+			const zoom = s.zooms.get(ms);
+			const rowBase = r * W;
+			let tx = txStart;
+			let palAddr = -1, palBits = 0; // palette lookup cache: consecutive columns usually share an address
+			let x = x0;
+			while (x < x1)
 			{
-				let color = C.bg;
-				if (n > 0 && addr !== ADDR_NONE)
+				const ci = Math.floor((lc + x) / CHUNK_COLS);
+				let i = lc + x - ci * CHUNK_COLS;
+				const iEnd = Math.min(CHUNK_COLS, i + (x1 - x));
+				const chunk = zoom ? zoom.chunks.get(ci) : null;
+				const hc = chunk ? chunk.hops.get(ttl) || null : null;
+				const N = hc ? hc.n : null;
+				const L = hc ? hc.lost : null, S = hc ? hc.sum : null, MX = hc ? hc.max : null, A = hc ? hc.addr : null, F = hc ? hc.flags : null;
+				for (; i < iEnd; i++, x++)
 				{
-					color = ADDRESS_PALETTE[s.addressIndexAtHop(ttl, addr) % ADDRESS_PALETTE.length];
-					if (flags & FLAG_MULTI_ADDR) color = (x & 1) ? mix(color, C.bg, 0.6) : color;
-				}
-				let si = top * w + x;
-				for (let y = 0; y < row.strip; y++, si += w) px[si] = color;
-			}
+					let n = 0, lost = 0, sum = 0, max = 0, addr = ADDR_NONE, flags = 0;
+					if (N !== null && N[i] > 0)
+					{
+						n = N[i]; lost = L[i]; sum = S[i]; max = MX[i]; addr = A[i]; flags = F[i];
+						lastX = x; lN = n; lLost = lost; lSum = sum; lMax = max; lAddr = addr; lFlags = flags;
+					}
+					else if (x - lastX <= fillCols)
+					{
+						n = lN; lost = lLost; sum = lSum; max = lMax; addr = lAddr; flags = lFlags;
+					}
 
-			// Route change marker: dashed vertical line through the plot.
-			if (markers !== null)
-			{
-				const m = markers.get(c);
-				if (m !== undefined)
-				{
-					let mi = plotTop * w + x;
-					const dash = Math.max(2, Math.round(3 * this.dpr));
-					for (let y = plotTop; y < plotBottom; y++, mi += w)
-						if (((y - plotTop) / dash | 0) % 2 === 0) px[mi] = m;
+					const o = (rowBase + tx) * 4;
+					if (++tx === W) tx = 0;
+					let st, bTop = plotBottom, rTop = plotBottom, cBottom = plotTop;
+					if (n === 0)
+						st = x < xIn0 || x > xIn1 ? KIND_OUTSIDE : KIND_EMPTY;
+					else
+					{
+						const succ = n - lost;
+						if (succ === 0) st = KIND_LOST;
+						else
+						{
+							const avg = sum / succ;
+							let barTop = Math.round(plotBottom - (avg - lo) * scale);
+							barTop = barTop < plotTop ? plotTop : barTop > plotBottom ? plotBottom : barTop;
+							if (barTop === plotBottom && avg > lo) barTop = plotBottom - 1; // always show at least one pixel
+							let rangeTop = Math.round(plotBottom - (max - lo) * scale);
+							rangeTop = rangeTop < plotTop ? plotTop : rangeTop > barTop ? barTop : rangeTop;
+							bTop = barTop;
+							rTop = rangeTop;
+							// Partial loss hangs from the top of the column like a curtain whose height is the loss fraction,
+							// so it can be read quantitatively and light loss spread over many pings stays unobtrusive.
+							if (lost > 0) cBottom = plotTop + Math.min(plotH, Math.max(minCurtain, Math.round(lost / n * plotH)));
+							st = KIND_DATA | ((avg >= worse ? 2 : avg >= bad ? 1 : 0) << STATE_LEVEL_SHIFT);
+						}
+						if (isStrip && addr !== ADDR_NONE)
+						{
+							if (addr !== palAddr) { palAddr = addr; palBits = ((s.addressIndexAtHop(ttl, addr) % ADDRESS_PALETTE.length) + 1) << STATE_STRIP_SHIFT; }
+							st |= palBits;
+							// Columns where several addresses answered are dithered by absolute column parity, so the pattern
+							// scrolls along with the data.  CHUNK_COLS is even, so the parity of i is the parity of the column.
+							if ((flags & FLAG_MULTI_ADDR) && (i & 1)) st |= STATE_DIM;
+						}
+					}
+					const m = mk[x];
+					if (m !== 0) { st |= m << STATE_MARKER_SHIFT; mk[x] = 0; }
+					buf[o] = bTop;
+					buf[o + 1] = rTop;
+					buf[o + 2] = cBottom;
+					buf[o + 3] = st;
 				}
 			}
 		}
 	}
 
-	/** Returns a Map(column -> marker color) of route changes affecting a row, or null if none. */
+	/** Returns a Map(column -> marker kind: 1 = hop address change, 2 = destination change) for a row, or null if none. */
 	_markersFor(s, ttl, c0, c1, ms)
 	{
 		const ev = s.routeEvents;
@@ -942,13 +984,13 @@ export class GraphRenderer
 		{
 			const e = ev[i];
 			if (e.initial) continue;
-			let color;
-			if (e.kind === 'addr' && e.ttl === ttl) color = C.marker;
-			else if (e.kind === 'dest' && ttl !== 0) color = C.destMarker;
+			let kind;
+			if (e.kind === 'addr' && e.ttl === ttl) kind = 1;
+			else if (e.kind === 'dest' && ttl !== 0) kind = 2;
 			else continue;
 			if (!map) map = new Map();
 			const col = Math.floor(e.t / ms);
-			if (!map.has(col) || color === C.marker) map.set(col, color);
+			if (!map.has(col) || kind === 1) map.set(col, kind);
 		}
 		return map;
 	}
@@ -1138,13 +1180,7 @@ export class GraphRenderer
 			const x = Math.floor(t / ms) - lc;
 			ctx.fillStyle = '#5a5a6a';
 			ctx.fillRect(x, 1, 1, Math.round(5 * dpr));
-			const d = new Date(t);
-			const isMidnight = d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0;
-			let label;
-			if (interval >= 86400000) label = d.toLocaleDateString([], { month: 'short', day: 'numeric' });
-			else if (isMidnight) label = d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
-			else if (interval >= 60000) label = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-			else label = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+			const { label, isMidnight } = this._axisLabel(t, interval);
 			ctx.fillStyle = isMidnight ? '#e6e6a0' : '#b4b4c0';
 			ctx.fillText(label, x + Math.round(3 * dpr), H / 2 + 1);
 		}
@@ -1166,6 +1202,25 @@ export class GraphRenderer
 				ctx.fill();
 			}
 		}
+	}
+
+	/** Formats an axis tick label.  Date formatting is slow, so labels are cached (the axis redraws as time passes). */
+	_axisLabel(t, interval)
+	{
+		const key = t + ':' + (interval >= 86400000 ? 'd' : interval >= 60000 ? 'm' : 's');
+		let v = this.axisLabels.get(key);
+		if (v) return v;
+		const d = new Date(t);
+		const isMidnight = d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0;
+		let label;
+		if (interval >= 86400000) label = AXIS_FMT.day.format(d);
+		else if (isMidnight) label = AXIS_FMT.weekday.format(d);
+		else if (interval >= 60000) label = AXIS_FMT.minute.format(d);
+		else label = AXIS_FMT.second.format(d);
+		v = { label, isMidnight };
+		if (this.axisLabels.size > 2000) this.axisLabels.clear();
+		this.axisLabels.set(key, v);
+		return v;
 	}
 
 	// ------------------------------------------------------------------ hit testing
@@ -1240,6 +1295,80 @@ export class GraphRenderer
 				: `Now answering from ${(s.addresses.get(e.value) || {}).ip || '?'}`);
 		return info;
 	}
+}
+
+function newStats()
+{
+	return { n: 0, lost: 0, succ: 0, sum: 0, min: Infinity, max: -Infinity, last: null, lastCol: -Infinity, jitterSum: 0, jitterN: 0, firstAvg: null, prevAvg: null };
+}
+
+/** Adds columns [i0, i1] of a hop chunk (whose first column is `base`) to running row statistics. */
+function accumulateColumns(h, base, i0, i1, st, votes, recentFrom, recentVotes)
+{
+	const N = h.n, L = h.lost, S = h.sum, MIN = h.min, MAX = h.max, A = h.addr;
+	for (let i = i0; i <= i1; i++)
+	{
+		const n = N[i];
+		if (n === 0) continue;
+		const lost = L[i], succ = n - lost;
+		st.n += n;
+		st.lost += lost;
+		if (succ === 0) continue;
+		st.succ += succ;
+		st.sum += S[i];
+		if (MIN[i] < st.min) st.min = MIN[i];
+		if (MAX[i] > st.max) st.max = MAX[i];
+		const avg = S[i] / succ;
+		if (base + i > st.lastCol) { st.lastCol = base + i; st.last = succ === 1 ? S[i] : avg; }
+		if (st.prevAvg !== null) { st.jitterSum += Math.abs(avg - st.prevAvg); st.jitterN++; }
+		else if (st.firstAvg === null) st.firstAvg = avg;
+		st.prevAvg = avg;
+		const a = A[i];
+		if (a !== ADDR_NONE)
+		{
+			votes.set(a, (votes.get(a) || 0) + succ);
+			if (recentVotes !== null && base + i >= recentFrom) recentVotes.set(a, (recentVotes.get(a) || 0) + succ);
+		}
+	}
+}
+
+/** Statistics of a whole hop chunk, cached until the chunk changes. lastCol is relative to the chunk. */
+function chunkSummary(h)
+{
+	if (h.summary && h.summaryVersion === h.version) return h.summary;
+	const st = newStats();
+	const votes = new Map();
+	accumulateColumns(h, 0, 0, CHUNK_COLS - 1, st, votes, 0, null);
+	st.votes = votes;
+	h.summary = st;
+	h.summaryVersion = h.version;
+	return st;
+}
+
+/** Adds a chunk summary to running row statistics, as if its columns had been accumulated one by one. */
+function mergeStats(st, votes, sm, base)
+{
+	if (sm.n === 0) return;
+	st.n += sm.n;
+	st.lost += sm.lost;
+	if (sm.succ === 0) return;
+	st.succ += sm.succ;
+	st.sum += sm.sum;
+	if (sm.min < st.min) st.min = sm.min;
+	if (sm.max > st.max) st.max = sm.max;
+	if (base + sm.lastCol > st.lastCol) { st.lastCol = base + sm.lastCol; st.last = sm.last; }
+	if (st.prevAvg !== null) { st.jitterSum += Math.abs(sm.firstAvg - st.prevAvg); st.jitterN++; }
+	else if (st.firstAvg === null) st.firstAvg = sm.firstAvg;
+	st.jitterSum += sm.jitterSum;
+	st.jitterN += sm.jitterN;
+	st.prevAvg = sm.prevAvg;
+	for (const [a, v] of sm.votes) votes.set(a, (votes.get(a) || 0) + v);
+}
+
+function mod(a, n)
+{
+	const m = a % n;
+	return m < 0 ? m + n : m;
 }
 
 function s_addrIndex(row, addr)

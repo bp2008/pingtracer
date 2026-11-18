@@ -228,5 +228,35 @@ namespace PingTracer.Tests
 			Assert.All(events, e => Assert.True(e.Initial));
 			Assert.Equal(hop2, s.Addresses.GetAddress(events[1].Value));
 		}
+
+		[Fact]
+		public async Task StopDoesNotWaitForPingsInFlight()
+		{
+			var (m, s, p) = Create(Path(() => 3), maxHops: 4);
+			p.Manual = true;
+			m.Start();
+			Assert.True(SpinWait.SpinUntil(() => { lock (p.Sent) return p.Sent.Count >= 4; }, 2000));
+			Assert.True(SpinWait.SpinUntil(() => p.Waiting.Count >= 4, 2000));
+			p.Release(1); // one ping completes before the stop
+
+			System.Diagnostics.Stopwatch sw = System.Diagnostics.Stopwatch.StartNew();
+			await m.StopAsync();
+			Assert.True(sw.ElapsedMilliseconds < 500, $"StopAsync took {sw.ElapsedMilliseconds} ms");
+			Assert.False(s.IsRunning);
+			Assert.Equal((1, 1), Totals(s, 1));
+			// Pings still in flight were voided: neither replies nor losses.
+			for (int ttl = 2; ttl <= 4; ttl++)
+				Assert.Equal((0, 0), Totals(s, ttl));
+
+			// Results arriving after the stop are ignored and change nothing.
+			for (int ttl = 2; ttl <= 4; ttl++)
+				p.Waiting[ttl].SetResult(p.Respond(ttl));
+			await Task.Delay(50);
+			lock (s.DataLock) { }
+			for (int ttl = 2; ttl <= 4; ttl++)
+				Assert.Equal((0, 0), Totals(s, ttl));
+			Assert.Equal(0, s.DestinationTtl);
+			Assert.All(s.GetRouteEvents(), e => Assert.True(e.Kind == RouteEventKind.HopAddress && e.Ttl == 1)); // only from the reply before the stop
+		}
 	}
 }

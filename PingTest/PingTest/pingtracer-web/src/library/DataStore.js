@@ -36,10 +36,13 @@ export class HopChunk
 		this.sum = new Float64Array(CHUNK_COLS);
 		this.addr = new Uint16Array(CHUNK_COLS).fill(ADDR_NONE);
 		this.flags = new Uint8Array(CHUNK_COLS);
+		/** Incremented on every change; lets readers cache summaries of this chunk. */
+		this.version = 0;
 	}
 
 	add(i, rtt, addr)
 	{
+		this.version++;
 		if (this.n[i] === 0)
 		{
 			this.min[i] = 0xFFFF;
@@ -67,6 +70,7 @@ export class HopChunk
 	remove(i, rtt)
 	{
 		if (this.n[i] === 0) return;
+		this.version++;
 		this.n[i]--;
 		if (rtt === RTT_LOST)
 		{
@@ -466,7 +470,7 @@ class DataStore
 					}
 					chunk.state = LOADED;
 					const c0 = chunk.index * CHUNK_COLS;
-					this._notify({ type: 'columns', sessionId: s.id, msPerCol: z.msPerCol, c0, c1: c0 + CHUNK_COLS });
+					this._notify({ type: 'columns', sessionId: s.id, msPerCol: z.msPerCol, c0, c1: c0 + CHUNK_COLS, bulk: true });
 				}, () =>
 				{
 					if (chunk.generation === generation) chunk.state = EMPTY;

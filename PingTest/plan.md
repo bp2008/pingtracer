@@ -51,10 +51,25 @@
 > - **Rendering:** one device pixel equals one time column. Canvas backing stores are sized from
 >   `devicePixelContentBoxSize`, and the canvases are offset by the sub-pixel remainder of their position, so the
 >   browser composites them 1:1 with no resampling. Resampling a canvas with a fractional size or position was what
->   made the old renderer slow. Scrolling copies the canvas onto itself shifted by whole pixels, and only exposed or
->   changed columns are redrawn into `ImageData`. Text lives on a separate overlay canvas that is redrawn at most a
->   few times per second. Measured at 1280×887 device pixels (DPR 1.25): about 0.45 ms per frame while scrolling live,
->   and about 3.5 ms for a full redraw.
+>   made the old renderer slow.
+> - **Bars are drawn by the GPU** (`BarsBackend.js`). The renderer reduces each (row, device column) to one 8-byte
+>   record (bar top, range top, loss-curtain bottom and a state word: empty/data/lost/outside, color level, address
+>   strip color, route-change marker) in a ring buffer indexed by absolute column. Only newly exposed or changed
+>   columns are recomputed and uploaded to an RGBA16UI texture, and a WebGL2 fragment shader paints every pixel by
+>   comparing its row with those integers. Scrolling is just a different ring offset. All vertical positions are
+>   integers computed on the CPU, so there is no floating-point rounding on the GPU. That keeps the output pixel-exact
+>   and identical to the Canvas 2D fallback, which rasterizes the same buffer (used when WebGL2 is unavailable, when
+>   the view is wider than the GPU's maximum texture size, or with `?renderer=cpu`).
+> - Row statistics (labels, vertical scale) use cached per-chunk summaries, and while the view merely follows the
+>   clock they are refreshed at most four times per second. Axis labels are cached.
+> - Measured at 2000×1143 device pixels (DPR 1.25) on the 3-day synthetic session: a full redraw costs about 0.55
+>   to 0.7 ms of CPU (it was about 4.5 ms with `ImageData`, plus GPU upload time the timer did not see), a one-column pan about
+>   0.3 ms including statistics, and live scrolling 0.04–0.11 ms per frame on average. The shader pass itself takes
+>   about 0.03 ms on the GPU. The Canvas 2D fallback needs about 3.2 ms for a full redraw and 0.3 ms per scroll step.
+> - **Self-test:** `await __pingtracer.selfTest()` in the browser console (`{ quick: true }` for a short run) compares
+>   the WebGL2 and Canvas 2D output pixel for pixel at every suitable zoom level, checks that incremental painting
+>   after random pans matches a repaint from scratch, and reports frame costs. It runs on whatever is displayed, so open
+>   a saved session for the most thorough run.
 > - **Drawing:** classic PingTracer colors and thresholds. Aggregated columns draw the average as a solid bar and the
 >   maximum as a dimmer extension. Partial loss hangs from the top as a red "curtain" proportional to the loss fraction,
 >   and total loss is a full red column. Pings awaiting a reply are dark gray. Hops that answered from more than one
