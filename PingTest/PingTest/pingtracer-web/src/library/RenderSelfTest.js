@@ -1,7 +1,7 @@
 /**
  * Renderer self-test, run from the browser console:
  *
- *     await __pingtracer.selfTest()                 // thorough, about a minute
+ *     await __pingtracer.selfTest()                 // thorough, one to two minutes
  *     await __pingtracer.selfTest({ quick: true })  // a few seconds
  *
  * Uses whatever data is currently displayed (open a saved session for the most thorough test).  It checks that
@@ -57,7 +57,18 @@ function compareFull(gl, cpu)
 	return diff(gl.backend.readPixels(), cpu.backend.readPixels(), gl.W);
 }
 
+let running = false;
+
 export async function runSelfTest(renderer, GraphRenderer, options = {})
+{
+	// Two runs at once would move each other's views and report false differences.
+	if (running) return { ok: false, error: 'A self-test is already running.' };
+	running = true;
+	try { return await runSelfTestOnce(renderer, GraphRenderer, options); }
+	finally { running = false; }
+}
+
+async function runSelfTestOnce(renderer, GraphRenderer, options)
 {
 	const log = options.log || ((m) => console.log('[selftest] ' + m));
 	const report = { ok: true, backend: renderer.backendName, checks: [], timings: {} };

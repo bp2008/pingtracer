@@ -30,6 +30,10 @@ namespace PingTracer.Services
 		private readonly List<PingDataWriter> writers = new List<PingDataWriter>();
 		private readonly Dictionary<MonitoringSession, LossTracker> lossTrackers = new Dictionary<MonitoringSession, LossTracker>();
 		private Timer pruneTimer;
+		private Timer resolveTimer;
+		private bool traceRoute;
+		private readonly List<string> unresolvedHosts = new List<string>();
+		private readonly object retryLock = new object();
 		private volatile bool stopRequested;
 		private readonly TaskCompletionSource<bool> startFinished = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		private long sent;
@@ -108,53 +112,14 @@ namespace PingTracer.Services
 				return false;
 			}
 
-			bool traceRoute = Configuration.doTraceRoute && hosts.Count == 1;
-			int intervalMs = ComputeIntervalMs(Configuration.rate, Configuration.pingsPerSecond);
-			int timeoutMs = Math.Clamp(settings.pingTimeoutMs, 200, 30000);
-
+			traceRoute = Configuration.doTraceRoute && hosts.Count == 1;
+			List<string> unresolved = new List<string>();
 			foreach (string host in hosts)
 			{
 				if (stopRequested)
 					break;
-				IPAddress ip;
-				string displayName;
-				try
-				{
-					ip = ResolveHost(host, Configuration.preferIPv4, out displayName);
-				}
-				catch (Exception ex)
-				{
-					Log?.Invoke(ex.Message);
-					continue;
-				}
-
-				IPinger pinger = PingerFactory(host);
-				MonitoringSession session = new MonitoringSession(ip, displayName, traceRoute ? SessionMode.TraceRoute : SessionMode.Direct, intervalMs, timeoutMs);
-				if (Configuration.reverseDnsLookup)
-					session.HostnameResolver = pinger.ReverseLookupAsync;
-				RouteMonitor monitor = new RouteMonitor(session, pinger, new RouteMonitorOptions
-				{
-					TraceRoute = traceRoute,
-					IntervalMs = intervalMs,
-					TimeoutMs = timeoutMs,
-					MaxHops = settings.maxHopsDefault,
-				});
-				monitor.Log += msg => Log?.Invoke(msg);
-				WireSessionEvents(session);
-
-				PingDataWriter writer = null;
-				if (settings.saveSessionData)
-					writer = TryCreateWriter(session);
-
-				lock (stateLock)
-				{
-					sessions.Add(session);
-					monitors.Add(monitor);
-					if (writer != null) writers.Add(writer);
-				}
-				SessionCreated?.Invoke(session);
-				Log?.Invoke((traceRoute ? "Tracing route to " : "Pinging ") + displayName + " every " + intervalMs + " ms");
-				monitor.Start();
+				if (!TryStartHost(host, false))
+					unresolved.Add(host);
 			}
 
 			lock (stateLock)
@@ -165,10 +130,105 @@ namespace PingTracer.Services
 					FailStart();
 					return false;
 				}
+				unresolvedHosts.AddRange(unresolved);
+			}
+			if (unresolved.Count > 0)
+			{
+				Log?.Invoke("Will keep trying to resolve " + string.Join(", ", unresolved) + " every " + ResolveRetrySeconds + " seconds.");
+				resolveTimer = new Timer(_ => RetryUnresolved(), null, TimeSpan.FromSeconds(ResolveRetrySeconds), TimeSpan.FromSeconds(ResolveRetrySeconds));
 			}
 			pruneTimer = new Timer(_ => RunPrune(), null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
 			if (!stopRequested)
 				StatusChanged?.Invoke("Running");
+			return true;
+		}
+
+		/// <summary>How often hosts that could not be resolved at start are retried.</summary>
+		public const int ResolveRetrySeconds = 30;
+
+		/// <summary>Retries hosts whose names could not be resolved, so a DNS failure at start does not drop them for the whole run.</summary>
+		private void RetryUnresolved()
+		{
+			if (!Monitor.TryEnter(retryLock)) return;
+			try
+			{
+				List<string> pending;
+				lock (stateLock) pending = new List<string>(unresolvedHosts);
+				foreach (string host in pending)
+				{
+					if (stopRequested) return;
+					if (!TryStartHost(host, true))
+						continue;
+					lock (stateLock) unresolvedHosts.Remove(host);
+				}
+				lock (stateLock)
+				{
+					if (unresolvedHosts.Count == 0)
+						Interlocked.Exchange(ref resolveTimer, null)?.Dispose();
+				}
+			}
+			finally
+			{
+				Monitor.Exit(retryLock);
+			}
+		}
+
+		/// <summary>Resolves a host and starts monitoring it. Returns false if the name could not be resolved.</summary>
+		private bool TryStartHost(string host, bool quietFailure)
+		{
+			int intervalMs = ComputeIntervalMs(Configuration.rate, Configuration.pingsPerSecond);
+			int timeoutMs = Math.Clamp(settings.pingTimeoutMs, 200, 30000);
+			IPAddress ip;
+			string displayName;
+			try
+			{
+				ip = ResolveHost(host, Configuration.preferIPv4, out displayName);
+			}
+			catch (Exception ex)
+			{
+				if (!quietFailure)
+					Log?.Invoke(ex.Message);
+				return false;
+			}
+
+			IPinger pinger = PingerFactory(host);
+			MonitoringSession session = new MonitoringSession(ip, displayName, traceRoute ? SessionMode.TraceRoute : SessionMode.Direct, intervalMs, timeoutMs);
+			if (Configuration.reverseDnsLookup)
+				session.HostnameResolver = pinger.ReverseLookupAsync;
+			RouteMonitor monitor = new RouteMonitor(session, pinger, new RouteMonitorOptions
+			{
+				TraceRoute = traceRoute,
+				IntervalMs = intervalMs,
+				TimeoutMs = timeoutMs,
+				MaxHops = settings.maxHopsDefault,
+			});
+			monitor.Log += msg => Log?.Invoke(msg);
+
+			// A retry that finishes after Stop must not start anything, because StopAsync only stops the monitors it finds
+			// in the list.  (While Start itself runs, StopAsync waits for it, so Start's monitors are always found.)
+			lock (stateLock)
+			{
+				if (stopRequested && quietFailure)
+					return true;
+			}
+			WireSessionEvents(session);
+			PingDataWriter writer = null;
+			if (settings.saveSessionData)
+				writer = TryCreateWriter(session);
+			lock (stateLock)
+			{
+				if (stopRequested && quietFailure)
+				{
+					writer?.Dispose();
+					return true;
+				}
+				sessions.Add(session);
+				monitors.Add(monitor);
+				if (writer != null) writers.Add(writer);
+			}
+			SessionCreated?.Invoke(session);
+			Log?.Invoke((traceRoute ? "Tracing route to " : "Pinging ") + displayName + " every " + intervalMs + " ms");
+			monitor.Start();
 			return true;
 		}
 
@@ -201,6 +261,7 @@ namespace PingTracer.Services
 			}
 			StatusChanged?.Invoke("Stopping...");
 			Interlocked.Exchange(ref pruneTimer, null)?.Dispose();
+			Interlocked.Exchange(ref resolveTimer, null)?.Dispose();
 			await Task.WhenAll(ms.Select(m => m.StopAsync())).ConfigureAwait(false);
 			foreach (PingDataWriter w in ws)
 			{
@@ -326,6 +387,17 @@ namespace PingTracer.Services
 			try
 			{
 				addresses = Dns.GetHostAddresses(host);
+			}
+			catch (SocketException ex)
+			{
+				// Windows hides the addresses of a family the computer has no global address for, so a name with only IPv6
+				// addresses (ipv6.google.com) "does not exist" on a computer without IPv6 internet.  Query DNS directly so the
+				// host is monitored anyway and its graph shows that it is unreachable.
+				addresses = WindowsDns.Query(host, AddressFamily.InterNetworkV6);
+				if (addresses.Length == 0)
+					addresses = WindowsDns.Query(host, AddressFamily.InterNetwork);
+				if (addresses.Length == 0)
+					throw new Exception("Unable to resolve \"" + host + "\": " + ex.Message, ex);
 			}
 			catch (Exception ex)
 			{

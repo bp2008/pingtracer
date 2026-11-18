@@ -57,6 +57,9 @@ namespace PingTracer.Services
 		private readonly List<Cycle> activeCycles = new List<Cycle>();
 		/// <summary>Set (under Session.DataLock) when monitoring stops; results arriving later are ignored.</summary>
 		private bool stopped;
+		/// <summary>Guards Start against StopAsync; set once StopAsync has been called (a later Start does nothing).</summary>
+		private readonly object lifecycleLock = new object();
+		private bool stopCalled;
 		private volatile int intervalMs;
 
 		// State below is guarded by Session.DataLock.
@@ -101,17 +104,22 @@ namespace PingTracer.Services
 			}
 		}
 
+		/// <summary>Starts monitoring.  Does nothing if already started, or if <see cref="StopAsync"/> was called first.</summary>
 		public void Start()
 		{
-			if (loopTask != null)
-				return;
-			if (options.TraceRoute == false)
-				Session.EnsureAddress(target);
-			cts = new CancellationTokenSource();
-			timer = new PeriodicTimer(TimeSpan.FromMilliseconds(intervalMs));
-			Session.SetIntervalMs(intervalMs);
-			Session.SetRunning(true);
-			loopTask = Task.Run(() => LoopAsync(cts.Token));
+			lock (lifecycleLock)
+			{
+				if (loopTask != null || stopCalled)
+					return;
+				if (options.TraceRoute == false)
+					Session.EnsureAddress(target);
+				cts = new CancellationTokenSource();
+				timer = new PeriodicTimer(TimeSpan.FromMilliseconds(intervalMs));
+				Session.SetIntervalMs(intervalMs);
+				Session.SetRunning(true);
+				CancellationToken token = cts.Token;
+				loopTask = Task.Run(() => LoopAsync(token));
+			}
 		}
 
 		private async Task LoopAsync(CancellationToken ct)
@@ -132,7 +140,12 @@ namespace PingTracer.Services
 		/// </summary>
 		public async Task StopAsync()
 		{
-			CancellationTokenSource c = cts;
+			CancellationTokenSource c;
+			lock (lifecycleLock)
+			{
+				stopCalled = true;
+				c = cts;
+			}
 			if (c == null)
 				return;
 			c.Cancel();

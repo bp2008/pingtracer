@@ -230,6 +230,18 @@ namespace PingTracer.Tests
 		}
 
 		[Fact]
+		public async Task StartAfterStopDoesNothing()
+		{
+			// PingSession can create a monitor (a DNS retry) while it is being stopped; such a monitor must never run.
+			var (m, s, p) = Create(Path(() => 3), maxHops: 4);
+			await m.StopAsync();
+			m.Start();
+			await Task.Delay(100);
+			lock (p.Sent) Assert.Empty(p.Sent);
+			Assert.False(s.IsRunning);
+		}
+
+		[Fact]
 		public async Task StopDoesNotWaitForPingsInFlight()
 		{
 			var (m, s, p) = Create(Path(() => 3), maxHops: 4);

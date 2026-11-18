@@ -75,6 +75,12 @@
 >   and total loss is a full red column. Pings awaiting a reply are dark gray. Hops that answered from more than one
 >   address get a thin color strip (one color per address). Dashed cyan lines mark a new address at a hop, and dashed
 >   magenta lines mark a change in the destination's hop number. Hops that never answer are drawn as thin rows.
+> - **Fill-forward:** when zoomed in further than one ping per column, each ping's bar extends to where the next ping
+>   is due, judged from the recent spacing between pings (+10% for timer jitter), so data recorded before a ping-rate
+>   change keeps solid bars and a missing ping still leaves a gap.
+> - **Hosts that fail to resolve** do not stop the others and are retried every 30 seconds. Names with only IPv6
+>   addresses are resolved through the Windows DNS API when the normal resolver hides them (no IPv6 internet), so they
+>   are monitored and shown as unreachable instead of disappearing.
 
 ## TL;DR
 Replace PingTracer's single-shot traceroute + independent ping loops with continuous parallel traceroute monitoring, and replace the fixed-size PingLog class circular buffer with a struct-based, time-series storage system that supports variable-size collections, time-span retention, disk persistence, and server-side aggregation for the web client.

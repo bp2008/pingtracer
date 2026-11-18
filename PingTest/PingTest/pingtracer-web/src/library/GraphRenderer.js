@@ -105,6 +105,8 @@ export class GraphRenderer
 		this.axisH = 0;
 		this.msPerCol = 500;
 		this.live = true;
+		/** Whether a displayed session was monitoring at the last metadata change (see _onData). */
+		this.wasRunning = false;
 		this.rightCol = 0;
 
 		this.rows = [];
@@ -144,6 +146,7 @@ export class GraphRenderer
 	{
 		this.unsubscribe();
 		this.resizeObserver.disconnect();
+		if (this.dprQuery) this.dprQuery.removeEventListener('change', this.onDprChange);
 		this.layer.remove();
 	}
 
@@ -178,12 +181,27 @@ export class GraphRenderer
 		const dpr = window.devicePixelRatio || 1;
 		const rect = this.root.getBoundingClientRect();
 		let W = Math.round(rect.width * dpr), totalH = Math.round(rect.height * dpr);
-		if (entry && entry.devicePixelContentBoxSize && entry.devicePixelContentBoxSize[0])
+		const dev = entry && entry.devicePixelContentBoxSize && entry.devicePixelContentBoxSize[0];
+		// The exact device size from the observer, unless it was measured at a different pixel ratio than the current one
+		// (zooming the page or moving the window to another monitor); then the estimate stands until the next observation.
+		if (dev && Math.abs(dev.inlineSize - W) <= 1 && Math.abs(dev.blockSize - totalH) <= 1)
 		{
-			W = entry.devicePixelContentBoxSize[0].inlineSize;
-			totalH = entry.devicePixelContentBoxSize[0].blockSize;
+			W = dev.inlineSize;
+			totalH = dev.blockSize;
 		}
 		this.setDeviceSize(W, totalH, dpr);
+		this._watchPixelRatio(dpr);
+	}
+
+	/** Re-measures when the device pixel ratio changes; a resize observer does not reliably report that on its own. */
+	_watchPixelRatio(dpr)
+	{
+		if (this.watchedDpr === dpr || typeof window.matchMedia !== 'function') return;
+		if (this.dprQuery) this.dprQuery.removeEventListener('change', this.onDprChange);
+		this.watchedDpr = dpr;
+		this.onDprChange = this.onDprChange || (() => this._onResize(null));
+		this.dprQuery = window.matchMedia(`(resolution: ${dpr}dppx)`);
+		this.dprQuery.addEventListener('change', this.onDprChange);
 	}
 
 	/** Sizes the canvases to exactly W x totalH device pixels (graph plus time axis). */
@@ -192,8 +210,9 @@ export class GraphRenderer
 		const axisH = Math.round(22 * dpr);
 		const H = Math.max(1, totalH - axisH);
 		W = Math.max(1, W);
+		const dprChanged = dpr !== this.dpr;
 		this.dpr = dpr;
-		if (W !== this.W || H !== this.H || axisH !== this.axisH)
+		if (W !== this.W || H !== this.H || axisH !== this.axisH || dprChanged)
 		{
 			this.W = W;
 			this.H = H;
@@ -264,16 +283,25 @@ export class GraphRenderer
 	/** Jumps to the newest data: the live edge while monitoring, otherwise the end of the displayed sessions. */
 	setLive()
 	{
-		const sessions = dataStore.getSessions();
-		if (sessions.length > 0 && !sessions.some(s => s.meta.running))
+		if (this._allStopped())
 		{
-			this._setRightCol(Math.floor(this._latestEnd() / this.msPerCol) + Math.floor(this.W * 0.02));
+			this._setRightCol(this._endCol());
 			return;
 		}
 		if (this.live) return;
 		this.live = true;
 		this._viewChanged();
 	}
+
+	/** True when sessions are displayed and none of them is still monitoring (a stopped run or a saved session). */
+	_allStopped()
+	{
+		const sessions = dataStore.getSessions();
+		return sessions.length > 0 && !sessions.some(s => s.meta.running);
+	}
+
+	/** The right edge that shows the end of the data with a small margin. */
+	_endCol() { return Math.floor(this._latestEnd() / this.msPerCol) + Math.floor(this.W * 0.02); }
 
 	/** Pans by a number of device pixels (positive = towards older data). */
 	panBy(dxDevice)
@@ -285,7 +313,11 @@ export class GraphRenderer
 	_setRightCol(rc)
 	{
 		const now = this.nowCol;
-		if (rc >= now)
+		// Without a running session there is nothing to follow: stop at the end of the data instead of going live and
+		// scrolling on into empty time.
+		const stopped = this._allStopped();
+		if (stopped) rc = Math.min(rc, this._endCol());
+		else if (rc >= now)
 		{
 			if (!this.live) { this.live = true; this._viewChanged(); }
 			return;
@@ -300,7 +332,7 @@ export class GraphRenderer
 			if (endMs != null) minRc = Math.min(minRc, Math.floor(endMs / this.msPerCol) + Math.floor(this.W * 0.02));
 			if (rc < minRc) rc = Math.min(minRc, now);
 		}
-		if (rc >= now)
+		if (rc >= now && !stopped)
 		{
 			this.live = true;
 		}
@@ -416,14 +448,25 @@ export class GraphRenderer
 		{
 			// Session bounds, route events or address lists may have changed: recompute everything (cheap).
 			this.invalidateAll();
+			// When monitoring starts, follow it.  (The toolbar's Start also asks for live view, but its request can arrive
+			// while the previous, stopped run is still displayed.)  When monitoring stops, a live view stays on the end of
+			// the data rather than scrolling on into empty time.
+			const running = dataStore.getSessions().some(s => s.meta.running);
+			if (running && !this.wasRunning)
+			{
+				this.live = true;
+				this._viewChanged();
+			}
+			else if (this.live && this._allStopped()) this._setRightCol(this._endCol());
+			this.wasRunning = running;
 			return;
 		}
 		if (ch.msPerCol !== this.msPerCol || this.drawnRightCol == null) return;
 		const lc = this.drawnRightCol - this.W + 1;
 		const x0 = Math.max(0, ch.c0 - lc), x1 = Math.min(this.W, ch.c1 - lc);
 		if (x1 <= x0) return;
-		// A filled-forward bar may extend past the changed column.
-		this._markX(x0, Math.min(this.W, x1 + this._fillCols() + 1));
+		// Filling forward from the changed columns can change columns up to the fill lookback after them.
+		this._markX(x0, Math.min(this.W, x1 + this._fillLookback() + 1));
 		// Freshly loaded chunks update the statistics at once; live pings are folded in at a limited rate.
 		if (ch.bulk) this.statsDirty = true;
 		else this.statsStale = true;
@@ -439,7 +482,11 @@ export class GraphRenderer
 	{
 		let interval = 1000;
 		for (const s of dataStore.getSessions()) interval = s.meta.intervalMs || interval;
-		return Math.max(0, Math.round(interval / this.msPerCol) - 1);
+		// Each ping's bar extends until the next ping is due.  Pings are not sent exactly on schedule (timer resolution), so
+		// allow 10% slack; otherwise a ping a millisecond late leaves a one-column gap between bars.  Columns wider than
+		// the interval always contain a ping and need no filling.
+		const per = interval / this.msPerCol;
+		return per < 1 ? 0 : Math.round(per) - 1 + Math.ceil(per * 0.1);
 	}
 
 	// ------------------------------------------------------------------ frame
@@ -529,7 +576,7 @@ export class GraphRenderer
 		}
 
 		const renderCtx = {
-			now, cfg, lc, rc, fillCols: this._fillCols(),
+			now, cfg, lc, rc, fillCols: this._fillCols(), maxBack: this._fillLookback(),
 			bad: cfg.badThreshold ?? 100, worse: cfg.worseThreshold ?? 200, minCurtain: Math.max(1, Math.round(this.dpr)),
 		};
 		const pendKey = this._updateRowFrameParams(now, lc);
@@ -861,7 +908,7 @@ export class GraphRenderer
 	 */
 	_computeColumns(rc_, x0, x1, onlyRow)
 	{
-		const { lc, fillCols, bad, worse, minCurtain } = rc_;
+		const { lc, fillCols, maxBack, bad, worse, minCurtain } = rc_;
 		const W = this.W, buf = this.colBuf, ms = this.msPerCol;
 		const txStart = mod(lc + x0, W);
 		if (!this.markerScratch || this.markerScratch.length !== W) this.markerScratch = new Uint8Array(W);
@@ -880,18 +927,17 @@ export class GraphRenderer
 			const markers = this._markersFor(s, ttl, lc + x0, lc + x1 - 1, ms);
 			if (markers !== null) for (const [c, kind] of markers) mk[c - lc] = kind;
 
-			// Fill-forward state: the last non-empty column (as a view x) and its values.
-			let lastX = -Infinity, lN = 0, lLost = 0, lSum = 0, lMax = 0, lAddr = ADDR_NONE, lFlags = 0;
-			if (fillCols > 0)
+			// Fill-forward state: the last three non-empty columns (as view x) and the values of the last one.  See _fillAllows.
+			let lastX = -Infinity, p2 = -Infinity, p3 = -Infinity;
+			let lN = 0, lLost = 0, lSum = 0, lMax = 0, lAddr = ADDR_NONE, lFlags = 0;
 			{
-				for (let c = lc + x0 - 1; c >= lc + x0 - fillCols; c--)
+				const back = this._recentPings(s, ms, ttl, lc + x0, maxBack);
+				if (back.length > 0)
 				{
-					const d = this._col(s, ms, ttl, c);
-					if (d && d.n[d.i] > 0)
-					{
-						lastX = c - lc; lN = d.n[d.i]; lLost = d.lost[d.i]; lSum = d.sum[d.i]; lMax = d.max[d.i]; lAddr = d.addr[d.i]; lFlags = d.flags[d.i];
-						break;
-					}
+					const d = this._col(s, ms, ttl, back[0]);
+					lastX = back[0] - lc; lN = d.n[d.i]; lLost = d.lost[d.i]; lSum = d.sum[d.i]; lMax = d.max[d.i]; lAddr = d.addr[d.i]; lFlags = d.flags[d.i];
+					if (back.length > 1) p2 = back[1] - lc;
+					if (back.length > 2) p3 = back[2] - lc;
 				}
 			}
 
@@ -915,9 +961,10 @@ export class GraphRenderer
 					if (N !== null && N[i] > 0)
 					{
 						n = N[i]; lost = L[i]; sum = S[i]; max = MX[i]; addr = A[i]; flags = F[i];
-						lastX = x; lN = n; lLost = lost; lSum = sum; lMax = max; lAddr = addr; lFlags = flags;
+						p3 = p2; p2 = lastX; lastX = x;
+						lN = n; lLost = lost; lSum = sum; lMax = max; lAddr = addr; lFlags = flags;
 					}
-					else if (x - lastX <= fillCols)
+					else if (x - lastX <= maxBack && _fillAllows(x, lastX, p2, p3, fillCols, maxBack))
 					{
 						n = lN; lost = lLost; sum = lSum; max = lMax; addr = lAddr; flags = lFlags;
 					}
@@ -996,6 +1043,40 @@ export class GraphRenderer
 	}
 
 	/** Random access to one column of one hop (slow path, used for look-behind and hit testing). */
+	/**
+	 * How far back (in columns) fill-forward looks for earlier pings.  Fill decisions depend only on the pings within
+	 * this distance, so an incremental update gives the same result as painting from scratch.
+	 */
+	_fillLookback()
+	{
+		return Math.min(4096, Math.max(3 * (this._fillCols() + 1), Math.ceil(30000 / this.msPerCol)));
+	}
+
+	/** Columns (absolute, newest first) of up to the three most recent non-empty columns in [c - maxBack, c). */
+	_recentPings(s, ms, ttl, c, maxBack)
+	{
+		const out = [];
+		const zoom = s.zooms.get(ms);
+		if (!zoom) return out;
+		const stop = c - maxBack;
+		let col = c - 1;
+		while (col >= stop && out.length < 3)
+		{
+			const ci = Math.floor(col / CHUNK_COLS);
+			const base = ci * CHUNK_COLS;
+			const chunk = zoom.chunks.get(ci);
+			const h = chunk ? chunk.hops.get(ttl) : null;
+			if (h)
+			{
+				const N = h.n, iStop = Math.max(stop - base, 0);
+				for (let i = col - base; i >= iStop && out.length < 3; i--)
+					if (N[i] > 0) out.push(base + i);
+			}
+			col = base - 1;
+		}
+		return out;
+	}
+
 	_col(s, ms, ttl, c)
 	{
 		const zoom = s.zooms.get(ms);
@@ -1061,9 +1142,14 @@ export class GraphRenderer
 			const statsText = parts.filter(p => p).join('   ');
 
 			ctx.font = fontMain;
+			const statsW = statsText ? ctx.measureText(statsText).width : 0;
+			const othersW = others > 0 ? ctx.measureText(`  +${others}`).width : 0;
+			const swatchW = row.strip && row.labelAddr !== ADDR_NONE ? 12 : 0;
+			// In a narrow window, shorten the name rather than push the statistics out of view.
+			const nameRoom = this.W / dpr - 14 - swatchW - othersW - (statsText ? statsW + 16 : 0) - ctx.measureText(prefix).width;
+			name = fitText(ctx, name, Math.max(nameRoom, 40));
 			const nameText = prefix + name + (others > 0 ? `  +${others}` : '');
 			const nameW = ctx.measureText(nameText).width;
-			const statsW = statsText ? ctx.measureText(statsText).width : 0;
 			const y = yCss + row.strip / dpr + 2;
 			const boxW = nameW + (statsText ? statsW + 16 : 0) + 8 + (row.strip && row.labelAddr !== ADDR_NONE ? 12 : 0);
 			ctx.fillStyle = 'rgba(0,0,0,0.62)';
@@ -1181,8 +1267,10 @@ export class GraphRenderer
 			ctx.fillStyle = '#5a5a6a';
 			ctx.fillRect(x, 1, 1, Math.round(5 * dpr));
 			const { label, isMidnight } = this._axisLabel(t, interval);
+			const lx = x + Math.round(3 * dpr);
+			if (lx + ctx.measureText(label).width > W) continue; // would be cut off at the right edge
 			ctx.fillStyle = isMidnight ? '#e6e6a0' : '#b4b4c0';
-			ctx.fillText(label, x + Math.round(3 * dpr), H / 2 + 1);
+			ctx.fillText(label, lx, H / 2 + 1);
 		}
 
 		// Route change ticks.
@@ -1248,11 +1336,14 @@ export class GraphRenderer
 		let filled = false;
 		if (!d || d.n[d.i] === 0)
 		{
-			const fill = this._fillCols();
-			for (let k = 1; k <= fill; k++)
+			// The same fill-forward rule as the bars (see _fillAllows).
+			const maxBack = this._fillLookback();
+			const back = this._recentPings(s, ms, row.ttl, c, maxBack);
+			if (back.length > 0 && _fillAllows(c, back[0], back[1] ?? -Infinity, back[2] ?? -Infinity, this._fillCols(), maxBack))
 			{
-				const dd = this._col(s, ms, row.ttl, c - k);
-				if (dd && dd.n[dd.i] > 0) { d = dd; c -= k; filled = true; break; }
+				c = back[0];
+				d = this._col(s, ms, row.ttl, c);
+				filled = true;
 			}
 		}
 		const info = {
@@ -1374,6 +1465,37 @@ function mod(a, n)
 function s_addrIndex(row, addr)
 {
 	return row.session.addressIndexAtHop(row.ttl, addr);
+}
+
+/**
+ * Fill-forward rule: an empty column x shows the most recent ping p1 when it lies where no newer ping was due yet.  When
+ * the next ping is due is judged from the recent spacing between pings (the smaller of the last two gaps, since one of
+ * them may span an outage) plus 10% for timing jitter, and never less than `fillCols` (the current ping interval).  So
+ * data recorded before the ping rate was changed keeps its solid bars, while a missing ping still leaves a gap.  Only
+ * pings within `maxBack` columns of x count (p2 and p3 are -Infinity when unknown).
+ */
+function _fillAllows(x, p1, p2, p3, fillCols, maxBack)
+{
+	const lo = x - maxBack;
+	let gap = Infinity;
+	if (p2 >= lo) gap = p1 - p2;
+	if (p3 >= lo) gap = Math.min(gap, p2 - p3);
+	let allow = fillCols;
+	if (gap !== Infinity) allow = Math.max(allow, gap - 1 + (gap >= 2 ? Math.ceil(gap * 0.1) : 0));
+	return x - p1 <= allow;
+}
+
+/** Shortens text with an ellipsis so that it fits in `maxWidth` (in the context's current font). */
+function fitText(ctx, text, maxWidth)
+{
+	if (!text || ctx.measureText(text).width <= maxWidth) return text;
+	let lo = 0, hi = text.length;
+	while (lo < hi)
+	{
+		const mid = (lo + hi + 1) >> 1;
+		if (ctx.measureText(text.slice(0, mid) + '…').width <= maxWidth) lo = mid; else hi = mid - 1;
+	}
+	return text.slice(0, lo).trimEnd() + '…';
 }
 
 function formatPct(p)

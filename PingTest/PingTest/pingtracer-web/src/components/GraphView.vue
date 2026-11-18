@@ -22,6 +22,8 @@ import socket from '@/library/WebSocketService';
 import { formatColumnRange } from '@/library/format';
 
 const ZOOM_STORAGE_KEY = 'pingtracer.msPerCol';
+/** Wheel movement (CSS px) per zoom step for touchpads and smooth-scrolling wheels; a classic wheel notch is 100. */
+const WHEEL_STEP = 50;
 
 export default {
 	name: 'GraphView',
@@ -56,6 +58,8 @@ export default {
 		this.drag = null;
 		this.mouse = null;
 		this.lastViewEmit = 0;
+		this.wheelAcc = 0;
+		this.wheelTime = 0;
 		this.tipKey = '';
 	},
 	mounted()
@@ -198,7 +202,19 @@ export default {
 				return;
 			}
 			if (e.deltaY === 0) return;
-			this.renderer.zoomStep(e.deltaY > 0 ? 1 : -1, p.x * this.renderer.dpr);
+			// A mouse wheel notch is one zoom step.  Touchpads and smooth-scrolling wheels send many small deltas; add them up
+			// so that a step needs about as much scrolling as a notch, instead of every tiny event zooming a whole step.
+			const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaMode === 2 ? e.deltaY * 800 : e.deltaY;
+			const now = performance.now();
+			if (now - this.wheelTime > 400 || Math.sign(dy) !== Math.sign(this.wheelAcc)) this.wheelAcc = 0;
+			this.wheelTime = now;
+			if (Math.abs(dy) < WHEEL_STEP)
+			{
+				this.wheelAcc += dy;
+				if (Math.abs(this.wheelAcc) < WHEEL_STEP) return;
+			}
+			this.wheelAcc = 0;
+			this.renderer.zoomStep(dy > 0 ? 1 : -1, p.x * this.renderer.dpr);
 			this.saveZoom();
 		},
 		onDoubleClick()

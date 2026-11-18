@@ -510,6 +510,7 @@ namespace PingTracer.Services
 			}
 			string guid = t.Value<string>("guid");
 			PingConfiguration cfg = string.IsNullOrEmpty(guid) ? null : LoadConfig(guid);
+			bool isNew = cfg == null;
 			if (cfg == null)
 			{
 				cfg = new PingConfiguration();
@@ -555,7 +556,8 @@ namespace PingTracer.Services
 			if (cfg.guid == currentConfigGuid)
 				Broadcast(BuildConfigDetailsJson(cfg));
 			Broadcast(Json(new { type = "configSaved", guid = cfg.guid }));
-			if (currentConfigGuid == null)
+			// A newly created configuration becomes the selected one (unless a session is running), so Start runs it.
+			if (currentConfigGuid == null || (isNew && currentRun?.IsRunning != true))
 				HandleSelectConfig(cfg.guid);
 		}
 
