@@ -1,5 +1,5 @@
 <template>
-	<div class="modal-overlay" @mousedown.self="$emit('close')">
+	<div class="modal-overlay" @mousedown.self="$emit('close')" @keydown.esc="$emit('close')">
 		<div class="modal-content">
 			<div class="modal-header">
 				<h3>{{ isNew ? 'New Configuration' : 'Edit Configuration' }}</h3>
@@ -13,9 +13,9 @@
 				</div>
 
 				<div class="form-group">
-					<label>Hosts <span class="hint">(comma or newline separated)</span></label>
+					<label>Hosts <span class="hint">(comma or newline separated; one host traces the route, several hosts are pinged directly. Enter <code>sim:demo</code> for a simulated network.)</span></label>
 					<textarea v-model="hostsText" class="form-input form-textarea" rows="3"
-						placeholder="8.8.8.8, google.com"></textarea>
+						placeholder="8.8.8.8, google.com" ref="hosts"></textarea>
 				</div>
 
 				<div class="form-row">
@@ -39,8 +39,7 @@
 					<label class="checkbox-label"><input type="checkbox" v-model="form.doTraceRoute" /> Trace Route</label>
 					<label class="checkbox-label"><input type="checkbox" v-model="form.reverseDnsLookup" /> Reverse DNS</label>
 					<label class="checkbox-label"><input type="checkbox" v-model="form.preferIPv4" /> Prefer IPv4</label>
-					<label class="checkbox-label"><input type="checkbox" v-model="form.monitorUnresponsiveHops" /> Monitor
-						Unresponsive Hops</label>
+					<label class="checkbox-label" title="Hops that never answer are normally drawn as thin rows. Check this to draw them at full size."><input type="checkbox" v-model="form.monitorUnresponsiveHops" /> Full-size rows for silent hops</label>
 				</div>
 
 				<h4>Graph Display</h4>
@@ -158,6 +157,10 @@ export default {
 				this.$emit('preview', { ...val });
 			}
 		}
+	},
+	mounted()
+	{
+		this.$nextTick(() => this.$refs.hosts && this.$refs.hosts.focus());
 	},
 	methods: {
 		onSave()
@@ -313,7 +316,13 @@ export default {
 
 .hint {
 	font-size: 11px;
-	opacity: 0.6;
+	opacity: 0.65;
+}
+
+.hint code {
+	background: #2a2a3a;
+	padding: 0 3px;
+	border-radius: 2px;
 }
 
 .btn {

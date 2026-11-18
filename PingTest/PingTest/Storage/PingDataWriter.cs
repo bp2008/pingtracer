@@ -8,325 +8,218 @@ using System.Threading;
 namespace PingTracer.Storage
 {
 	/// <summary>
-	/// Serializes a live <see cref="MonitoringSession"/> to a sequential append-only
-	/// .ptrc file. Periodically flushes accumulated data; queues reverse-DNS results
-	/// for batched emission. See plan.md (Phase 5) for the file format spec.
-	///
-	/// Block-ordering invariant: within a single flush we walk each <see cref="HopHistory"/>
-	/// in order so that a series' <c>HopTimeSeriesStartBlock</c> is always followed
-	/// (before any later series' start block on the same hop) by all of its
-	/// <c>PingDataBlock</c>s. This is required so the reader can attribute data
-	/// blocks to the right series via the "most recent start block per hop" rule.
-	///
-	/// Stop semantics: <see cref="Dispose"/> waits (up to a cap) for any in-flight
-	/// pending records to complete, performs a final flush, and closes the file.
+	/// Appends a live <see cref="MonitoringSession"/> to a .ptrc file (see <see cref="PingDataFile"/>), flushing periodically.
+	/// <para>
+	/// Only "stable" records are written: completed records older than the ping timeout plus a margin.  This guarantees that a
+	/// record is never written and then later changed (completed or voided), which keeps the file strictly append-only.
+	/// </para>
+	/// <para>Lock ordering: <see cref="MonitoringSession.DataLock"/> is always taken before this writer's queue lock.</para>
 	/// </summary>
 	public sealed class PingDataWriter : IDisposable
 	{
-		private const int FinalFlushPendingPollMs = 100;
-		private const int FinalFlushPendingMaxWaitMs = 10000;
+		private readonly MonitoringSession session;
+		private readonly FileStream fs;
+		private readonly BinaryWriter bw;
+		private readonly Timer flushTimer;
+		private readonly object queueLock = new object();
+		private readonly object fileLock = new object();
+		private readonly long[] cursors = new long[256];
+		private readonly List<(ushort id, IPAddress ip)> pendingAddresses = new List<(ushort, IPAddress)>();
+		private readonly List<(ushort id, string host)> pendingHostnames = new List<(ushort, string)>();
+		private readonly List<RouteEvent> pendingEvents = new List<RouteEvent>();
+		private bool disposed;
 
-		private readonly MonitoringSession _session;
-		private readonly string _filePath;
-		private readonly int _flushIntervalMs;
+		public string FilePath { get; }
 
-		private FileStream _fs;
-		private readonly object _writeLock = new object();
-		private Timer _flushTimer;
-		private bool _disposed;
-
-		private readonly Dictionary<HopTimeSeries, RecordHandle?> _flushCursors =
-			new Dictionary<HopTimeSeries, RecordHandle?>();
-		private readonly HashSet<HopTimeSeries> _startBlockWritten = new HashSet<HopTimeSeries>();
-		private readonly HashSet<HopTimeSeries> _hostnameSubscribed = new HashSet<HopTimeSeries>();
-		private readonly Queue<(IPAddress addr, string hostname)> _pendingDns =
-			new Queue<(IPAddress, string)>();
-
-		private readonly Action<HopTimeSeries> _onHostnameUpdated;
-
-		public string FilePath => _filePath;
+		/// <summary>Raised if writing fails. The writer stops writing afterward.</summary>
+		public event Action<Exception> WriteFailed;
 
 		public PingDataWriter(MonitoringSession session, string filePath, int flushIntervalSeconds)
 		{
-			_session = session ?? throw new ArgumentNullException(nameof(session));
-			_filePath = filePath ?? throw new ArgumentNullException(nameof(filePath));
-			if (flushIntervalSeconds < 1) flushIntervalSeconds = 1;
-			_flushIntervalMs = flushIntervalSeconds * 1000;
+			this.session = session ?? throw new ArgumentNullException(nameof(session));
+			FilePath = filePath ?? throw new ArgumentNullException(nameof(filePath));
+			Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(filePath)) ?? ".");
+			fs = new FileStream(filePath, FileMode.CreateNew, FileAccess.Write, FileShare.Read, 65536);
+			bw = new BinaryWriter(fs, Encoding.UTF8, leaveOpen: true);
+			PingDataFile.WriteHeader(fs, session);
+			fs.Flush();
 
-			Directory.CreateDirectory(Path.GetDirectoryName(_filePath) ?? ".");
-			_fs = new FileStream(_filePath, FileMode.Create, FileAccess.Write, FileShare.Read,
-				bufferSize: 8192, useAsync: false);
-
-			WriteFileHeader();
-			_fs.Flush();
-
-			_onHostnameUpdated = HandleHostnameUpdated;
-
-			_flushTimer = new Timer(_ => SafeFlush(), null, _flushIntervalMs, _flushIntervalMs);
-		}
-
-		// ----- Header -----
-
-		private void WriteFileHeader()
-		{
-			_fs.Write(PingDataFile.Magic, 0, PingDataFile.Magic.Length);
-			WriteUInt16(_fs, PingDataFile.CurrentVersion);
-			WriteIp(_fs, _session.TargetAddress);
-			WriteUInt64(_fs, PingDataFile.ToUnixMs(_session.StartTimeUtc));
-		}
-
-		// ----- Event handlers -----
-
-		private void HandleHostnameUpdated(HopTimeSeries series)
-		{
-			if (series == null || string.IsNullOrEmpty(series.Hostname)) return;
-			lock (_writeLock)
+			lock (session.DataLock)
 			{
-				if (_disposed) return;
-				_pendingDns.Enqueue((series.Address, series.Hostname));
+				foreach ((ushort id, IPAddress ip, string host) in session.Addresses.All())
+				{
+					pendingAddresses.Add((id, ip));
+					if (!string.IsNullOrEmpty(host))
+						pendingHostnames.Add((id, host));
+				}
+				pendingEvents.AddRange(session.GetRouteEvents());
+				session.AddressAdded += OnAddressAdded;
+				session.HostnameResolved += OnHostnameResolved;
+				session.RouteEventAdded += OnRouteEvent;
 			}
+
+			int ms = Math.Max(1, flushIntervalSeconds) * 1000;
+			flushTimer = new Timer(_ => SafeFlush(final: false), null, ms, ms);
 		}
 
-		private void SubscribeHostnameIfNeeded(HopTimeSeries series)
+		private void OnAddressAdded(MonitoringSession s, ushort id, IPAddress ip)
 		{
-			if (_hostnameSubscribed.Add(series))
+			lock (queueLock) pendingAddresses.Add((id, ip));
+		}
+
+		private void OnHostnameResolved(MonitoringSession s, ushort id, string host)
+		{
+			lock (queueLock) pendingHostnames.Add((id, host));
+		}
+
+		private void OnRouteEvent(MonitoringSession s, RouteEvent e)
+		{
+			lock (queueLock) pendingEvents.Add(e);
+		}
+
+		private void SafeFlush(bool final)
+		{
+			try
 			{
-				series.HostnameUpdated += _onHostnameUpdated;
-				if (!string.IsNullOrEmpty(series.Hostname))
-					_pendingDns.Enqueue((series.Address, series.Hostname));
+				Flush(final);
 			}
-		}
-
-		// ----- Flush -----
-
-		private void SafeFlush()
-		{
-			try { Flush(); }
-			catch { /* don't tear down the writer on transient I/O errors */ }
+			catch (Exception ex)
+			{
+				lock (fileLock) disposed = true;
+				try { flushTimer.Dispose(); } catch { }
+				WriteFailed?.Invoke(ex);
+			}
 		}
 
 		/// <summary>
-		/// Drains queued DNS results, then walks each hop's series list in order,
-		/// emitting any not-yet-written start blocks followed by ping data blocks.
-		/// Stops at the first pending record per series.
+		/// Writes everything that is ready.  If <paramref name="final"/> is true, all completed records are written regardless of age
+		/// (call only after the monitor has stopped and in-flight pings have completed).
 		/// </summary>
-		public void Flush()
+		public void Flush(bool final = false)
 		{
-			lock (_writeLock)
+			List<(ushort, IPAddress)> addrs;
+			List<(ushort, string)> hosts;
+			List<RouteEvent> events;
+			List<(int ttl, List<PingSample> records)> recordBatches = new List<(int, List<PingSample>)>();
+
+			lock (session.DataLock)
 			{
-				if (_disposed || _fs == null) return;
-
-				while (_pendingDns.Count > 0)
+				long stableBefore = final ? long.MaxValue : session.NowMs - (session.TimeoutMs + 2000);
+				foreach (HopSeries hop in session.GetHops())
 				{
-					var (addr, host) = _pendingDns.Dequeue();
-					WriteReverseDnsBlock(addr, host);
+					List<PingSample> list = new List<PingSample>();
+					hop.CopyStableRecords(ref cursors[hop.Ttl], stableBefore, list);
+					if (list.Count > 0)
+						recordBatches.Add((hop.Ttl, list));
 				}
-
-				foreach (HopHistory hist in _session.HopData)
+				lock (queueLock)
 				{
-					List<HopTimeSeries> seriesSnapshot;
-					lock (hist) seriesSnapshot = new List<HopTimeSeries>(hist.Series);
+					addrs = new List<(ushort, IPAddress)>(pendingAddresses);
+					hosts = new List<(ushort, string)>(pendingHostnames);
+					events = new List<RouteEvent>(pendingEvents);
+					pendingAddresses.Clear();
+					pendingHostnames.Clear();
+					pendingEvents.Clear();
+				}
+			}
 
-					foreach (HopTimeSeries series in seriesSnapshot)
+			lock (fileLock)
+			{
+				if (disposed && !final)
+					return;
+				MemoryStream body = new MemoryStream();
+				BinaryWriter b = new BinaryWriter(body, Encoding.UTF8);
+				foreach ((ushort id, IPAddress ip) in addrs)
+				{
+					Reset(body);
+					b.Write(id);
+					PingDataFile.WriteIp(b, ip);
+					WriteBlock(PingDataFile.BlockAddress, body);
+				}
+				foreach ((ushort id, string host) in hosts)
+				{
+					Reset(body);
+					b.Write(id);
+					PingDataFile.WriteString(b, host);
+					WriteBlock(PingDataFile.BlockHostname, body);
+				}
+				foreach (RouteEvent e in events)
+				{
+					Reset(body);
+					b.Write(e.TimeMs);
+					b.Write((byte)e.Kind);
+					b.Write(e.Ttl);
+					b.Write(e.Value);
+					b.Write((byte)(e.Initial ? 1 : 0));
+					WriteBlock(PingDataFile.BlockRouteEvent, body);
+				}
+				foreach ((int ttl, List<PingSample> records) in recordBatches)
+				{
+					int i = 0;
+					while (i < records.Count)
 					{
-						SubscribeHostnameIfNeeded(series);
-
-						if (_startBlockWritten.Add(series))
+						long baseTime = records[i].TimeMs;
+						int count = 0;
+						while (i + count < records.Count && count < PingDataFile.MaxRecordsPerBlock && records[i + count].TimeMs - baseTime <= ushort.MaxValue)
+							count++;
+						Reset(body);
+						b.Write((byte)ttl);
+						b.Write(baseTime);
+						b.Write((ushort)count);
+						for (int k = 0; k < count; k++)
 						{
-							WriteHopTimeSeriesStartBlock(series);
-							_flushCursors[series] = null;
+							PingSample r = records[i + k];
+							b.Write((ushort)(r.TimeMs - baseTime));
+							b.Write(r.Rtt);
+							b.Write(r.Addr);
 						}
-
-						RecordHandle? cursor = _flushCursors.TryGetValue(series, out var c) ? c : null;
-						List<(RecordHandle handle, PingRecord record)> snapshot = series.SnapshotRecordsAfter(cursor);
-						if (snapshot.Count == 0) continue;
-
-						int writableCount = snapshot.Count;
-						for (int i = 0; i < snapshot.Count; i++)
-						{
-							if (snapshot[i].record.RoundTripMs == PingRecordStatus.Pending)
-							{
-								writableCount = i;
-								break;
-							}
-						}
-						if (writableCount == 0) continue;
-
-						int idx = 0;
-						RecordHandle lastWritten = default;
-						while (idx < writableCount)
-						{
-							uint blockBaseRel = snapshot[idx].record.RelativeTimeMs;
-							int blockEnd = idx;
-							while (blockEnd < writableCount
-								&& (blockEnd - idx) < PingDataFile.MaxRecordsPerBlock
-								&& (long)snapshot[blockEnd].record.RelativeTimeMs - blockBaseRel <= PingDataFile.MaxBlockTimeSpanMs)
-							{
-								blockEnd++;
-							}
-							if (blockEnd == idx) blockEnd = idx + 1;
-
-							WritePingDataBlock(series.HopNumber, blockBaseRel, snapshot, idx, blockEnd);
-							lastWritten = snapshot[blockEnd - 1].handle;
-							idx = blockEnd;
-						}
-
-						_flushCursors[series] = lastWritten;
+						WriteBlock(PingDataFile.BlockRecords, body);
+						i += count;
 					}
 				}
-
-				_fs.Flush();
+				bw.Flush();
+				fs.Flush();
 			}
 		}
 
-		// ----- Block writers -----
-
-		private void WriteHopTimeSeriesStartBlock(HopTimeSeries series)
+		private static void Reset(MemoryStream ms)
 		{
-			byte[] addrBytes = (series.Address == null || series.Address.Equals(IPAddress.Any) || series.Address.Equals(IPAddress.IPv6Any))
-				? Array.Empty<byte>()
-				: series.Address.GetAddressBytes();
-			if (addrBytes.Length != 0 && addrBytes.Length != 4 && addrBytes.Length != 16)
-				addrBytes = Array.Empty<byte>();
-
-			uint bodyLen = (uint)(1 + 8 + 1 + addrBytes.Length);
-			WriteBlockHeader(PingDataFile.BlockType_HopTimeSeriesStart, bodyLen);
-			_fs.WriteByte(series.HopNumber);
-			WriteUInt64(_fs, PingDataFile.ToUnixMs(series.StartTimeUtc));
-			_fs.WriteByte((byte)addrBytes.Length);
-			if (addrBytes.Length > 0) _fs.Write(addrBytes, 0, addrBytes.Length);
+			ms.Position = 0;
+			ms.SetLength(0);
 		}
 
-		private void WriteReverseDnsBlock(IPAddress addr, string hostname)
+		private void WriteBlock(byte type, MemoryStream body)
 		{
-			byte[] addrBytes = (addr == null) ? Array.Empty<byte>() : addr.GetAddressBytes();
-			if (addrBytes.Length != 4 && addrBytes.Length != 16) return;
-
-			byte[] hostBytes = string.IsNullOrEmpty(hostname)
-				? Array.Empty<byte>()
-				: Encoding.UTF8.GetBytes(hostname);
-			if (hostBytes.Length > ushort.MaxValue)
-			{
-				byte[] tmp = new byte[ushort.MaxValue];
-				Buffer.BlockCopy(hostBytes, 0, tmp, 0, ushort.MaxValue);
-				hostBytes = tmp;
-			}
-
-			uint bodyLen = (uint)(1 + addrBytes.Length + 2 + hostBytes.Length);
-			WriteBlockHeader(PingDataFile.BlockType_ReverseDnsResult, bodyLen);
-			_fs.WriteByte((byte)addrBytes.Length);
-			_fs.Write(addrBytes, 0, addrBytes.Length);
-			WriteUInt16(_fs, (ushort)hostBytes.Length);
-			if (hostBytes.Length > 0) _fs.Write(hostBytes, 0, hostBytes.Length);
+			bw.Write(type);
+			bw.Write((uint)body.Length);
+			bw.Write(body.GetBuffer(), 0, (int)body.Length);
 		}
 
-		private void WritePingDataBlock(byte hopNumber, uint timeOffset,
-			List<(RecordHandle handle, PingRecord record)> records, int startIdx, int endExclusive)
-		{
-			int count = endExclusive - startIdx;
-			uint bodyLen = (uint)(1 + 4 + 2 + count * 4);
-			WriteBlockHeader(PingDataFile.BlockType_PingData, bodyLen);
-			_fs.WriteByte(hopNumber);
-			WriteUInt32(_fs, timeOffset);
-			WriteUInt16(_fs, (ushort)count);
-			for (int i = startIdx; i < endExclusive; i++)
-			{
-				PingRecord r = records[i].record;
-				ushort relInBlock = (ushort)(r.RelativeTimeMs - timeOffset);
-				WriteUInt16(_fs, relInBlock);
-				WriteUInt16(_fs, r.RoundTripMs);
-			}
-		}
-
-		private void WriteBlockHeader(byte blockType, uint bodyLength)
-		{
-			_fs.WriteByte(blockType);
-			WriteUInt32(_fs, bodyLength);
-		}
-
-		// ----- Low-level little-endian primitives -----
-
-		private static void WriteUInt16(Stream s, ushort v)
-		{
-			s.WriteByte((byte)(v & 0xFF));
-			s.WriteByte((byte)((v >> 8) & 0xFF));
-		}
-		private static void WriteUInt32(Stream s, uint v)
-		{
-			s.WriteByte((byte)(v & 0xFF));
-			s.WriteByte((byte)((v >> 8) & 0xFF));
-			s.WriteByte((byte)((v >> 16) & 0xFF));
-			s.WriteByte((byte)((v >> 24) & 0xFF));
-		}
-		private static void WriteUInt64(Stream s, ulong v)
-		{
-			for (int i = 0; i < 8; i++)
-				s.WriteByte((byte)((v >> (i * 8)) & 0xFF));
-		}
-		private static void WriteIp(Stream s, IPAddress addr)
-		{
-			if (addr == null || addr.Equals(IPAddress.Any) || addr.Equals(IPAddress.IPv6Any))
-			{
-				s.WriteByte(0);
-				return;
-			}
-			byte[] bytes = addr.GetAddressBytes();
-			if (bytes.Length != 4 && bytes.Length != 16)
-			{
-				s.WriteByte(0);
-				return;
-			}
-			s.WriteByte((byte)bytes.Length);
-			s.Write(bytes, 0, bytes.Length);
-		}
-
-		// ----- Dispose -----
-
+		/// <summary>Writes all remaining data and closes the file.  Call after the monitor has stopped.</summary>
 		public void Dispose()
 		{
-			Timer t = Interlocked.Exchange(ref _flushTimer, null);
-			t?.Dispose();
-
-			DateTime deadline = DateTime.UtcNow.AddMilliseconds(FinalFlushPendingMaxWaitMs);
-			while (DateTime.UtcNow < deadline && AnyPending()) Thread.Sleep(FinalFlushPendingPollMs);
-
-			lock (_writeLock)
+			lock (session.DataLock)
 			{
-				if (_disposed) return;
-
-				try { Flush(); } catch { }
-
-				foreach (HopTimeSeries s in _hostnameSubscribed)
-				{
-					try { s.HostnameUpdated -= _onHostnameUpdated; } catch { }
-				}
-				_hostnameSubscribed.Clear();
-
-				try { _fs?.Flush(); } catch { }
-				try { _fs?.Dispose(); } catch { }
-				_fs = null;
-				_disposed = true;
+				session.AddressAdded -= OnAddressAdded;
+				session.HostnameResolved -= OnHostnameResolved;
+				session.RouteEventAdded -= OnRouteEvent;
 			}
-		}
-
-		private bool AnyPending()
-		{
-			foreach (HopHistory hist in _session.HopData)
+			try { flushTimer.Dispose(); } catch { }
+			lock (fileLock)
 			{
-				List<HopTimeSeries> snap;
-				lock (hist) snap = new List<HopTimeSeries>(hist.Series);
-				foreach (HopTimeSeries s in snap)
+				if (disposed)
 				{
-					RecordHandle? cursor;
-					lock (_writeLock) cursor = _flushCursors.TryGetValue(s, out var c) ? c : null;
-					List<(RecordHandle h, PingRecord r)> tail = s.SnapshotRecordsAfter(cursor);
-					foreach (var pair in tail)
-					{
-						if (pair.r.RoundTripMs == PingRecordStatus.Pending) return true;
-					}
+					try { fs.Dispose(); } catch { }
+					return;
 				}
 			}
-			return false;
+			try { Flush(final: true); } catch { }
+			lock (fileLock)
+			{
+				disposed = true;
+				try { bw.Dispose(); } catch { }
+				try { fs.Dispose(); } catch { }
+			}
 		}
 	}
 }

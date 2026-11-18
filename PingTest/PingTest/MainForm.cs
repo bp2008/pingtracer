@@ -119,6 +119,12 @@ namespace PingTracer
 			RememberCurrentPositionThrottled = Throttle.Create(_rememberCurrentPosition, 250, ex => MessageBox.Show(ex.ToString()));
 
 			InitializeComponent();
+			menuItem4.DropDownItems.Add(new ToolStripSeparator());
+			menuItem4.DropDownItems.Add("Open &Web Interface (preview)", null, (s, e) =>
+			{
+				try { Process.Start(new ProcessStartInfo("http://localhost:8010/") { UseShellExecute = true }); }
+				catch (Exception ex) { MessageBox.Show(this, ex.Message, "Unable to open the web interface"); }
+			});
 
 			defaultWindowSize = this.Size;
 		}

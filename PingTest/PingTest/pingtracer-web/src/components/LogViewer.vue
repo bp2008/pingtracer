@@ -1,115 +1,148 @@
 <template>
-	<div class="modal-overlay" @mousedown.self="$emit('close')">
-		<div class="log-panel">
-			<div class="log-header">
-				<h3>Output Log</h3>
-				<button class="btn-close" @click="$emit('close')">&times;</button>
-			</div>
-			<div class="log-body" ref="logBody">
-				<div v-for="(line, idx) in messages" :key="idx" class="log-line">{{ line }}</div>
-				<div v-if="messages.length === 0" class="log-empty">No log messages yet.</div>
-			</div>
+	<div class="log-dock" :style="{ height: height + 'px' }">
+		<div class="resize-handle" @mousedown.prevent="startResize" title="Drag to resize"></div>
+		<div class="log-header">
+			<span class="title">Event log</span>
+			<span class="count">{{ messages.length }} entries</span>
+			<div class="spacer"></div>
+			<button class="hdr-btn" @click="copyAll" :title="copied ? 'Copied' : 'Copy the log to the clipboard'">{{ copied ? 'Copied' : 'Copy' }}</button>
+			<button class="hdr-btn close" @click="$emit('close')" title="Close the log">&times;</button>
+		</div>
+		<div class="log-body" ref="body" @scroll="onScroll">
+			<div v-for="(line, idx) in messages" :key="idx" class="log-line" :class="classify(line)">{{ line }}</div>
+			<div v-if="messages.length === 0" class="log-empty">No log messages yet.</div>
 		</div>
 	</div>
 </template>
 
 <script>
+const HEIGHT_KEY = 'pingtracer.logHeight';
+
 export default {
 	name: 'LogViewer',
 	props: {
-		messages: { type: Array, default: () => [] }
+		messages: { type: Array, default: () => [] },
 	},
 	emits: ['close'],
+	data()
+	{
+		let height = 190;
+		try { height = parseInt(localStorage.getItem(HEIGHT_KEY), 10) || height; } catch { /* ignore */ }
+		return { height: Math.max(80, Math.min(600, height)), stickToBottom: true, copied: false };
+	},
 	watch: {
 		messages()
 		{
-			this.$nextTick(() =>
-			{
-				const el = this.$refs.logBody;
-				if (el) el.scrollTop = el.scrollHeight;
-			});
-		}
+			if (this.stickToBottom) this.$nextTick(this.scrollToBottom);
+		},
 	},
-	mounted()
+	mounted() { this.$nextTick(this.scrollToBottom); },
+	beforeUnmount()
 	{
-		this.$nextTick(() =>
+		document.removeEventListener('mousemove', this.onResize);
+		document.removeEventListener('mouseup', this.endResize);
+	},
+	methods: {
+		scrollToBottom()
 		{
-			const el = this.$refs.logBody;
+			const el = this.$refs.body;
 			if (el) el.scrollTop = el.scrollHeight;
-		});
-	}
+		},
+		onScroll()
+		{
+			const el = this.$refs.body;
+			this.stickToBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 4;
+		},
+		classify(line)
+		{
+			if (/lost|failed|unable|error|outage/i.test(line)) return 'bad';
+			if (/route|hop \d+ is now|shortened|lengthened/i.test(line)) return 'route';
+			if (/resumed|reached/i.test(line)) return 'good';
+			return '';
+		},
+		startResize(e)
+		{
+			this.resizeStart = { y: e.clientY, h: this.height };
+			document.addEventListener('mousemove', this.onResize);
+			document.addEventListener('mouseup', this.endResize);
+		},
+		onResize(e)
+		{
+			const max = Math.max(120, window.innerHeight - 200);
+			this.height = Math.max(80, Math.min(max, this.resizeStart.h + (this.resizeStart.y - e.clientY)));
+		},
+		endResize()
+		{
+			document.removeEventListener('mousemove', this.onResize);
+			document.removeEventListener('mouseup', this.endResize);
+			try { localStorage.setItem(HEIGHT_KEY, String(this.height)); } catch { /* ignore */ }
+		},
+		async copyAll()
+		{
+			try
+			{
+				await navigator.clipboard.writeText(this.messages.join('\n'));
+				this.copied = true;
+				setTimeout(() => { this.copied = false; }, 1500);
+			}
+			catch { /* clipboard unavailable */ }
+		},
+	},
 };
 </script>
 
 <style scoped>
-.modal-overlay {
-	position: fixed;
-	top: 0;
-	left: 0;
-	right: 0;
-	bottom: 0;
-	background: rgba(0, 0, 0, 0.5);
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	z-index: 1000;
-}
-
-.log-panel {
-	background: #1a1a2a;
-	border: 1px solid #444;
-	border-radius: 6px;
-	width: 700px;
-	max-width: 95vw;
-	height: 500px;
-	max-height: 80vh;
+.log-dock {
+	position: relative;
+	flex-shrink: 0;
 	display: flex;
 	flex-direction: column;
-	color: #e0e0e0;
+	background: #111118;
+	border-top: 1px solid #2c2c3a;
 }
-
+.resize-handle {
+	position: absolute;
+	top: -3px;
+	left: 0;
+	right: 0;
+	height: 6px;
+	cursor: ns-resize;
+	z-index: 2;
+}
 .log-header {
 	display: flex;
-	justify-content: space-between;
 	align-items: center;
-	padding: 10px 16px;
-	border-bottom: 1px solid #333;
+	gap: 10px;
+	padding: 3px 8px 3px 12px;
+	background: #17171f;
+	border-bottom: 1px solid #23232f;
+	font-size: 12px;
 }
-
-.log-header h3 {
-	margin: 0;
-	font-size: 15px;
-}
-
-.btn-close {
+.title { font-weight: 600; color: #d0d0dc; }
+.count { color: #6c6c7c; }
+.spacer { flex: 1; }
+.hdr-btn {
 	background: none;
-	border: none;
-	color: #aaa;
-	font-size: 20px;
+	border: 1px solid transparent;
+	color: #a0a0b0;
 	cursor: pointer;
+	font-size: 12px;
+	padding: 1px 6px;
+	border-radius: 3px;
 }
-
-.btn-close:hover {
-	color: #fff;
-}
-
+.hdr-btn:hover { border-color: #44445a; color: #fff; }
+.hdr-btn.close { font-size: 16px; line-height: 1; }
 .log-body {
 	flex: 1;
 	overflow-y: auto;
-	padding: 8px 12px;
-	font-family: 'Consolas', 'Courier New', monospace;
+	padding: 4px 12px;
+	font-family: Consolas, 'Courier New', monospace;
 	font-size: 12px;
+	color: #c8c8d0;
 }
-
-.log-line {
-	padding: 1px 0;
-	white-space: pre-wrap;
-	word-break: break-all;
-}
-
-.log-empty {
-	color: #666;
-	text-align: center;
-	padding: 20px;
-}
+.log-line { padding: 1px 0; white-space: pre-wrap; word-break: break-word; }
+.log-line.bad { color: #ff9b9b; }
+.log-line.route { color: #7fd6ff; }
+.log-line.good { color: #9fe49f; }
+.log-empty { color: #666; padding: 12px 0; }
 </style>

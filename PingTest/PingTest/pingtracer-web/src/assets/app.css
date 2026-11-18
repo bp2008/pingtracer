@@ -1,0 +1,112 @@
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+}
+
+html,
+body,
+#app {
+	height: 100%;
+	overflow: hidden;
+	background: #000;
+	color: #e0e0e0;
+	font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+	font-size: 13px;
+}
+
+/* Shared dialog styles (used by components without scoped styles). */
+.dlg-overlay {
+	position: fixed;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.6);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1000;
+}
+
+.dlg {
+	background: #1b1b26;
+	border: 1px solid #3a3a4c;
+	border-radius: 6px;
+	width: 640px;
+	max-width: 95vw;
+	max-height: 88vh;
+	display: flex;
+	flex-direction: column;
+	box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+}
+
+.dlg-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 11px 16px;
+	border-bottom: 1px solid #2e2e3e;
+}
+
+.dlg-header h3 {
+	font-size: 15px;
+	font-weight: 600;
+}
+
+.dlg-close {
+	background: none;
+	border: none;
+	color: #aaa;
+	font-size: 20px;
+	cursor: pointer;
+	line-height: 1;
+}
+
+.dlg-close:hover { color: #fff; }
+
+.dlg-body {
+	padding: 14px 16px;
+	overflow-y: auto;
+}
+
+.dlg-footer {
+	display: flex;
+	gap: 8px;
+	padding: 11px 16px;
+	border-top: 1px solid #2e2e3e;
+	align-items: center;
+}
+
+.dlg-footer .spacer { flex: 1; }
+
+.dlg .btn {
+	background: #2c2c3c;
+	color: #e0e0e0;
+	border: 1px solid #4a4a60;
+	border-radius: 3px;
+	padding: 5px 14px;
+	cursor: pointer;
+	font-size: 13px;
+}
+
+.dlg .btn:hover:not(:disabled) { background: #3a3a52; }
+.dlg .btn:disabled { opacity: 0.45; cursor: default; }
+.dlg .btn.primary { background: #285a96; border-color: #3a6eb4; }
+.dlg .btn.primary:hover:not(:disabled) { background: #336bb0; }
+
+.dlg .field { margin-bottom: 12px; }
+.dlg .field label { display: block; font-size: 12px; color: #a8a8b8; margin-bottom: 4px; }
+.dlg .field .help { font-size: 11px; color: #7c7c8c; margin-top: 3px; }
+.dlg input[type='number'],
+.dlg input[type='text'],
+.dlg select {
+	background: #252533;
+	color: #e6e6e6;
+	border: 1px solid #44445a;
+	border-radius: 3px;
+	padding: 5px 8px;
+	font-size: 13px;
+}
+
+.dlg .check { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+.dlg .muted { color: #7c7c8c; }

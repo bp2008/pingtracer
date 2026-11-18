@@ -1,106 +1,62 @@
 using System;
-using System.IO;
-using System.Net;
-using System.Text;
+using System.Buffers.Binary;
 
 namespace PingTracer.Services
 {
 	/// <summary>
-	/// Builds little-endian binary frames for the WebSocket data-plane protocol.
-	/// Frames begin with a 1-byte FrameType and a 1-byte SessionIndex (0xFF = none).
-	/// Strings: 2-byte uint16 utf-8 length + bytes.
-	/// IPAddress: 1-byte length (0|4|16) + bytes.
-	/// Timestamps: 8-byte uint64 Unix epoch milliseconds.
+	/// Minimal little-endian binary writer for WebSocket data-plane frames.
 	/// </summary>
 	public sealed class BinaryFrameWriter
 	{
-		private static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+		private byte[] buf;
+		private int pos;
 
-		private readonly MemoryStream _ms = new MemoryStream(64);
-
-		public BinaryFrameWriter(byte frameType, byte sessionIndex)
+		public BinaryFrameWriter(int initialCapacity = 256)
 		{
-			_ms.WriteByte(frameType);
-			_ms.WriteByte(sessionIndex);
+			buf = new byte[Math.Max(16, initialCapacity)];
 		}
 
-		public void WriteByte(byte v) => _ms.WriteByte(v);
+		public int Length => pos;
 
-		public void WriteUInt16(ushort v)
+		private void Ensure(int n)
 		{
-			_ms.WriteByte((byte)(v & 0xFF));
-			_ms.WriteByte((byte)((v >> 8) & 0xFF));
+			if (pos + n <= buf.Length) return;
+			int size = buf.Length * 2;
+			while (size < pos + n) size *= 2;
+			Array.Resize(ref buf, size);
 		}
 
-		public void WriteUInt32(uint v)
-		{
-			_ms.WriteByte((byte)(v & 0xFF));
-			_ms.WriteByte((byte)((v >> 8) & 0xFF));
-			_ms.WriteByte((byte)((v >> 16) & 0xFF));
-			_ms.WriteByte((byte)((v >> 24) & 0xFF));
-		}
+		public void U8(byte v) { Ensure(1); buf[pos++] = v; }
+		public void U16(ushort v) { Ensure(2); BinaryPrimitives.WriteUInt16LittleEndian(buf.AsSpan(pos), v); pos += 2; }
+		public void U32(uint v) { Ensure(4); BinaryPrimitives.WriteUInt32LittleEndian(buf.AsSpan(pos), v); pos += 4; }
+		public void F32(float v) { Ensure(4); BinaryPrimitives.WriteSingleLittleEndian(buf.AsSpan(pos), v); pos += 4; }
+		public void F64(double v) { Ensure(8); BinaryPrimitives.WriteDoubleLittleEndian(buf.AsSpan(pos), v); pos += 8; }
 
-		public void WriteUInt64(ulong v)
-		{
-			for (int i = 0; i < 8; i++)
-				_ms.WriteByte((byte)((v >> (i * 8)) & 0xFF));
-		}
+		/// <summary>Overwrites a previously written u16 at <paramref name="offset"/>.</summary>
+		public void PatchU16(int offset, ushort v) => BinaryPrimitives.WriteUInt16LittleEndian(buf.AsSpan(offset), v);
 
-		public void WriteUnixMs(DateTime utc)
+		public byte[] ToArray()
 		{
-			if (utc == default || utc < UnixEpoch)
-			{
-				WriteUInt64(0);
-				return;
-			}
-			DateTime u = utc.Kind == DateTimeKind.Utc ? utc : utc.ToUniversalTime();
-			ulong ms = (ulong)(u - UnixEpoch).TotalMilliseconds;
-			WriteUInt64(ms);
+			byte[] result = new byte[pos];
+			Buffer.BlockCopy(buf, 0, result, 0, pos);
+			return result;
 		}
-
-		public void WriteIp(IPAddress addr)
-		{
-			if (addr == null || addr.Equals(IPAddress.Any) || addr.Equals(IPAddress.IPv6Any))
-			{
-				_ms.WriteByte(0);
-				return;
-			}
-			byte[] bytes = addr.GetAddressBytes();
-			if (bytes.Length != 4 && bytes.Length != 16)
-			{
-				_ms.WriteByte(0);
-				return;
-			}
-			_ms.WriteByte((byte)bytes.Length);
-			_ms.Write(bytes, 0, bytes.Length);
-		}
-
-		public void WriteUtf8String(string s)
-		{
-			if (string.IsNullOrEmpty(s))
-			{
-				WriteUInt16(0);
-				return;
-			}
-			byte[] bytes = Encoding.UTF8.GetBytes(s);
-			if (bytes.Length > ushort.MaxValue)
-				bytes = Encoding.UTF8.GetBytes(s.Substring(0, Math.Min(s.Length, ushort.MaxValue / 4)));
-			WriteUInt16((ushort)bytes.Length);
-			_ms.Write(bytes, 0, bytes.Length);
-		}
-
-		public byte[] ToArray() => _ms.ToArray();
 	}
 
-	/// <summary>Frame type constants for the binary WebSocket protocol.</summary>
+	/// <summary>Binary frame type codes (first byte of every binary WebSocket message).</summary>
 	public static class BinaryFrameType
 	{
-		public const byte RouteUpdate = 0x01;
-		public const byte HostnameUpdated = 0x02;
-		public const byte PingUpdate = 0x03;
-		public const byte AggregatedData = 0x04;
-		public const byte HopDeactivated = 0x05;
-		public const byte SessionTopology = 0x06;
-		public const byte NoSession = 0xFF;
+		/// <summary>
+		/// Batch of live ping results.
+		/// <code>[0x11][count u16] then count x { sessionId u16, ttl u8, kind u8 (0 = sample, 1 = void), timeUnixMs f64, rtt u16, addr u16 }</code>
+		/// </summary>
+		public const byte LiveBatch = 0x11;
+
+		/// <summary>
+		/// Response to a column query.
+		/// <code>[0x12][queryId u32][sessionId u16][msPerCol u32][startCol f64][colCount u16][hopCount u16]
+		/// then hopCount x { ttl u8, nonEmpty u16, nonEmpty x { col u16, n u16, lost u16, min u16, max u16, sum f32, addr u16, flags u8 } }</code>
+		/// </summary>
+		public const byte QueryResult = 0x12;
 	}
 }

@@ -34,6 +34,7 @@ namespace PingTracer
 			Application.SetCompatibleTextRenderingDefault(false);
 			Application.Run(new MainForm(args));
 
+			webServer.PingWsHandler.Shutdown();
 			webServer.Stop();
 		}
 	}

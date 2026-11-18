@@ -1,360 +1,271 @@
 /**
- * WebSocket service for communicating with the PingTracer C# backend.
+ * WebSocket connection to the PingTracer server.
  *
- * Mixed-protocol transport:
- * - Control plane (configurations, status, logs, errors) is JSON text frames.
- * - Data plane (route topology, ping completions, hostname updates, query results)
- *   is little-endian binary frames. See PingWebSocketHandler.cs for the matching
- *   encoder. Every binary frame begins with [FrameType:u8][SessionIndex:u8].
+ * Control plane: JSON text frames, dispatched to listeners by their `type` field.
+ * Data plane: binary frames.  Live ping batches are handed to the `live` listeners as a DataView (parsed by the
+ * DataStore without intermediate allocations); query responses resolve the promise returned by `query()`.
+ *
+ * Also keeps an estimate of the server's clock (see `serverNow()`), because every timestamp in the data plane comes
+ * from the server's monotonic clock and the live edge of the graph must agree with it exactly.
  */
 
-const FrameType = Object.freeze({
-	RouteUpdate: 0x01,
-	HostnameUpdated: 0x02,
-	PingUpdate: 0x03,
-	AggregatedData: 0x04,
-	HopDeactivated: 0x05,
-	SessionTopology: 0x06,
+export const FrameType = Object.freeze({
+	LiveBatch: 0x11,
+	QueryResult: 0x12,
 });
 
-class FrameReader
+const QUERY_TIMEOUT_MS = 30000;
+
+function clientClock()
 {
-	constructor(buffer)
-	{
-		this.view = new DataView(buffer);
-		this.offset = 0;
-	}
-
-	get atEnd() { return this.offset >= this.view.byteLength; }
-
-	u8() { return this.view.getUint8(this.offset++); }
-
-	u16() { const v = this.view.getUint16(this.offset, true); this.offset += 2; return v; }
-
-	u32() { const v = this.view.getUint32(this.offset, true); this.offset += 4; return v; }
-
-	// uint64 → Number. Timestamps in ms stay safely below Number.MAX_SAFE_INTEGER (year 287396).
-	u64()
-	{
-		const v = this.view.getBigUint64(this.offset, true);
-		this.offset += 8;
-		return Number(v);
-	}
-
-	ip()
-	{
-		const len = this.u8();
-		if (len === 0) return null;
-		const bytes = new Uint8Array(this.view.buffer, this.view.byteOffset + this.offset, len);
-		this.offset += len;
-		if (len === 4) return `${bytes[0]}.${bytes[1]}.${bytes[2]}.${bytes[3]}`;
-		// IPv6 — group into 8 hex words, no compression. Good enough for display.
-		const parts = [];
-		for (let i = 0; i < 16; i += 2)
-			parts.push(((bytes[i] << 8) | bytes[i + 1]).toString(16));
-		return parts.join(':');
-	}
-
-	utf8String()
-	{
-		const len = this.u16();
-		if (len === 0) return '';
-		const bytes = new Uint8Array(this.view.buffer, this.view.byteOffset + this.offset, len);
-		this.offset += len;
-		return new TextDecoder('utf-8').decode(bytes);
-	}
+	return performance.timeOrigin + performance.now();
 }
 
-class PingTracerWS
+class PingTracerSocket
 {
 	constructor()
 	{
-		/** @type {WebSocket|null} */
 		this.ws = null;
-		this.reconnectTimeout = null;
-		this.reconnectDelay = 1000;
-		this.maxReconnectDelay = 30000;
-		this.listeners = {};
-		this.isConnecting = false;
+		this.listeners = new Map();
+		this.reconnectTimer = null;
+		this.reconnectDelay = 500;
+		this.nextQueryId = 1;
+		this.pendingQueries = new Map();
+		this.connected = false;
+		this.shouldConnect = false;
 
-		// queryData uses an integer correlation ID echoed back in the response frame.
-		this._nextQueryId = 1;
-		this._pendingQueries = new Map(); // queryId -> {resolve, reject, timeoutId}
+		// Clock synchronization: offset = serverClock - clientClock.
+		this.clockOffset = 0;
+		this.clockSamples = [];
+		this.clockTimer = null;
 	}
 
 	connect()
 	{
+		this.shouldConnect = true;
 		if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING))
 			return;
-
-		this.isConnecting = true;
 		const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-		const url = `${protocol}//${location.host}/ws`;
+		const ws = new WebSocket(`${protocol}//${location.host}/ws`);
+		ws.binaryType = 'arraybuffer';
+		this.ws = ws;
 
-		this.ws = new WebSocket(url);
-		this.ws.binaryType = 'arraybuffer';
-
-		this.ws.onopen = () =>
+		ws.onopen = () =>
 		{
-			this.isConnecting = false;
-			this.reconnectDelay = 1000;
+			this.connected = true;
+			this.reconnectDelay = 500;
+			this.clockSamples = [];
 			this._emit('connected');
+			this._startClockSync();
 		};
-
-		this.ws.onmessage = (event) =>
+		ws.onmessage = (e) =>
 		{
-			if (event.data instanceof ArrayBuffer)
+			if (e.data instanceof ArrayBuffer)
 			{
-				try { this._handleBinary(event.data); }
-				catch (e) { console.error('Failed to decode binary frame:', e); }
+				try { this._handleBinary(e.data); }
+				catch (err) { console.error('Failed to decode binary frame', err); }
 				return;
 			}
-
-			try
-			{
-				const msg = JSON.parse(event.data);
-				this._emit(msg.type, msg);
-			}
-			catch (e)
-			{
-				console.error('Failed to parse WebSocket message:', e);
-			}
+			let msg;
+			try { msg = JSON.parse(e.data); }
+			catch (err) { console.error('Bad JSON frame', err); return; }
+			if (msg.type === 'time')
+				this._handleTime(msg);
+			else if (msg.type === 'hello' || msg.type === 'status')
+				this._roughClock(msg.serverTime);
+			this._emit(msg.type, msg);
 		};
-
-		this.ws.onclose = () =>
+		ws.onclose = () =>
 		{
-			this.isConnecting = false;
-			// Reject pending queries — the server has lost session-index context anyway.
-			for (const [, p] of this._pendingQueries)
+			if (this.ws !== ws) return;
+			this.ws = null;
+			const wasConnected = this.connected;
+			this.connected = false;
+			clearInterval(this.clockTimer);
+			this.clockTimer = null;
+			for (const p of this.pendingQueries.values())
 			{
-				clearTimeout(p.timeoutId);
-				try { p.reject(new Error('WebSocket closed')); } catch {}
+				clearTimeout(p.timer);
+				p.reject(new Error('Connection closed'));
 			}
-			this._pendingQueries.clear();
-			this._emit('disconnected');
-			this._scheduleReconnect();
+			this.pendingQueries.clear();
+			if (wasConnected) this._emit('disconnected');
+			if (this.shouldConnect) this._scheduleReconnect();
 		};
-
-		this.ws.onerror = (err) =>
-		{
-			console.error('WebSocket error:', err);
-		};
+		ws.onerror = () => { /* onclose follows */ };
 	}
 
 	disconnect()
 	{
-		if (this.reconnectTimeout)
-		{
-			clearTimeout(this.reconnectTimeout);
-			this.reconnectTimeout = null;
-		}
-		if (this.ws)
-		{
-			this.ws.close();
-			this.ws = null;
-		}
-	}
-
-	send(msg)
-	{
-		if (this.ws && this.ws.readyState === WebSocket.OPEN)
-			this.ws.send(JSON.stringify(msg));
-	}
-
-	// --- Commands ---
-
-	selectConfig(guid) { this.send({ action: 'selectConfig', guid }); }
-	start() { this.send({ action: 'start' }); }
-	stop() { this.send({ action: 'stop' }); }
-	getConfigurations() { this.send({ action: 'getConfigurations' }); }
-	saveConfig(config) { this.send({ action: 'saveConfig', config }); }
-	deleteConfig(guid) { this.send({ action: 'deleteConfig', guid }); }
-	setPingRate(rate, pingsPerSecond) { this.send({ action: 'setPingRate', rate, pingsPerSecond }); }
-
-	/**
-	 * Query historical aggregated data for one session. Resolves with a
-	 * { sessionIndex, queryId, series: [{ hopNumber, address, hostname,
-	 * seriesStartUtc, seriesEndUtc, points: [{ t, min, max, avg, lossPct, samples }] }] }
-	 * shape. Rejects after timeoutMs if no response arrives.
-	 */
-	queryData(sessionIndex, startTimeUtc, endTimeUtc, maxPointsPerHop, timeoutMs = 10000)
-	{
-		const queryId = this._nextQueryId++;
-		return new Promise((resolve, reject) =>
-		{
-			const timeoutId = setTimeout(() =>
-			{
-				this._pendingQueries.delete(queryId);
-				reject(new Error('queryData timed out'));
-			}, timeoutMs);
-			this._pendingQueries.set(queryId, { resolve, reject, timeoutId });
-
-			this.send({
-				action: 'queryData',
-				queryId,
-				sessionIndex,
-				startTimeUtc,
-				endTimeUtc,
-				maxPointsPerHop
-			});
-		});
-	}
-
-	// --- Event System ---
-
-	on(event, callback)
-	{
-		if (!this.listeners[event])
-			this.listeners[event] = [];
-		this.listeners[event].push(callback);
-	}
-
-	off(event, callback)
-	{
-		if (!this.listeners[event]) return;
-		this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
-	}
-
-	_emit(event, data)
-	{
-		if (this.listeners[event])
-			this.listeners[event].forEach(cb =>
-			{
-				try { cb(data); }
-				catch (e) { console.error('Error in WS listener:', e); }
-			});
+		this.shouldConnect = false;
+		clearTimeout(this.reconnectTimer);
+		this.reconnectTimer = null;
+		if (this.ws) this.ws.close();
 	}
 
 	_scheduleReconnect()
 	{
-		if (this.reconnectTimeout) return;
-		this.reconnectTimeout = setTimeout(() =>
+		if (this.reconnectTimer) return;
+		this.reconnectTimer = setTimeout(() =>
 		{
-			this.reconnectTimeout = null;
-			this.reconnectDelay = Math.min(this.reconnectDelay * 1.5, this.maxReconnectDelay);
+			this.reconnectTimer = null;
+			this.reconnectDelay = Math.min(this.reconnectDelay * 1.6, 10000);
 			this.connect();
 		}, this.reconnectDelay);
 	}
 
+	send(obj)
+	{
+		if (this.ws && this.ws.readyState === WebSocket.OPEN)
+		{
+			this.ws.send(JSON.stringify(obj));
+			return true;
+		}
+		return false;
+	}
+
+	on(type, cb)
+	{
+		if (!this.listeners.has(type)) this.listeners.set(type, []);
+		this.listeners.get(type).push(cb);
+		return () => this.off(type, cb);
+	}
+
+	off(type, cb)
+	{
+		const arr = this.listeners.get(type);
+		if (!arr) return;
+		const i = arr.indexOf(cb);
+		if (i >= 0) arr.splice(i, 1);
+	}
+
+	_emit(type, data)
+	{
+		const arr = this.listeners.get(type);
+		if (!arr) return;
+		for (const cb of arr)
+		{
+			try { cb(data); }
+			catch (err) { console.error(`Error in "${type}" listener`, err); }
+		}
+	}
+
+	// ----- Clock -----
+
+	/** Current time on the server's clock, in Unix epoch milliseconds. */
+	serverNow()
+	{
+		return clientClock() + this.clockOffset;
+	}
+
+	_roughClock(serverTime)
+	{
+		if (typeof serverTime === 'number' && this.clockSamples.length === 0)
+			this.clockOffset = serverTime - clientClock();
+	}
+
+	_startClockSync()
+	{
+		let burst = 0;
+		const ping = () => this.send({ action: 'time', c: clientClock() });
+		ping();
+		const burstTimer = setInterval(() =>
+		{
+			if (++burst >= 5) clearInterval(burstTimer);
+			ping();
+		}, 250);
+		this.clockTimer = setInterval(ping, 30000);
+	}
+
+	_handleTime(msg)
+	{
+		const now = clientClock();
+		const rtt = now - msg.c;
+		if (rtt < 0 || rtt > 10000) return;
+		this.clockSamples.push({ rtt, offset: msg.s - (msg.c + rtt / 2) });
+		if (this.clockSamples.length > 12) this.clockSamples.shift();
+		// Use the sample with the lowest round trip time; it has the least uncertainty.
+		let best = this.clockSamples[0];
+		for (const s of this.clockSamples) if (s.rtt < best.rtt) best = s;
+		this.clockOffset = best.offset;
+	}
+
+	// ----- Data plane -----
+
+	/**
+	 * Requests aggregated columns.  Column k of the result covers [(startCol + k) * msPerCol, (startCol + k + 1) * msPerCol).
+	 * Resolves with { sessionId, msPerCol, startCol, colCount, hops: [{ ttl, count, col, n, lost, min, max, sum, addr, flags }] }.
+	 */
+	query(sessionId, msPerCol, startCol, colCount)
+	{
+		const qid = this.nextQueryId++;
+		return new Promise((resolve, reject) =>
+		{
+			const timer = setTimeout(() =>
+			{
+				this.pendingQueries.delete(qid);
+				reject(new Error('Query timed out'));
+			}, QUERY_TIMEOUT_MS);
+			this.pendingQueries.set(qid, { resolve, reject, timer });
+			if (!this.send({ action: 'query', qid, sessionId, msPerCol, startCol, colCount }))
+			{
+				clearTimeout(timer);
+				this.pendingQueries.delete(qid);
+				reject(new Error('Not connected'));
+			}
+		});
+	}
+
 	_handleBinary(buf)
 	{
-		const r = new FrameReader(buf);
-		const type = r.u8();
-		const sessionIndex = r.u8();
-
-		switch (type)
-		{
-			case FrameType.SessionTopology: this._emit('sessionTopology', this._readSessionTopology(r)); break;
-			case FrameType.RouteUpdate: this._emit('routeUpdate', this._readRouteUpdate(r, sessionIndex)); break;
-			case FrameType.HostnameUpdated: this._emit('hostnameUpdated', this._readHostnameUpdated(r)); break;
-			case FrameType.PingUpdate: this._emit('pingUpdate', this._readPingUpdate(r, sessionIndex)); break;
-			case FrameType.AggregatedData: this._handleAggregatedData(r, sessionIndex); break;
-			case FrameType.HopDeactivated: this._emit('hopDeactivated', this._readHopDeactivated(r, sessionIndex)); break;
-			default: console.warn('Unknown binary frame type:', type);
-		}
+		const view = new DataView(buf);
+		const type = view.getUint8(0);
+		if (type === FrameType.LiveBatch)
+			this._emit('live', view);
+		else if (type === FrameType.QueryResult)
+			this._handleQueryResult(view);
+		else
+			console.warn('Unknown binary frame type', type);
 	}
 
-	_readSessionTopology(r)
+	_handleQueryResult(v)
 	{
-		const count = r.u8();
-		const sessions = [];
-		for (let i = 0; i < count; i++)
-		{
-			const index = r.u8();
-			const targetAddress = r.ip();
-			const displayName = r.utf8String();
-			const sessionStartUtc = r.u64();
-			sessions.push({ index, targetAddress, displayName, sessionStartUtc });
-		}
-		return { sessions };
-	}
-
-	_readRouteUpdate(r, sessionIndex)
-	{
-		const timestampUtc = r.u64();
-		const hopCount = r.u8();
+		let o = 1;
+		const qid = v.getUint32(o, true); o += 4;
+		const sessionId = v.getUint16(o, true); o += 2;
+		const msPerCol = v.getUint32(o, true); o += 4;
+		const startCol = v.getFloat64(o, true); o += 8;
+		const colCount = v.getUint16(o, true); o += 2;
+		const hopCount = v.getUint16(o, true); o += 2;
 		const hops = [];
-		for (let i = 0; i < hopCount; i++)
+		for (let h = 0; h < hopCount; h++)
 		{
-			const hopNumber = r.u8();
-			const isPresent = r.u8();
-			if (isPresent === 0)
+			const ttl = v.getUint8(o); o += 1;
+			const count = v.getUint16(o, true); o += 2;
+			const col = new Uint16Array(count), n = new Uint16Array(count), lost = new Uint16Array(count);
+			const min = new Uint16Array(count), max = new Uint16Array(count), addr = new Uint16Array(count);
+			const sum = new Float64Array(count), flags = new Uint8Array(count);
+			for (let i = 0; i < count; i++)
 			{
-				hops.push(null);
+				col[i] = v.getUint16(o, true);
+				n[i] = v.getUint16(o + 2, true);
+				lost[i] = v.getUint16(o + 4, true);
+				min[i] = v.getUint16(o + 6, true);
+				max[i] = v.getUint16(o + 8, true);
+				sum[i] = v.getFloat32(o + 10, true);
+				addr[i] = v.getUint16(o + 14, true);
+				flags[i] = v.getUint8(o + 16);
+				o += 17;
 			}
-			else
-			{
-				const address = r.ip();
-				const hostname = r.utf8String();
-				const seriesStartUtc = r.u64();
-				hops.push({ hopNumber, address, hostname, seriesStartUtc });
-			}
+			hops.push({ ttl, count, col, n, lost, min, max, sum, addr, flags });
 		}
-		return { sessionIndex, timestampUtc, hops };
-	}
-
-	_readHostnameUpdated(r)
-	{
-		const address = r.ip();
-		const hostname = r.utf8String();
-		return { address, hostname };
-	}
-
-	_readPingUpdate(r, sessionIndex)
-	{
-		const hopNumber = r.u8();
-		const seriesStartUtc = r.u64();
-		const t = r.u64();
-		const ms = r.u16();
-		return { sessionIndex, hopNumber, seriesStartUtc, t, ms };
-	}
-
-	_readHopDeactivated(r, sessionIndex)
-	{
-		const hopNumber = r.u8();
-		const address = r.ip();
-		const seriesEndUtc = r.u64();
-		return { sessionIndex, hopNumber, address, seriesEndUtc };
-	}
-
-	_handleAggregatedData(r, sessionIndex)
-	{
-		const queryId = r.u32();
-		const seriesCount = r.u8();
-		const series = [];
-		for (let i = 0; i < seriesCount; i++)
-		{
-			const hopNumber = r.u8();
-			const address = r.ip();
-			const hostname = r.utf8String();
-			const seriesStartUtc = r.u64();
-			const seriesEndUtc = r.u64(); // 0 = still active
-			const pointCount = r.u32();
-			const points = new Array(pointCount);
-			for (let j = 0; j < pointCount; j++)
-			{
-				const t = r.u64();
-				let min = r.u16(); if (min === 0xFFFF) min = null;
-				let max = r.u16(); if (max === 0xFFFF) max = null;
-				let avg = r.u16(); if (avg === 0xFFFF) avg = null;
-				const lossPct = r.u16() / 100.0;
-				const samples = r.u32();
-				points[j] = { t, min, max, avg, lossPct, samples };
-			}
-			series.push({ hopNumber, address, hostname, seriesStartUtc, seriesEndUtc, points });
-		}
-
-		const payload = { sessionIndex, queryId, series };
-		const pending = this._pendingQueries.get(queryId);
-		if (pending)
-		{
-			clearTimeout(pending.timeoutId);
-			this._pendingQueries.delete(queryId);
-			try { pending.resolve(payload); } catch (e) { console.error(e); }
-		}
-		this._emit('aggregatedData', payload);
+		const p = this.pendingQueries.get(qid);
+		if (!p) return;
+		clearTimeout(p.timer);
+		this.pendingQueries.delete(qid);
+		p.resolve({ sessionId, msPerCol, startCol, colCount, hops });
 	}
 }
 
-const pingTracerWS = new PingTracerWS();
-export default pingTracerWS;
+const socket = new PingTracerSocket();
+export default socket;

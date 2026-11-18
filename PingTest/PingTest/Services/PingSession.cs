@@ -1,225 +1,233 @@
+using PingTracer.Services.Pinging;
 using PingTracer.Storage;
 using PingTracer.Tracer;
-using PingTracer.TraceRoute;
-using PingTracer.Util;
-using SmartPing;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace PingTracer.Services
 {
 	/// <summary>
-	/// Manages an active ping session for a <see cref="PingConfiguration"/>, decoupled from any UI.
-	/// Hosts one <see cref="MonitoringSession"/> + <see cref="IPingMonitor"/> per resolved address;
-	/// uses <see cref="ContinuousRouteMonitor"/> for traceroute mode and
-	/// <see cref="DirectPingMonitor"/> for single-hop direct ping mode (including all
-	/// multi-host configurations).
+	/// One run of a <see cref="PingConfiguration"/>: a <see cref="MonitoringSession"/> and <see cref="RouteMonitor"/> per host,
+	/// plus disk writers and periodic pruning.  Independent of any user interface.
 	/// </summary>
-	public class PingSession
+	public sealed class PingSession
 	{
-		/// <summary>
-		/// Factory hook for creating monitors. <paramref name="useTraceRoute"/> selects
-		/// route vs direct mode. Tests can replace this to inject mock monitors.
-		/// </summary>
-		public delegate IPingMonitor MonitorFactory(IPAddress target, string displayName, bool useTraceRoute, int intervalMs, MonitoringSession session);
+		/// <summary>Creates the pinger for a host string. Tests replace this.</summary>
+		public Func<string, IPinger> PingerFactory { get; set; }
 
 		public PingConfiguration Configuration { get; }
 		public bool IsRunning { get; private set; }
-		public long SuccessfulPings => Interlocked.Read(ref _successfulPings);
-		public long FailedPings => Interlocked.Read(ref _failedPings);
 
-		/// <summary>All MonitoringSessions for this PingSession, one per resolved host.</summary>
+		private readonly Settings settings;
+		private readonly object stateLock = new object();
+		private readonly List<MonitoringSession> sessions = new List<MonitoringSession>();
+		private readonly List<RouteMonitor> monitors = new List<RouteMonitor>();
+		private readonly List<PingDataWriter> writers = new List<PingDataWriter>();
+		private readonly Dictionary<MonitoringSession, LossTracker> lossTrackers = new Dictionary<MonitoringSession, LossTracker>();
+		private Timer pruneTimer;
+		private volatile bool stopRequested;
+		private readonly TaskCompletionSource<bool> startFinished = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		private long sent;
+		private long lost;
+
+		public long SentCount => Interlocked.Read(ref sent);
+		public long LostCount => Interlocked.Read(ref lost);
+
 		public IReadOnlyList<MonitoringSession> Sessions
 		{
-			get
-			{
-				lock (_stateLock)
-					return _sessions.ToArray();
-			}
+			get { lock (stateLock) return sessions.ToArray(); }
 		}
 
-		private readonly Settings _settings;
-		private readonly MonitorFactory _factory;
-		private readonly object _stateLock = new object();
-		private readonly List<MonitoringSession> _sessions = new List<MonitoringSession>();
-		private readonly List<IPingMonitor> _monitors = new List<IPingMonitor>();
-		private readonly List<RouteSnapshot> _lastEmittedRoutes = new List<RouteSnapshot>();
-		private readonly List<PingDataWriter> _writers = new List<PingDataWriter>();
-
-		private long _successfulPings;
-		private long _failedPings;
-		private volatile int _intervalMs = 1000;
-		private Timer _pruneTimer;
-
-		/// <summary>Raised when a new HopTimeSeries first appears in any MonitoringSession.</summary>
-		public event Action<MonitoringSession, HopTimeSeries> HopDiscovered;
-
-		/// <summary>Raised when a hop stops responding (its active series gets EndTimeUtc set).</summary>
-		public event Action<MonitoringSession, byte, IPAddress> HopDeactivated;
-
-		/// <summary>Raised once per ping completion, bubbled from the underlying monitors.</summary>
-		public event Action<MonitoringSession, TraceRouteHostResult, HopTimeSeries, RecordHandle?> PingRecordCompleted;
-
-		/// <summary>Raised when an unresponsive hop position was probed but no series received a record.</summary>
-		public event Action<MonitoringSession, byte, DateTime> UnresponsiveHopProbed;
-
-		/// <summary>Raised when a session's route topology changes.</summary>
-		public event Action<MonitoringSession, RouteSnapshot, RouteSnapshot> RouteChanged;
-
+		/// <summary>Raised for each session as it is created, before its monitor starts.</summary>
+		public event Action<MonitoringSession> SessionCreated;
+		public event Action<string> Log;
 		public event Action<string> StatusChanged;
-		public event Action<string> LogCreated;
-		public event Action SessionStopped;
+		/// <summary>Raised after the session has fully stopped (monitors stopped, files closed).</summary>
+		public event Action Stopped;
 
-		public PingSession(PingConfiguration config, Settings settings, MonitorFactory factory = null)
+		public PingSession(PingConfiguration config, Settings settings)
 		{
 			Configuration = config ?? throw new ArgumentNullException(nameof(config));
-			_settings = settings ?? throw new ArgumentNullException(nameof(settings));
-			_factory = factory ?? DefaultMonitorFactory;
-			_intervalMs = ComputeIntervalMs(config.rate, config.pingsPerSecond);
+			this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
+			PingerFactory = DefaultPingerFactory;
 		}
 
-		public void Start()
+		public static int ComputeIntervalMs(int rate, bool pingsPerSecond)
 		{
-			lock (_stateLock)
+			if (rate <= 0) return 1000;
+			if (pingsPerSecond) return Math.Max(100, (int)(1000.0 / rate));
+			return Math.Max(100, (int)(1000.0 * rate));
+		}
+
+		private IPinger DefaultPingerFactory(string host)
+		{
+			if (SimulatedNetwork.IsSimulatedHost(host))
+				return new SimulatedNetwork();
+			return new SmartPinger(settings.pingPayloadSizeBytes);
+		}
+
+		/// <summary>
+		/// Resolves hosts and starts monitoring. Blocks during DNS resolution, so call from a background thread.
+		/// Returns false if nothing could be started.
+		/// </summary>
+		public bool Start()
+		{
+			lock (stateLock)
 			{
-				if (IsRunning) return;
+				if (IsRunning) return true;
 				IsRunning = true;
-				// A previous Stop() retained sessions for post-stop queryData;
-				// clear them now so this Start replaces them cleanly.
-				_sessions.Clear();
-				_monitors.Clear();
-				_lastEmittedRoutes.Clear();
-				_writers.Clear();
 			}
+			try
+			{
+				return StartInternal();
+			}
+			finally
+			{
+				startFinished.TrySetResult(true);
+			}
+		}
 
-			Interlocked.Exchange(ref _successfulPings, 0);
-			Interlocked.Exchange(ref _failedPings, 0);
-
-			string hostString = Configuration.GetHostString();
-			bool reverseDnsLookup = Configuration.reverseDnsLookup;
-			bool preferIpv4 = Configuration.GetPreferIPv4();
-
+		private bool StartInternal()
+		{
 			StatusChanged?.Invoke("Starting...");
-			LogCreated?.Invoke("Initializing pings to " + hostString);
 
-			string[] addresses = (hostString ?? string.Empty)
-				.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-			if (addresses.Length == 0)
+			List<string> hosts = (Configuration.hosts ?? new List<Host>())
+				.SelectMany(h => (h?.hostname ?? "").Split(new[] { ',', ' ', '\r', '\n', '\t' }, StringSplitOptions.RemoveEmptyEntries))
+				.Select(h => h.Trim())
+				.Where(h => h.Length > 0)
+				.ToList();
+			if (hosts.Count == 0)
 			{
-				LogCreated?.Invoke("Unable to start pinging because the host input is empty.");
-				StopInternal();
-				return;
+				Log?.Invoke("Unable to start: the configuration has no hosts.");
+				FailStart();
+				return false;
 			}
 
-			// Multi-host configurations always use direct mode (matches legacy behavior).
-			bool useTraceRoute = Configuration.doTraceRoute && addresses.Length == 1;
+			bool traceRoute = Configuration.doTraceRoute && hosts.Count == 1;
+			int intervalMs = ComputeIntervalMs(Configuration.rate, Configuration.pingsPerSecond);
+			int timeoutMs = Math.Clamp(settings.pingTimeoutMs, 200, 30000);
 
-			foreach (string raw in addresses)
+			foreach (string host in hosts)
 			{
+				if (stopRequested)
+					break;
 				IPAddress ip;
-				string resolvedName;
-				string trimmedRaw = raw.Trim();
+				string displayName;
 				try
 				{
-					ip = StringToIp(trimmedRaw, preferIpv4, out resolvedName);
+					ip = ResolveHost(host, Configuration.preferIPv4, out displayName);
 				}
 				catch (Exception ex)
 				{
-					LogCreated?.Invoke(ex.Message);
+					Log?.Invoke(ex.Message);
 					continue;
 				}
-				if (ip == null) continue;
 
-				// Log the resolved IP whenever the user supplied a hostname rather
-				// than a literal IP, so the output log makes clear which address
-				// pings are actually being sent to.
-				if (!IPAddress.TryParse(trimmedRaw, out _))
-					LogCreated?.Invoke($"Resolved {trimmedRaw} -> {ip}");
-
-				string displayName = ip.ToString();
-				if (!string.IsNullOrWhiteSpace(resolvedName))
-					displayName = resolvedName + " [" + ip + "]";
-
-				MonitoringSession session = new MonitoringSession(ip, displayName);
-				IPingMonitor monitor = _factory(ip, displayName, useTraceRoute, _intervalMs, session);
-				if (monitor == null) continue;
-
-				WireSessionEvents(session);
-				WireMonitorEvents(session, monitor);
-
-				PingDataWriter writer = TryCreateWriter(session);
-
-				lock (_stateLock)
+				IPinger pinger = PingerFactory(host);
+				MonitoringSession session = new MonitoringSession(ip, displayName, traceRoute ? SessionMode.TraceRoute : SessionMode.Direct, intervalMs, timeoutMs);
+				if (Configuration.reverseDnsLookup)
+					session.HostnameResolver = pinger.ReverseLookupAsync;
+				RouteMonitor monitor = new RouteMonitor(session, pinger, new RouteMonitorOptions
 				{
-					_sessions.Add(session);
-					_monitors.Add(monitor);
-					_lastEmittedRoutes.Add(null);
-					if (writer != null) _writers.Add(writer);
-				}
+					TraceRoute = traceRoute,
+					IntervalMs = intervalMs,
+					TimeoutMs = timeoutMs,
+					MaxHops = settings.maxHopsDefault,
+				});
+				monitor.Log += msg => Log?.Invoke(msg);
+				WireSessionEvents(session);
 
+				PingDataWriter writer = null;
+				if (settings.saveSessionData)
+					writer = TryCreateWriter(session);
+
+				lock (stateLock)
+				{
+					sessions.Add(session);
+					monitors.Add(monitor);
+					if (writer != null) writers.Add(writer);
+				}
+				SessionCreated?.Invoke(session);
+				Log?.Invoke((traceRoute ? "Tracing route to " : "Pinging ") + displayName + " every " + intervalMs + " ms");
 				monitor.Start();
 			}
 
-			List<IPingMonitor> snapshot;
-			lock (_stateLock) snapshot = new List<IPingMonitor>(_monitors);
-			if (snapshot.Count == 0)
+			lock (stateLock)
 			{
-				LogCreated?.Invoke("No hosts could be resolved. Pinging will not start.");
-				StopInternal();
-				return;
+				if (monitors.Count == 0)
+				{
+					Log?.Invoke("No hosts could be resolved. Pinging will not start.");
+					FailStart();
+					return false;
+				}
 			}
-
-			_pruneTimer = new Timer(_ => RunPrune(), null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
-
-			LogCreated?.Invoke("Now beginning pings");
-			StatusChanged?.Invoke("Pinging Active");
+			pruneTimer = new Timer(_ => RunPrune(), null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
+			if (!stopRequested)
+				StatusChanged?.Invoke("Running");
+			return true;
 		}
 
-		public void Stop()
+		private void FailStart()
 		{
-			lock (_stateLock)
+			lock (stateLock) IsRunning = false;
+			StatusChanged?.Invoke("Idle");
+			Stopped?.Invoke();
+		}
+
+		/// <summary>Stops all monitors, waits for in-flight pings, and closes data files.</summary>
+		public async Task StopAsync()
+		{
+			List<RouteMonitor> ms;
+			List<PingDataWriter> ws;
+			lock (stateLock)
 			{
 				if (!IsRunning) return;
+				stopRequested = true;
 			}
-			StopInternal();
-			StatusChanged?.Invoke("Idle");
-			SessionStopped?.Invoke();
-		}
-
-		private void StopInternal()
-		{
-			Timer pt = Interlocked.Exchange(ref _pruneTimer, null);
-			pt?.Dispose();
-
-			List<IPingMonitor> monitorSnapshot;
-			List<PingDataWriter> writerSnapshot;
-			lock (_stateLock)
+			// If Start is still resolving hosts, let it finish so that every monitor it creates gets stopped.
+			await startFinished.Task.ConfigureAwait(false);
+			lock (stateLock)
 			{
-				IsRunning = false;
-				monitorSnapshot = new List<IPingMonitor>(_monitors);
-				writerSnapshot = new List<PingDataWriter>(_writers);
-				// Retain _sessions and _lastEmittedRoutes so post-stop queryData
-				// requests can still resolve against the in-memory data.
-				// They are cleared on the next Start().
-				_monitors.Clear();
-				_writers.Clear();
+				if (!IsRunning) return; // Start gave up on its own.
+				ms = new List<RouteMonitor>(monitors);
+				ws = new List<PingDataWriter>(writers);
+				monitors.Clear();
+				writers.Clear();
 			}
-
-			foreach (IPingMonitor m in monitorSnapshot)
-			{
-				try { m.Stop(); } catch { }
-				try { m.Dispose(); } catch { }
-			}
-
-			// Disposing the writer waits for in-flight pings to complete and performs
-			// a final flush, so it must happen after monitors are stopped.
-			foreach (PingDataWriter w in writerSnapshot)
+			StatusChanged?.Invoke("Stopping...");
+			Interlocked.Exchange(ref pruneTimer, null)?.Dispose();
+			await Task.WhenAll(ms.Select(m => m.StopAsync())).ConfigureAwait(false);
+			foreach (PingDataWriter w in ws)
 			{
 				try { w.Dispose(); } catch { }
+			}
+			lock (stateLock) IsRunning = false;
+			StatusChanged?.Invoke("Idle");
+			Log?.Invoke("Stopped.");
+			Stopped?.Invoke();
+		}
+
+		public void SetPingDelay(int rate, bool pingsPerSecond)
+		{
+			int interval = ComputeIntervalMs(rate, pingsPerSecond);
+			List<RouteMonitor> ms;
+			lock (stateLock) ms = new List<RouteMonitor>(monitors);
+			foreach (RouteMonitor m in ms)
+				m.IntervalMs = interval;
+		}
+
+		public void RunPrune()
+		{
+			TimeSpan retention = settings.DataRetentionPeriod;
+			if (retention <= TimeSpan.Zero) return;
+			foreach (MonitoringSession s in Sessions)
+			{
+				try { s.PruneOlderThan(retention); } catch { }
 			}
 		}
 
@@ -227,196 +235,108 @@ namespace PingTracer.Services
 		{
 			try
 			{
-				string dir = PingDataFile.ResolveDataDirectory(_settings.dataDirectory, Settings.SettingsFolderPath);
-				string fileName = PingDataFile.BuildSessionFileName(session.TargetAddress, session.StartTimeUtc);
-				string path = System.IO.Path.Combine(dir, fileName);
-				return new PingDataWriter(session, path, _settings.diskFlushIntervalSeconds);
+				string dir = PingDataFile.ResolveDataDirectory(settings.dataDirectory, Settings.SettingsFolderPath);
+				string path = System.IO.Path.Combine(dir, PingDataFile.BuildSessionFileName(session.TargetAddress, session.StartUnixMs));
+				for (int i = 2; System.IO.File.Exists(path); i++)
+					path = System.IO.Path.Combine(dir, System.IO.Path.GetFileNameWithoutExtension(PingDataFile.BuildSessionFileName(session.TargetAddress, session.StartUnixMs)) + "-" + i + PingDataFile.FileExtension);
+				PingDataWriter w = new PingDataWriter(session, path, settings.diskFlushIntervalSeconds);
+				w.WriteFailed += ex => Log?.Invoke("Saving session data failed and has been disabled: " + ex.Message);
+				return w;
 			}
 			catch (Exception ex)
 			{
-				LogCreated?.Invoke("Disk persistence disabled (failed to open session log): " + ex.Message);
+				Log?.Invoke("Session data will not be saved (could not create file): " + ex.Message);
 				return null;
-			}
-		}
-
-		/// <summary>Updates the ping interval for this session and propagates to all monitors.</summary>
-		public void SetPingDelay(int rate, bool pingsPerSecond)
-		{
-			_intervalMs = ComputeIntervalMs(rate, pingsPerSecond);
-			List<IPingMonitor> snapshot;
-			lock (_stateLock) snapshot = new List<IPingMonitor>(_monitors);
-			foreach (IPingMonitor m in snapshot)
-			{
-				try { m.IntervalMs = _intervalMs; } catch { }
-			}
-		}
-
-		/// <summary>
-		/// Runs a prune cycle on all sessions immediately. Public so tests and external
-		/// triggers can drive pruning without waiting for the periodic timer.
-		/// </summary>
-		public void RunPrune()
-		{
-			List<MonitoringSession> snapshot;
-			lock (_stateLock) snapshot = new List<MonitoringSession>(_sessions);
-			TimeSpan retention = _settings.DataRetentionPeriod;
-			foreach (MonitoringSession s in snapshot)
-			{
-				try { s.PruneOlderThan(retention); } catch { }
 			}
 		}
 
 		private void WireSessionEvents(MonitoringSession session)
 		{
-			session.RouteChanged += (oldRoute, newRoute) =>
+			LossTracker tracker = new LossTracker();
+			lock (stateLock) lossTrackers[session] = tracker;
+
+			session.SampleCompleted += (s, ttl, record) =>
 			{
-				int idx;
-				RouteSnapshot prevEmitted;
-				lock (_stateLock)
-				{
-					idx = _sessions.IndexOf(session);
-					prevEmitted = idx >= 0 ? _lastEmittedRoutes[idx] : null;
-					if (idx >= 0)
-						_lastEmittedRoutes[idx] = newRoute;
-				}
-
-				IReadOnlyList<RouteChange> diff = newRoute.DiffFrom(prevEmitted);
-				foreach (RouteChange ch in diff)
-				{
-					if (ch.OldAddress != null)
-						HopDeactivated?.Invoke(session, ch.HopIndex, ch.OldAddress);
-					if (ch.NewAddress != null && ch.HopIndex < newRoute.Hops.Length)
-					{
-						HopTimeSeries newSeries = newRoute.Hops[ch.HopIndex];
-						if (newSeries != null)
-							HopDiscovered?.Invoke(session, newSeries);
-					}
-				}
-
-				RouteChanged?.Invoke(session, oldRoute, newRoute);
+				Interlocked.Increment(ref sent);
+				if (record.IsLost)
+					Interlocked.Increment(ref lost);
+				int destTtl = s.Mode == SessionMode.Direct ? 0 : s.DestinationTtl;
+				if (ttl == destTtl && (s.Mode == SessionMode.Direct || destTtl > 0))
+					TrackDestinationResult(s, tracker, record);
+			};
+			session.SampleVoided += (s, ttl, record) =>
+			{
+				Interlocked.Decrement(ref sent);
+				if (record.IsLost)
+					Interlocked.Decrement(ref lost);
+			};
+			session.RouteEventAdded += (s, e) =>
+			{
+				if (e.Initial || e.Kind != RouteEventKind.HopAddress)
+					return;
+				IPAddress ip = s.Addresses.GetAddress(e.Value);
+				string host = s.Addresses.GetHostname(e.Value);
+				Log?.Invoke($"{s.DisplayName}: hop {e.Ttl} is now answering from {ip}{(string.IsNullOrEmpty(host) ? "" : " (" + host + ")")}");
 			};
 		}
 
-		private void WireMonitorEvents(MonitoringSession session, IPingMonitor monitor)
+		private void TrackDestinationResult(MonitoringSession s, LossTracker t, PingSample record)
 		{
-			monitor.PingRecordCompleted += (result, series, handle) =>
+			if (record.IsLost)
 			{
-				if (result != null && result.success)
-					Interlocked.Increment(ref _successfulPings);
-				else
-					Interlocked.Increment(ref _failedPings);
-
-				PingRecordCompleted?.Invoke(session, result, series, handle);
-			};
-
-			monitor.UnresponsiveHopProbed += (hop, sentAt) =>
+				if (t.LostInRow == 0)
+					t.FirstLostTimeMs = record.TimeMs;
+				t.LostInRow++;
+				if (t.LostInRow == 1 && Configuration.logFailures)
+					Log?.Invoke($"{s.DisplayName}: ping lost at {FormatTime(s, record.TimeMs)}");
+			}
+			else
 			{
-				Interlocked.Increment(ref _failedPings);
-				UnresponsiveHopProbed?.Invoke(session, hop, sentAt);
-			};
-
-			if (monitor is ContinuousRouteMonitor crm)
-			{
-				crm.DestinationHopChanged += (newTtl, oldTtl) =>
-				{
-					if (oldTtl == 0)
-						LogCreated?.Invoke($"Destination {session.TargetAddress} reached at hop {newTtl}");
-					else if (newTtl != oldTtl)
-						LogCreated?.Invoke($"Destination {session.TargetAddress} hop changed: {oldTtl} -> {newTtl}");
-				};
+				if (t.LostInRow > 1 && Configuration.logFailures)
+					Log?.Invoke($"{s.DisplayName}: replies resumed after {t.LostInRow} lost pings ({FormatTime(s, t.FirstLostTimeMs)} to {FormatTime(s, record.TimeMs)})");
+				t.LostInRow = 0;
+				if (Configuration.logSuccesses)
+					Log?.Invoke($"{s.DisplayName}: reply in {record.Rtt} ms at {FormatTime(s, record.TimeMs)}");
 			}
 		}
 
-		private IPingMonitor DefaultMonitorFactory(IPAddress target, string displayName, bool useTraceRoute, int intervalMs, MonitoringSession session)
-		{
-			if (useTraceRoute)
-			{
-				return new ContinuousRouteMonitor(
-					target,
-					session,
-					intervalMs: intervalMs,
-					initialMaxHops: (byte)Math.Min(255, Math.Max(1, _settings.maxHopsDefault)),
-					pingTimeoutMs: 5000,
-					destinationProbeMissThreshold: _settings.destinationProbeMissThreshold,
-					destinationProbeTtl: _settings.destinationProbeTtl,
-					traceRouteFn: RouteTracerMethodD.TraceRoute,
-					probeFn: SendDestinationProbeAsync);
-			}
+		private static string FormatTime(MonitoringSession s, long timeMs) => ServerClock.ToDateTime(s.ToUnixMs(timeMs)).ToLocalTime().ToString("HH:mm:ss");
 
-			return new DirectPingMonitor(
-				target,
-				session,
-				intervalMs: intervalMs,
-				pingTimeoutMs: 5000,
-				payloadSizeBytes: _settings.pingPayloadSizeBytes);
+		private sealed class LossTracker
+		{
+			public int LostInRow;
+			public long FirstLostTimeMs;
 		}
 
-		private static async Task<TraceRouteHostResult> SendDestinationProbeAsync(IPAddress target, byte ttl, int pingTimeoutMs)
+		/// <summary>Resolves a host string to an address. Also handles the simulated-network <c>sim:</c> prefix.</summary>
+		public static IPAddress ResolveHost(string host, bool preferIPv4, out string displayName)
 		{
-			Ping ping = PingInstancePool.Get();
-			DateTime sentUtc = DateTime.UtcNow;
+			host = host.Trim();
+			if (SimulatedNetwork.IsSimulatedHost(host))
+			{
+				displayName = host;
+				return SimulatedNetwork.DestinationAddress;
+			}
+			if (IPAddress.TryParse(host, out IPAddress literal))
+			{
+				displayName = literal.ToString();
+				return literal;
+			}
+			IPAddress[] addresses;
 			try
 			{
-				PingOptions opt = new PingOptions(ttl, true);
-				PingReply reply = await ping.SendPingAsync(
-					target,
-					pingTimeoutMs,
-					PingBufferStatic.GetBuffer(RouteTracerMethodD.PingPayloadSizeBytes),
-					opt).ConfigureAwait(false);
-
-				bool success = reply.Status == IPStatus.Success || reply.Status == IPStatus.TtlExpired;
-				IPAddress replyFrom = success ? reply.Address : IPAddress.Any;
-				return new TraceRouteHostResult(null, success, reply.RoundtripTime, replyFrom, ttl, target, ttl, pingTimeoutMs, sentUtc);
+				addresses = Dns.GetHostAddresses(host);
 			}
-			catch
+			catch (Exception ex)
 			{
-				return new TraceRouteHostResult(null, false, 0, IPAddress.Any, ttl, target, ttl, pingTimeoutMs, sentUtc);
+				throw new Exception("Unable to resolve \"" + host + "\": " + ex.Message, ex);
 			}
-			finally
-			{
-				PingInstancePool.Recycle(ping);
-			}
-		}
-
-		private static int ComputeIntervalMs(int rate, bool pingsPerSecond)
-		{
-			if (rate == 0) return 1000;
-			if (pingsPerSecond) return Math.Max(100, (int)(1000.0 / rate));
-			return Math.Max(100, (int)(1000.0 * rate));
-		}
-
-		internal static IPAddress StringToIp(string address, bool preferIpv4, out string hostName)
-		{
-			hostName = null;
-			try
-			{
-				if (IPAddress.TryParse(address, out IPAddress tmp))
-					return tmp;
-			}
-			catch (FormatException) { }
-
-			try
-			{
-				hostName = address;
-				IPHostEntry iphe = Dns.GetHostEntry(address);
-				if (preferIpv4)
-				{
-					IPAddress addr = iphe.AddressList.FirstOrDefault(ip => ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
-					if (addr != null) return addr;
-				}
-				else
-				{
-					IPAddress addr = iphe.AddressList.FirstOrDefault(ip => ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6);
-					if (addr != null) return addr;
-				}
-				if (iphe.AddressList.Length > 0)
-					return iphe.AddressList[0];
-			}
-			catch (Exception e)
-			{
-				throw new Exception("Unable to resolve '" + address + "'", e);
-			}
-			throw new Exception("Unable to resolve '" + address + "'");
+			AddressFamily preferred = preferIPv4 ? AddressFamily.InterNetwork : AddressFamily.InterNetworkV6;
+			IPAddress ip = addresses.FirstOrDefault(a => a.AddressFamily == preferred) ?? addresses.FirstOrDefault();
+			if (ip == null)
+				throw new Exception("Unable to resolve \"" + host + "\": no addresses found.");
+			displayName = host + " [" + ip + "]";
+			return ip;
 		}
 	}
 }

@@ -1,477 +1,222 @@
 <template>
-	<div class="app-container" @keydown="onKeyDown" tabindex="0">
+	<div class="app">
 		<ToolBar :configurations="store.configurations" :selectedConfigGuid="store.selectedConfigGuid"
-			:isRunning="store.isRunning" :status="store.status" :successfulPings="store.successfulPings"
-			:failedPings="store.failedPings" :connected="store.connected" @selectConfig="store.selectConfig"
-			@start="store.startPinging" @stop="store.stopPinging" @editConfig="editCurrentConfig"
-			@newConfig="newConfig" @showLog="showLog = true" />
+			:isRunning="store.isRunning" :status="store.status" :sentCount="store.sentCount" :lostCount="store.lostCount"
+			:connected="store.connected" :viewingHistory="viewingHistory" :unreadLog="unreadLog" :view="view"
+			@selectConfig="store.selectConfig" @start="store.start" @stop="store.stop"
+			@editConfig="editCurrentConfig" @newConfig="newConfig"
+			@zoomIn="graph('zoomIn')" @zoomOut="graph('zoomOut')" @fitAll="graph('fitAll')" @goLive="graph('goLive')"
+			@showHistory="showHistory = true" @showLog="toggleLog" @showSettings="showSettings = true" @showHelp="showHelp = true" />
 
-		<div class="graph-area" ref="graphArea">
-			<template v-if="graphRows.length > 0">
-				<div v-for="(row, idx) in graphRows" :key="row.key" class="graph-container"
-					:style="graphStyle(idx)">
-					<PingGraph ref="graphs" :segments="row.segments"
-						:displayName="row.displayName" :config="configForGraphs"
-						:viewportStartUtc="viewportStartUtc" :viewportEndUtc="viewportEndUtcEffective"
-						:isLive="isLive" :scrollOffsetMs="scrollOffsetMs"
-						@wheel="onGraphWheel" @dragStart="onDragStart" />
-				</div>
-			</template>
-			<div v-else class="no-graphs">
-				<div class="no-graphs-content">
-					<p v-if="!store.selectedConfigGuid">Select or create a configuration to begin.</p>
-					<p v-else-if="!store.isRunning">Press <strong>Start</strong> to begin pinging.</p>
-					<p v-else>Waiting for route discovery...</p>
+		<div v-if="viewingHistory" class="banner">
+			Viewing saved session <strong>{{ historyTitle }}</strong>
+			<button class="banner-btn" @click="store.closeHistory">Close</button>
+		</div>
+
+		<div class="main">
+			<GraphView ref="graph" :config="configForGraphs" :historyMode="viewingHistory" @viewChanged="v => view = v" />
+			<div v-if="placeholder" class="placeholder">
+				<div class="placeholder-box">
+					<div class="placeholder-title">{{ placeholder.title }}</div>
+					<div v-if="placeholder.text" class="placeholder-text">{{ placeholder.text }}</div>
+					<button v-if="placeholder.action" class="placeholder-btn" @click="placeholder.action.fn">{{ placeholder.action.label }}</button>
 				</div>
 			</div>
 		</div>
 
-		<TimeScale v-if="graphRows.length > 0"
-			:viewportStartUtc="viewportStartUtc" :viewportEndUtc="viewportEndUtcEffective" />
+		<LogViewer v-if="showLog" :messages="store.logMessages" @close="closeLog" />
+
+		<div v-if="showHelp" class="dlg-overlay" @mousedown.self="showHelp = false">
+			<div class="dlg help">
+				<div class="dlg-header"><h3>Graph controls</h3><button class="dlg-close" @click="showHelp = false">&times;</button></div>
+				<div class="dlg-body">
+					<table class="keys">
+						<tr><td>Mouse wheel, <kbd>+</kbd> <kbd>−</kbd></td><td>Zoom in / out in time</td></tr>
+						<tr><td>Drag, <kbd>Shift</kbd>+wheel, <kbd>←</kbd> <kbd>→</kbd></td><td>Scroll through time</td></tr>
+						<tr><td><kbd>PgUp</kbd> <kbd>PgDn</kbd></td><td>Scroll one screen</td></tr>
+						<tr><td><kbd>End</kbd>, double-click</td><td>Jump to the latest data (live)</td></tr>
+						<tr><td><kbd>Home</kbd></td><td>Jump to the start</td></tr>
+						<tr><td><kbd>F</kbd></td><td>Fit everything on screen</td></tr>
+						<tr><td><kbd>L</kbd></td><td>Show / hide the event log</td></tr>
+					</table>
+					<h4>Reading the graph</h4>
+					<ul class="legend">
+						<li><span class="sw" style="background:#409640"></span><span class="sw" style="background:#969600"></span><span class="sw" style="background:#f0e600"></span>Latency below the "bad" threshold, above it, and above the "worse" threshold. When several pings share a pixel, the solid bar is the average and the dimmer extension reaches the maximum.</li>
+						<li><span class="sw" style="background:#ff0000"></span>Lost pings. When several pings share a pixel, red hangs from the top of the row in proportion to the fraction lost.</li>
+						<li><span class="sw" style="background:#1a1a20"></span>Pings still waiting for a reply.</li>
+						<li><span class="sw strip"></span>A colored strip at the top of a row appears when a hop has answered from more than one address; each address has its own color. Alternating colors mean load balancing.</li>
+						<li><span class="sw" style="background:#00c8ff"></span><span class="sw" style="background:#e600e6"></span>Dashed lines mark a new address at a hop and a change in the number of hops to the destination.</li>
+						<li>Thin gray rows are hops that do not answer pings; that is normal for many routers.</li>
+					</ul>
+				</div>
+			</div>
+		</div>
 
 		<ConfigEditor v-if="showConfigEditor" :config="editingConfig" @save="onConfigSave" @delete="onConfigDelete"
 			@close="onConfigClose" @preview="onConfigPreview" />
+		<HistoryDialog v-if="showHistory" :history="store.history" :isRunning="store.isRunning"
+			:openFileName="store.view.fileName" @close="showHistory = false" @refresh="store.listHistory"
+			@open="onOpenHistory" />
+		<SettingsDialog v-if="showSettings" :settings="store.settings" @close="showSettings = false" @save="onSaveSettings" />
 
-		<LogViewer v-if="showLog" :messages="store.logMessages" @close="showLog = false" />
-
-		<div class="error-toast" v-if="store.errors.length > 0" @click="store.clearErrors">
-			{{ store.errors[store.errors.length - 1] }}
-		</div>
-
-		<div v-if="zoomTooltipVisible" class="zoom-tooltip"
-			:style="{ left: zoomTooltipX + 'px', top: zoomTooltipY + 'px' }">
-			{{ zoomTooltipText }}
+		<div class="toasts">
+			<div v-for="e in store.errors" :key="e.id" class="toast" @click="store.dismissError(e.id)">{{ e.message }}</div>
 		</div>
 	</div>
 </template>
 
 <script>
 import ToolBar from '@/components/ToolBar.vue';
-import PingGraph from '@/components/PingGraph.vue';
-import TimeScale from '@/components/TimeScale.vue';
+import GraphView from '@/components/GraphView.vue';
 import ConfigEditor from '@/components/ConfigEditor.vue';
 import LogViewer from '@/components/LogViewer.vue';
-import { usePingStore, keyFor } from '@/stores/ping';
-
-// Time-based viewport: viewportEndUtc is the right edge of the graph in
-// Unix ms. `null` means live (auto-tracks Date.now()).
-// viewportDurationMs is the total visible time span.
-const DEFAULT_VIEWPORT_DURATION_MS = 60 * 1000;       // 1 minute
-const MIN_VIEWPORT_DURATION_MS = 1000;                // 1 second
-const MAX_VIEWPORT_DURATION_MS = 7 * 86400 * 1000;    // 7 days
-const LIVE_QUERY_THRESHOLD_MS = 5 * 60 * 1000;        // beyond 5 minutes, live mode also queries
+import HistoryDialog from '@/components/HistoryDialog.vue';
+import SettingsDialog from '@/components/SettingsDialog.vue';
+import { usePingStore } from '@/stores/ping';
+import { formatDateTime } from '@/library/format';
 
 export default {
 	name: 'App',
-	components: { ToolBar, PingGraph, TimeScale, ConfigEditor, LogViewer },
+	components: { ToolBar, GraphView, ConfigEditor, LogViewer, HistoryDialog, SettingsDialog },
 	setup()
 	{
-		const store = usePingStore();
-		return { store };
+		return { store: usePingStore() };
 	},
 	data()
 	{
 		return {
 			showConfigEditor: false,
 			showLog: false,
+			showHistory: false,
+			showSettings: false,
+			showHelp: false,
 			editingConfig: null,
 			previewConfig: null,
 			savedConfigBackup: null,
-
-			// Time-based viewport state
-			viewportEndUtc: null,                         // null = live
-			viewportDurationMs: DEFAULT_VIEWPORT_DURATION_MS,
-			liveNow: Date.now(),                          // refreshed on a timer when live
-
-			// Drag state
-			isDragging: false,
-			dragStartX: 0,
-			dragStartEndUtc: 0,
-
-			// Zoom tooltip
-			zoomTooltipVisible: false,
-			zoomTooltipX: 0,
-			zoomTooltipY: 0,
-			zoomTooltipText: '',
-			zoomTooltipTimer: null,
-
-			_liveRafId: null,
-			_lastQueryViewport: null,
+			view: { live: true, msPerCol: 500, widthPx: 1000, dpr: 1, startMs: 0, endMs: 60000 },
+			logSeen: 0,
+			fitPending: false,
 		};
 	},
 	computed: {
-		isLive() { return this.viewportEndUtc === null; },
-
-		viewportEndUtcEffective()
+		viewingHistory() { return this.store.view.source === 'history'; },
+		historyTitle()
 		{
-			return this.isLive ? this.liveNow : this.viewportEndUtc;
+			const s = this.store.sessions[0];
+			if (!s) return this.store.view.fileName || '';
+			return `${s.displayName} — ${formatDateTime(s.startMs)}`;
 		},
-
-		viewportStartUtc()
+		configForGraphs() { return this.previewConfig || this.store.configDetails; },
+		unreadLog() { return this.showLog ? 0 : Math.max(0, Math.min(99, this.store.logMessages.length - this.logSeen)); },
+		placeholder()
 		{
-			return this.viewportEndUtcEffective - this.viewportDurationMs;
-		},
-
-		scrollOffsetMs()
-		{
-			// Distance from "now" to the right edge, in ms. 0 when live.
-			if (this.isLive) return 0;
-			return Math.max(0, this.liveNow - this.viewportEndUtc);
-		},
-
-		graphRows()
-		{
-			// One row per (sessionIndex, hopNumber). Each row carries
-			// every series segment whose [startUtc, endUtc] overlaps the
-			// viewport. PingGraph renders the segments in time order with
-			// vertical seams at boundaries.
-			const rows = [];
-			const sessions = this.store.sessions || [];
-			const routes = this.store.routes || {};
-			const hopHistory = this.store.hopHistory || {};
-			const liveTail = this.store.liveTail || {};
-			const history = this.store.history || {};
-
-			const vStart = this.viewportStartUtc;
-			const vEnd = this.viewportEndUtcEffective;
-
-			for (const session of sessions)
-			{
-				const sIdx = session.index;
-				const route = routes[sIdx];
-				const bySession = hopHistory[sIdx];
-
-				// Collect every hop number we know about (active + closed).
-				const hopNumbers = new Set();
-				if (route && route.hops) for (const h of route.hops) if (h) hopNumbers.add(h.hopNumber);
-				if (bySession) for (const k of Object.keys(bySession)) hopNumbers.add(parseInt(k, 10));
-
-				const sortedHops = Array.from(hopNumbers).sort((a, b) => a - b);
-				for (const hopNumber of sortedHops)
-				{
-					const segs = (bySession && bySession[hopNumber]) || [];
-					const visibleSegs = [];
-					for (const seg of segs)
-					{
-						const segStart = seg.seriesStartUtc;
-						const segEnd = seg.seriesEndUtc != null ? seg.seriesEndUtc : Number.POSITIVE_INFINITY;
-						// Always include synthetic unresponsive segment (start=0).
-						// Real segments must overlap the viewport to be considered.
-						if (segStart !== 0 && (segEnd < vStart || segStart > vEnd)) continue;
-
-						const k = keyFor(sIdx, hopNumber, seg.seriesStartUtc);
-						const histEntry = history[k];
-						const tail = liveTail[k] || [];
-
-						// Build bucket list. History buckets first (already aggregated),
-						// then live-tail entries as 1-sample buckets after the last
-						// history bucket's timestamp (to avoid double-drawing).
-						// We do not filter buckets by viewport here — the renderer
-						// uses the next bucket's t for bar widths and needs adjacent
-						// out-of-viewport buckets to render edge bars correctly.
-						//
-						// PingTracer tradition (mirroring the WinForms client's
-						// `delayMostRecentPing` setting): hold back the most recent
-						// live-tail entry. The trailing bar otherwise paints the
-						// in-flight ping's time interval with the previous ping's
-						// color; when the in-flight ping later resolves to a
-						// timeout, that region visibly flashes from green to red.
-						// Holding it back means each rendered bar is fully resolved
-						// and the area for the in-flight ping stays empty (black).
-						const buckets = [];
-						const lastHistT = histEntry && histEntry.points.length > 0
-							? histEntry.points[histEntry.points.length - 1].t
-							: -1;
-						if (histEntry)
-							for (const p of histEntry.points) buckets.push(p);
-						const trimFromEnd = 0;
-						const tailRenderEnd = Math.max(0, tail.length - trimFromEnd);
-						for (let i = 0; i < tailRenderEnd; i++)
-						{
-							const p = tail[i];
-							if (p.t <= lastHistT) continue;
-							const isFail = p.ms === 0xFFFF || p.ms === 0xFFFE;
-							buckets.push({
-								t: p.t,
-								min: isFail ? null : p.ms,
-								max: isFail ? null : p.ms,
-								avg: isFail ? null : p.ms,
-								lossPct: isFail ? 100 : 0,
-								samples: 1,
-							});
-						}
-
-						visibleSegs.push({
-							address: seg.address,
-							hostname: seg.hostname,
-							seriesStartUtc: seg.seriesStartUtc,
-							seriesEndUtc: seg.seriesEndUtc,
-							buckets,
-						});
-					}
-
-					// Pick latest visible segment for the row label; fall back to
-					// last known segment if none in window.
-					let labelSeg = null;
-					if (visibleSegs.length > 0) labelSeg = visibleSegs[visibleSegs.length - 1];
-					else if (segs.length > 0) labelSeg = segs[segs.length - 1];
-					if (!labelSeg) continue;
-
-					const label = labelSeg.address === '*'
-						? `${hopNumber + 1}. (no response)`
-						: labelSeg.hostname && labelSeg.hostname.length > 0
-							? `${hopNumber + 1}. ${labelSeg.hostname} [${labelSeg.address}]`
-							: `${hopNumber + 1}. ${labelSeg.address}`;
-
-					rows.push({
-						key: `${sIdx}:${hopNumber}`,
-						sessionIndex: sIdx,
-						hopNumber,
-						displayName: label,
-						addressChanged: visibleSegs.length > 1,
-						segments: visibleSegs,
-					});
-				}
-			}
-			return rows;
-		},
-
-		configForGraphs()
-		{
-			return this.previewConfig || this.store.configDetails;
-		},
-
-		graphAreaWidth()
-		{
-			return this.$refs.graphArea?.clientWidth || 800;
-		},
-
-		earliestSessionStartUtc()
-		{
-			let earliest = Number.POSITIVE_INFINITY;
-			for (const s of this.store.sessions || [])
-				if (s.sessionStartUtc && s.sessionStartUtc < earliest) earliest = s.sessionStartUtc;
-			return Number.isFinite(earliest) ? earliest : null;
+			const st = this.store;
+			if (!st.connected)
+				return { title: 'Connecting to PingTracer…', text: 'The PingTracer application must be running on this computer.' };
+			if (st.sessions.length > 0)
+				return null;
+			if (st.configurations.length === 0)
+				return { title: 'Welcome to PingTracer', text: 'Create a configuration to choose which host to monitor.', action: { label: 'New configuration', fn: this.newConfig } };
+			if (!st.selectedConfigGuid)
+				return { title: 'Choose a configuration', text: 'Select a configuration from the list above.' };
+			if (st.isRunning)
+				return { title: 'Starting…' };
+			return { title: st.selectedConfig ? st.selectedConfig.displayName : 'Ready', text: 'Press Start to begin monitoring.', action: { label: '▶ Start', fn: st.start } };
 		},
 	},
 	watch: {
-		'store.sessions'() { this.maybeQueryViewport(true); },
-		viewportEndUtc() { this.maybeQueryViewport(); },
-		viewportDurationMs() { this.maybeQueryViewport(); },
+		'store.view'(v, old)
+		{
+			if (v.source === 'history')
+			{
+				this.fitPending = true;
+				this.showHistory = false;
+			}
+			else if (old && old.source === 'history')
+				this.$nextTick(() => this.graph('restoreSavedZoom'));
+		},
+		'store.sessions'(list)
+		{
+			if (list.length === 0) return;
+			if (this.fitPending)
+			{
+				this.fitPending = false;
+				this.$nextTick(() => this.graph('fitAll'));
+			}
+			else if (this.store.view.source === 'live' && list.length > 0 && list[0].running)
+			{
+				const g = this.$refs.graph;
+				if (g && !this._zoomDefaulted)
+				{
+					this._zoomDefaulted = true;
+					g.setDefaultZoomForInterval(list[0].intervalMs);
+				}
+			}
+		},
+		'store.isRunning'(running)
+		{
+			if (running) this.graph('goLive');
+		},
 	},
 	mounted()
 	{
 		this.store.connect();
-		document.addEventListener('mouseup', this.onMouseUp);
-		document.addEventListener('mousemove', this.onDocMouseMove);
-
-		// rAF-driven live tick: ~60fps when tab is visible, paused when not.
-		const tick = () =>
-		{
-			if (this.isLive) this.liveNow = Date.now();
-			this._liveRafId = requestAnimationFrame(tick);
-		};
-		this._liveRafId = requestAnimationFrame(tick);
-
-		this._onBeforeUnload = () => this.store.disconnect();
-		window.addEventListener('beforeunload', this._onBeforeUnload);
+		window.addEventListener('beforeunload', this.onUnload);
+		window.addEventListener('keydown', this.onGlobalKey);
+		this.$refs.graph.focus();
 	},
 	beforeUnmount()
 	{
-		window.removeEventListener('beforeunload', this._onBeforeUnload);
+		window.removeEventListener('beforeunload', this.onUnload);
+		window.removeEventListener('keydown', this.onGlobalKey);
 		this.store.disconnect();
-		document.removeEventListener('mouseup', this.onMouseUp);
-		document.removeEventListener('mousemove', this.onDocMouseMove);
-		if (this.zoomTooltipTimer) clearTimeout(this.zoomTooltipTimer);
-		if (this._liveRafId) cancelAnimationFrame(this._liveRafId);
 	},
 	methods: {
-		graphStyle(index)
+		graph(method)
 		{
-			const count = this.graphRows.length;
-			if (count === 0) return {};
-			const pct = 100 / count;
-			return {
-				height: pct + '%',
-				borderBottom: index < count - 1 ? '1px solid #555' : 'none',
-			};
+			const g = this.$refs.graph;
+			if (g && g[method]) g[method]();
+		},
+		onUnload() { this.store.disconnect(); },
+		onGlobalKey(e)
+		{
+			// Route graph navigation keys to the graph even when it does not have focus (unless typing in a field or a dialog is open).
+			if (this.showConfigEditor || this.showHistory || this.showSettings) return;
+			if (e.key === 'Escape' && this.showHelp) { this.showHelp = false; return; }
+			const t = e.target;
+			if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return;
+			if (e.ctrlKey || e.altKey || e.metaKey) return;
+			if (e.key === '?') { this.showHelp = !this.showHelp; return; }
+			if (e.key === 'l' || e.key === 'L') { this.toggleLog(); return; }
+			if (t && t.closest && t.closest('.graph-view')) return;
+			const g = this.$refs.graph;
+			if (g) g.onKeyDown(e);
 		},
 
-		// --- Viewport queries ---
-
-		maybeQueryViewport(force = false)
+		toggleLog()
 		{
-			const sessions = this.store.sessions || [];
-			if (sessions.length === 0) return;
-
-			const w = this.graphAreaWidth;
-			const maxPoints = Math.max(64, Math.ceil(w));
-
-			const startUtc = Math.floor(this.viewportStartUtc);
-			const endUtc = Math.ceil(this.viewportEndUtcEffective);
-
-			// Skip queries entirely when live AND viewport is small enough that
-			// the live tail covers it.
-			if (this.isLive && this.viewportDurationMs < LIVE_QUERY_THRESHOLD_MS && !force)
-				return;
-
-			for (const s of sessions)
-				this.store.requestViewportData(s.index, startUtc, endUtc, maxPoints, force);
+			if (this.showLog) this.closeLog();
+			else this.showLog = true;
 		},
-
-		// --- Zoom (time-based) ---
-
-		clampDuration(d)
+		closeLog()
 		{
-			return Math.max(MIN_VIEWPORT_DURATION_MS, Math.min(MAX_VIEWPORT_DURATION_MS, d));
+			this.showLog = false;
+			this.logSeen = this.store.logMessages.length;
 		},
-
-		onGraphWheel(ev)
-		{
-			const factor = ev.deltaY > 0 ? 1.15 : (1 / 1.15); // scroll down = zoom out (longer span)
-			const newDur = this.clampDuration(this.viewportDurationMs * factor);
-			if (newDur === this.viewportDurationMs) return;
-
-			// Anchor zoom on the time under the mouse: keep that time at the same x.
-			const mouseFrac = (ev.clientX - ev.rectLeft) / Math.max(1, ev.rectWidth);
-			const anchorTime = this.viewportStartUtc + this.viewportDurationMs * mouseFrac;
-			const newEnd = anchorTime + newDur * (1 - mouseFrac);
-
-			this.viewportDurationMs = newDur;
-			this._setEnd(newEnd);
-
-			this.showZoomTooltip(ev.clientX, ev.clientY);
-		},
-
-		showZoomTooltip(clientX, clientY)
-		{
-			this.zoomTooltipText = this.formatDuration(this.viewportDurationMs);
-			this.zoomTooltipX = clientX + 14;
-			this.zoomTooltipY = clientY - 10;
-			this.zoomTooltipVisible = true;
-
-			if (this.zoomTooltipTimer) clearTimeout(this.zoomTooltipTimer);
-			this.zoomTooltipTimer = setTimeout(() => { this.zoomTooltipVisible = false; }, 1500);
-
-			this._lastTooltipMouseHandler = (me) =>
-			{
-				if (this.zoomTooltipVisible)
-				{
-					this.zoomTooltipX = me.clientX + 14;
-					this.zoomTooltipY = me.clientY - 10;
-				}
-			};
-			document.removeEventListener('mousemove', this._prevTooltipMouseHandler);
-			document.addEventListener('mousemove', this._lastTooltipMouseHandler);
-			this._prevTooltipMouseHandler = this._lastTooltipMouseHandler;
-		},
-
-		formatDuration(ms)
-		{
-			if (ms < 1000) return ms + 'ms';
-			const s = ms / 1000;
-			if (s < 60) return s.toFixed(1) + 's';
-			const m = s / 60;
-			if (m < 60) return m.toFixed(1) + 'm';
-			const h = m / 60;
-			if (h < 24) return h.toFixed(1) + 'h';
-			return (h / 24).toFixed(1) + 'd';
-		},
-
-		// --- Drag/Pan (time-based) ---
-
-		onDragStart(clientX)
-		{
-			this.isDragging = true;
-			this.dragStartX = clientX;
-			this.dragStartEndUtc = this.viewportEndUtcEffective;
-		},
-
-		onMouseUp() { this.isDragging = false; },
-
-		onDocMouseMove(e)
-		{
-			if (!this.isDragging) return;
-			const w = this.graphAreaWidth;
-			const dx = e.clientX - this.dragStartX;
-			// Drag right = grab and pan to older data = decrease viewportEndUtc.
-			const dtMs = (dx / w) * this.viewportDurationMs;
-			this._setEnd(this.dragStartEndUtc - dtMs);
-		},
-
-		_setEnd(newEnd)
-		{
-			const now = Date.now();
-			// Anything at or past now snaps to live (no future allowed).
-			if (newEnd >= now - 250)
-			{
-				this.viewportEndUtc = null;
-				this.liveNow = now;
-				return;
-			}
-			// Allow panning far enough back that the oldest buffered data scrolls
-			// off the right side of the view (i.e. the entire viewport sits before
-			// the data window). Stop one full viewport before that to avoid endless
-			// blank scrolling.
-			const earliest = this.earliestSessionStartUtc;
-			if (earliest != null)
-			{
-				const minEnd = earliest - this.viewportDurationMs;
-				if (newEnd < minEnd) newEnd = minEnd;
-			}
-			this.viewportEndUtc = newEnd;
-		},
-
-		// --- Keyboard ---
-
-		onKeyDown(e)
-		{
-			if (this.graphRows.length === 0) return;
-
-			switch (e.key)
-			{
-				case 'Home':
-				case '9': {
-					const earliest = this.earliestSessionStartUtc;
-					if (earliest != null)
-						this._setEnd(earliest + this.viewportDurationMs);
-					e.preventDefault();
-					break;
-				}
-				case 'End':
-				case '0':
-					this.viewportEndUtc = null;
-					this.liveNow = Date.now();
-					e.preventDefault();
-					break;
-				case 'PageUp':
-				case '-':
-					this._setEnd(this.viewportEndUtcEffective - this.viewportDurationMs);
-					e.preventDefault();
-					break;
-				case 'PageDown':
-				case '=':
-					this._setEnd(this.viewportEndUtcEffective + this.viewportDurationMs);
-					e.preventDefault();
-					break;
-			}
-		},
-
-		// --- Config ---
 
 		editCurrentConfig()
 		{
-			this.editingConfig = this.store.configDetails ? { ...this.store.configDetails } : null;
-			this.savedConfigBackup = this.store.configDetails ? { ...this.store.configDetails } : null;
+			if (!this.store.configDetails) return;
+			this.editingConfig = { ...this.store.configDetails };
+			this.savedConfigBackup = { ...this.store.configDetails };
 			this.showConfigEditor = true;
 		},
-
 		newConfig()
 		{
 			this.editingConfig = null;
+			this.savedConfigBackup = null;
 			this.showConfigEditor = true;
 		},
-
 		onConfigSave(config)
 		{
 			this.store.saveConfig(config);
@@ -479,125 +224,141 @@ export default {
 			this.savedConfigBackup = null;
 			this.showConfigEditor = false;
 		},
-
 		onConfigClose()
 		{
-			if (this.savedConfigBackup && this.store.isRunning && this.previewConfig
-				&& (this.previewConfig.rate !== this.savedConfigBackup.rate
-					|| this.previewConfig.pingsPerSecond !== this.savedConfigBackup.pingsPerSecond))
-			{
-				this.store.setPingRate(this.savedConfigBackup.rate, this.savedConfigBackup.pingsPerSecond);
-			}
+			const b = this.savedConfigBackup, p = this.previewConfig;
+			if (b && p && this.store.isRunning && (p.rate !== b.rate || p.pingsPerSecond !== b.pingsPerSecond))
+				this.store.setPingRate(b.rate, b.pingsPerSecond);
 			this.previewConfig = null;
 			this.savedConfigBackup = null;
 			this.showConfigEditor = false;
 		},
-
 		onConfigPreview(config)
 		{
+			// Only preview edits to the configuration whose graphs are on screen.
+			if (!this.savedConfigBackup) return;
 			this.previewConfig = config;
-			if (this.savedConfigBackup && this.store.isRunning
-				&& (config.rate !== this.savedConfigBackup.rate
-					|| config.pingsPerSecond !== this.savedConfigBackup.pingsPerSecond))
-			{
+			const b = this.savedConfigBackup;
+			if (this.store.isRunning && (config.rate !== b.rate || config.pingsPerSecond !== b.pingsPerSecond))
 				this.store.setPingRate(config.rate, config.pingsPerSecond);
-			}
 		},
-
 		onConfigDelete(guid)
 		{
 			this.store.deleteConfig(guid);
+			this.previewConfig = null;
 			this.showConfigEditor = false;
 		},
-	}
+		onOpenHistory(fileName)
+		{
+			this.store.openHistory(fileName);
+		},
+		onSaveSettings(s)
+		{
+			this.store.saveSettings(s);
+			this.showSettings = false;
+		},
+	},
 };
 </script>
 
-<style>
-*,
-*::before,
-*::after {
-	box-sizing: border-box;
-	margin: 0;
-	padding: 0;
-}
-
-html,
-body {
-	height: 100%;
-	overflow: hidden;
-	background: #000;
-	color: #e0e0e0;
-	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-}
-
-#app {
-	height: 100%;
-}
-</style>
-
 <style scoped>
-.app-container {
+.app {
 	display: flex;
 	flex-direction: column;
 	height: 100%;
-	outline: none;
 }
 
-.graph-area {
-	flex: 1;
+.banner {
+	background: #1d2a3e;
+	color: #cfe0ff;
+	padding: 4px 12px;
+	font-size: 12.5px;
+	border-bottom: 1px solid #2c3e5a;
 	display: flex;
-	flex-direction: column;
-	overflow: hidden;
-	background: #000;
-}
-
-.graph-container {
+	align-items: center;
+	gap: 10px;
 	flex-shrink: 0;
 }
 
-.no-graphs {
+.banner-btn {
+	background: #2a3d5c;
+	color: #e6eeff;
+	border: 1px solid #3f5a85;
+	border-radius: 3px;
+	padding: 1px 10px;
+	cursor: pointer;
+	font-size: 12px;
+}
+
+.main {
 	flex: 1;
+	min-height: 0;
+	position: relative;
+	display: flex;
+}
+
+.placeholder {
+	position: absolute;
+	inset: 0;
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	background: #000;
+	z-index: 5;
 }
 
-.no-graphs-content {
-	text-align: center;
-	color: #666;
-	font-size: 16px;
-}
-
-.no-graphs-content strong {
-	color: #888;
-}
-
-.error-toast {
-	position: fixed;
-	bottom: 20px;
-	right: 20px;
-	background: #702020;
-	color: #fcc;
-	padding: 10px 16px;
-	border-radius: 4px;
-	font-size: 13px;
+.placeholder-box { text-align: center; max-width: 420px; }
+.placeholder-title { font-size: 18px; color: #c8c8d4; margin-bottom: 8px; }
+.placeholder-text { color: #7c7c8c; margin-bottom: 14px; line-height: 1.5; }
+.placeholder-btn {
+	background: #24481c;
+	border: 1px solid #3a7030;
+	color: #e8ffe8;
+	padding: 6px 18px;
+	border-radius: 3px;
 	cursor: pointer;
+	font-size: 13px;
+}
+.placeholder-btn:hover { background: #2f5e25; }
+
+.help { width: 600px; }
+.keys { border-collapse: collapse; margin-bottom: 14px; }
+.keys td { padding: 3px 14px 3px 0; vertical-align: top; }
+.keys td:first-child { white-space: nowrap; color: #c8c8d8; }
+kbd {
+	display: inline-block;
+	background: #2a2a38;
+	border: 1px solid #4a4a60;
+	border-bottom-width: 2px;
+	border-radius: 3px;
+	padding: 0 5px;
+	font-family: inherit;
+	font-size: 11px;
+}
+.help h4 { margin: 4px 0 8px; font-size: 13px; color: #b0b0c0; }
+.legend { list-style: none; line-height: 1.5; color: #b8b8c4; }
+.legend li { margin-bottom: 7px; }
+.sw { display: inline-block; width: 12px; height: 12px; margin-right: 4px; vertical-align: -1px; border-radius: 2px; }
+.sw.strip { background: linear-gradient(90deg, #00afaf 50%, #ff9600 50%); height: 5px; vertical-align: 2px; }
+
+.toasts {
+	position: fixed;
+	right: 16px;
+	bottom: 34px;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
 	z-index: 2000;
-	max-width: 400px;
 }
 
-.zoom-tooltip {
-	position: fixed;
-	background: rgba(30, 30, 50, 0.92);
-	color: #e0e0e0;
-	font-size: 12px;
-	font-family: monospace;
-	padding: 3px 7px;
+.toast {
+	background: #5e1c1c;
+	border: 1px solid #8a2e2e;
+	color: #ffdede;
+	padding: 8px 14px;
 	border-radius: 4px;
-	border: 1px solid #555;
-	pointer-events: none;
-	z-index: 3000;
-	white-space: nowrap;
+	cursor: pointer;
+	max-width: 420px;
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
 }
 </style>

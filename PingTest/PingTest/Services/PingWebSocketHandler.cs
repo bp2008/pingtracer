@@ -5,103 +5,75 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using PingTracer.Storage;
 using PingTracer.Tracer;
-using PingTracer.TraceRoute;
-using SmartPing;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
-using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace PingTracer.Services
 {
 	/// <summary>
-	/// Manages WebSocket connections for streaming ping data to web clients.
+	/// Serves the web interface over a single WebSocket per browser tab.
+	/// <para><b>Control plane</b> (JSON text frames): configurations, run control, status, logs, session metadata, addresses and route events.</para>
+	/// <para><b>Data plane</b> (binary frames, see <see cref="BinaryFrameType"/>): live ping results and responses to column queries.</para>
+	/// <para>
+	/// Consistency: live results and query responses for a session are both queued while holding that session's
+	/// <see cref="MonitoringSession.DataLock"/>, and each client's queue is delivered in order.  A query response therefore
+	/// contains exactly the samples completed before every live item that follows it, so the browser can replace a cached
+	/// range with a query response and then apply subsequent live items without double counting or gaps.
+	/// </para>
 	/// </summary>
 	public class PingWebSocketHandler
 	{
-		private readonly ConcurrentDictionary<string, ClientConnection> clients = new ConcurrentDictionary<string, ClientConnection>();
+		private const int MaxLogLines = 1000;
+		private const int MaxQueryColumns = 4096;
 
-		/// <summary>
-		/// The current active session, if any.
-		/// </summary>
-		private PingSession currentSession;
-
-		/// <summary>
-		/// The settings instance shared across the app.
-		/// </summary>
 		private readonly Settings settings;
-
-		/// <summary>
-		/// Lock for session start/stop operations.
-		/// </summary>
-		private readonly object sessionLock = new object();
-
-		/// <summary>
-		/// Snapshot of MonitoringSessions captured after PingSession.Start(), keyed by index.
-		/// Retained after Stop() so historical queryData requests still resolve.
-		/// </summary>
-		private MonitoringSession[] _sessionsByIndex = Array.Empty<MonitoringSession>();
-		private readonly Dictionary<MonitoringSession, byte> _indexBySession = new Dictionary<MonitoringSession, byte>();
-
-		/// <summary>
-		/// Status text.
-		/// </summary>
-		private string currentStatus = "Idle";
-
-		/// <summary>
-		/// The current configuration GUID.
-		/// </summary>
-		private string currentConfigGuid = null;
-
-		/// <summary>
-		/// Log buffer.
-		/// </summary>
+		private readonly ConcurrentDictionary<string, ClientConnection> clients = new ConcurrentDictionary<string, ClientConnection>();
+		private readonly object hubLock = new object();
+		private readonly List<SessionFeed> feeds = new List<SessionFeed>();
 		private readonly List<string> logBuffer = new List<string>();
 		private readonly object logLock = new object();
-		private const int MaxLogLines = 1000;
+		private readonly Timer statusTimer;
+
+		private PingSession currentRun;
+		private string currentConfigGuid;
+		private string status = "Idle";
+		/// <summary>Describes what the graphs show: "live" (current/last run) or "history" (a loaded file).</summary>
+		private string viewSource = "live";
+		private string viewFileName = null;
 
 		public PingWebSocketHandler(Settings settings)
 		{
 			this.settings = settings;
+			currentConfigGuid = settings.lastLoadedConfigurationGuid;
+			statusTimer = new Timer(_ => { if (currentRun?.IsRunning == true) BroadcastStatus(); }, null, 1000, 1000);
 		}
 
-		/// <summary>
-		/// Handles a WebSocket connection from a web client.
-		/// Called from WebServer when a WebSocket upgrade is detected on the /ws path.
-		/// </summary>
+		#region Connection lifecycle
+
+		/// <summary>Handles a WebSocket upgrade request on /ws.  Blocks until the connection closes.</summary>
 		public void HandleConnection(HttpProcessor p)
 		{
-			string clientId = Guid.NewGuid().ToString();
+			string clientId = Guid.NewGuid().ToString("N").Substring(0, 8);
 			ClientConnection client = null;
-
 			try
 			{
-				WebSocket ws = new WebSocket(p,
-					onMessageReceived: (frame) =>
-					{
-						if (frame is WebSocketTextFrame textFrame)
-							HandleClientMessage(clientId, textFrame.Text);
-					},
-					onClose: (closeFrame) =>
-					{
-						RemoveClient(clientId);
-					});
-
-				// Extend timeouts for long-lived WebSocket connections
-				ws.ReceiveTimeout = 300000; // 5 minutes
-				ws.SendTimeout = 30000;     // 30 seconds
-
+				WebSocket ws = new WebSocket(p);
+				ws.ReceiveTimeout = 300000;
+				ws.SendTimeout = 30000;
 				client = new ClientConnection(clientId, ws);
 				clients[clientId] = client;
-
-				// Send initial state
 				SendInitialState(client);
-
-				// Keep the connection alive - the read thread in WebSocket handles this
-				// We need to block here so the HttpProcessor doesn't close the connection
+				ws.StartReading(frame =>
+				{
+					if (frame is WebSocketTextFrame tf)
+						HandleClientMessage(client, tf.Text);
+				}, close => client.Close());
 				client.WaitForClose();
 			}
 			catch (Exception ex)
@@ -111,87 +83,622 @@ namespace PingTracer.Services
 			}
 			finally
 			{
-				RemoveClient(clientId);
+				clients.TryRemove(clientId, out _);
+				client?.Close();
+				lock (hubLock)
+				{
+					foreach (SessionFeed f in feeds)
+						f.Unsubscribe(client);
+				}
 			}
-		}
-
-		private void RemoveClient(string clientId)
-		{
-			clients.TryRemove(clientId, out ClientConnection removed);
-			removed?.SignalClose();
 		}
 
 		private void SendInitialState(ClientConnection client)
 		{
-			// Send configurations list
-			PingConfigurations allConfigs = new PingConfigurations();
-			allConfigs.Load();
-
-			var configList = allConfigs.configurations.Select(c => new
+			client.EnqueueJson(Json(new { type = "hello", serverTime = ServerClock.NowUnixMs, version = 3 }));
+			client.EnqueueJson(BuildConfigurationsJson());
+			client.EnqueueJson(BuildStatusJson());
+			client.EnqueueJson(BuildSettingsJson());
+			PingConfiguration cfg = LoadConfig(currentConfigGuid);
+			if (cfg != null)
+				client.EnqueueJson(BuildConfigDetailsJson(cfg));
+			lock (logLock)
+				client.EnqueueJson(Json(new { type = "logHistory", messages = logBuffer.ToArray() }));
+			lock (hubLock)
 			{
-				guid = c.guid,
-				displayName = c.displayName,
-				hosts = c.hosts?.Select(h => h.hostname).ToList() ?? new List<string>()
-			}).ToList();
+				client.EnqueueJson(BuildViewJson());
+				foreach (SessionFeed f in feeds)
+					f.Subscribe(client);
+			}
+		}
 
-			client.Send(JsonConvert.SerializeObject(new
+		#endregion
+
+		#region Session feeds
+
+		/// <summary>
+		/// Connects a <see cref="MonitoringSession"/> to the web clients.  Session events are forwarded to subscribed clients
+		/// from within the session's data lock, preserving order.
+		/// </summary>
+		private sealed class SessionFeed
+		{
+			public readonly MonitoringSession Session;
+			private readonly HashSet<ClientConnection> subscribers = new HashSet<ClientConnection>();
+			private ClientConnection[] subscriberArray = Array.Empty<ClientConnection>();
+
+			public SessionFeed(MonitoringSession session)
+			{
+				Session = session;
+				lock (session.DataLock)
+				{
+					session.SampleCompleted += OnSample;
+					session.SampleVoided += OnVoid;
+					session.AddressAdded += OnAddressAdded;
+					session.HostnameResolved += OnHostname;
+					session.RouteEventAdded += OnRouteEvent;
+					session.StateChanged += OnStateChanged;
+				}
+			}
+
+			public void Detach()
+			{
+				lock (Session.DataLock)
+				{
+					Session.SampleCompleted -= OnSample;
+					Session.SampleVoided -= OnVoid;
+					Session.AddressAdded -= OnAddressAdded;
+					Session.HostnameResolved -= OnHostname;
+					Session.RouteEventAdded -= OnRouteEvent;
+					Session.StateChanged -= OnStateChanged;
+					subscribers.Clear();
+					subscriberArray = Array.Empty<ClientConnection>();
+				}
+			}
+
+			/// <summary>Sends the session's full metadata to the client, then streams changes.</summary>
+			public void Subscribe(ClientConnection client)
+			{
+				lock (Session.DataLock)
+				{
+					if (!subscribers.Add(client))
+						return;
+					subscriberArray = subscribers.ToArray();
+					client.EnqueueJson(BuildSessionJson(Session));
+					client.EnqueueJson(Json(new
+					{
+						type = "addresses",
+						sessionId = Session.Id,
+						items = Session.Addresses.All().Select(a => new { id = a.id, ip = a.address.ToString(), host = a.hostname ?? "" }).ToArray(),
+					}));
+					client.EnqueueJson(BuildRouteEventsJson(Session, Session.GetRouteEvents()));
+				}
+			}
+
+			public void Unsubscribe(ClientConnection client)
+			{
+				if (client == null) return;
+				lock (Session.DataLock)
+				{
+					if (subscribers.Remove(client))
+						subscriberArray = subscribers.ToArray();
+				}
+			}
+
+			public ClientConnection[] Subscribers => subscriberArray;
+
+			private void OnSample(MonitoringSession s, int ttl, PingSample r)
+			{
+				LiveItem item = new LiveItem { SessionId = s.Id, Ttl = (byte)ttl, Kind = 0, TimeUnixMs = s.ToUnixMs(r.TimeMs), Rtt = r.Rtt, Addr = r.Addr };
+				foreach (ClientConnection c in subscriberArray)
+					c.EnqueueLive(item);
+			}
+
+			private void OnVoid(MonitoringSession s, int ttl, PingSample previous)
+			{
+				LiveItem item = new LiveItem { SessionId = s.Id, Ttl = (byte)ttl, Kind = 1, TimeUnixMs = s.ToUnixMs(previous.TimeMs), Rtt = previous.Rtt, Addr = previous.Addr };
+				foreach (ClientConnection c in subscriberArray)
+					c.EnqueueLive(item);
+			}
+
+			private void OnAddressAdded(MonitoringSession s, ushort id, IPAddress ip)
+			{
+				SendAll(Json(new { type = "addresses", sessionId = s.Id, items = new[] { new { id, ip = ip.ToString(), host = s.Addresses.GetHostname(id) ?? "" } } }));
+			}
+
+			private void OnHostname(MonitoringSession s, ushort id, string host)
+			{
+				SendAll(Json(new { type = "addresses", sessionId = s.Id, items = new[] { new { id, ip = s.Addresses.GetAddress(id)?.ToString() ?? "", host = host ?? "" } } }));
+			}
+
+			private void OnRouteEvent(MonitoringSession s, RouteEvent e)
+			{
+				SendAll(BuildRouteEventsJson(s, new[] { e }));
+			}
+
+			private void OnStateChanged(MonitoringSession s)
+			{
+				SendAll(BuildSessionJson(s));
+			}
+
+			private void SendAll(string json)
+			{
+				foreach (ClientConnection c in subscriberArray)
+					c.EnqueueJson(json);
+			}
+		}
+
+		private static string BuildSessionJson(MonitoringSession s)
+		{
+			return Json(new
+			{
+				type = "session",
+				id = s.Id,
+				target = s.TargetAddress.ToString(),
+				displayName = s.DisplayName,
+				startMs = s.StartUnixMs,
+				endMs = s.IsRunning ? (long?)null : s.ToUnixMs(s.LastRecordTimeMs),
+				mode = s.Mode == SessionMode.Direct ? "direct" : "trace",
+				intervalMs = s.IntervalMs,
+				timeoutMs = s.TimeoutMs,
+				destTtl = s.DestinationTtl,
+				repliedTtls = s.GetRepliedTtls(),
+				running = s.IsRunning,
+				readOnly = s.IsReadOnly,
+			});
+		}
+
+		private static string BuildRouteEventsJson(MonitoringSession s, IEnumerable<RouteEvent> events)
+		{
+			return Json(new
+			{
+				type = "routeEvents",
+				sessionId = s.Id,
+				items = events.Select(e => new
+				{
+					t = s.ToUnixMs(e.TimeMs),
+					kind = e.Kind == RouteEventKind.HopAddress ? "addr" : "dest",
+					ttl = e.Ttl,
+					value = e.Value,
+					initial = e.Initial,
+				}).ToArray(),
+			});
+		}
+
+		/// <summary>Removes all sessions from the view (clients are told to clear their data).</summary>
+		private void ClearView(string source, string fileName)
+		{
+			lock (hubLock)
+			{
+				foreach (SessionFeed f in feeds)
+					f.Detach();
+				feeds.Clear();
+				viewSource = source;
+				viewFileName = fileName;
+				string json = BuildViewJson();
+				foreach (ClientConnection c in clients.Values)
+					c.EnqueueJson(json);
+			}
+		}
+
+		private string BuildViewJson() => Json(new { type = "view", source = viewSource, fileName = viewFileName });
+
+		private void AddToView(MonitoringSession session)
+		{
+			lock (hubLock)
+			{
+				SessionFeed feed = new SessionFeed(session);
+				feeds.Add(feed);
+				foreach (ClientConnection c in clients.Values)
+					feed.Subscribe(c);
+			}
+		}
+
+		private SessionFeed FindFeed(int sessionId)
+		{
+			lock (hubLock)
+				return feeds.FirstOrDefault(f => f.Session.Id == sessionId);
+		}
+
+		#endregion
+
+		#region Client messages
+
+		private void HandleClientMessage(ClientConnection client, string message)
+		{
+			try
+			{
+				JObject msg = JObject.Parse(message);
+				string action = msg.Value<string>("action");
+				switch (action)
+				{
+					case "time":
+						client.EnqueueJson(Json(new { type = "time", c = msg.Value<double>("c"), s = ServerClock.NowUnixMs }));
+						break;
+					case "query":
+						HandleQuery(client, msg);
+						break;
+					case "selectConfig":
+						HandleSelectConfig(msg.Value<string>("guid"));
+						break;
+					case "start":
+						HandleStart();
+						break;
+					case "stop":
+						HandleStop();
+						break;
+					case "getConfigurations":
+						client.EnqueueJson(BuildConfigurationsJson());
+						break;
+					case "saveConfig":
+						HandleSaveConfig(msg["config"]);
+						break;
+					case "deleteConfig":
+						HandleDeleteConfig(msg.Value<string>("guid"));
+						break;
+					case "setPingRate":
+						currentRun?.SetPingDelay(msg.Value<int>("rate"), msg.Value<bool>("pingsPerSecond"));
+						break;
+					case "saveSettings":
+						HandleSaveSettings(msg["settings"]);
+						break;
+					case "listHistory":
+						client.EnqueueJson(BuildHistoryJson());
+						break;
+					case "openHistory":
+						HandleOpenHistory(msg.Value<string>("fileName"));
+						break;
+					case "closeHistory":
+						HandleCloseHistory();
+						break;
+				}
+			}
+			catch (Exception ex)
+			{
+				client.EnqueueJson(Json(new { type = "error", message = ex.Message }));
+			}
+		}
+
+		private void HandleQuery(ClientConnection client, JObject msg)
+		{
+			uint queryId = (uint)(msg.Value<long?>("qid") ?? 0);
+			int sessionId = msg.Value<int?>("sessionId") ?? 0;
+			int msPerCol = msg.Value<int?>("msPerCol") ?? 1000;
+			long startCol = (long)(msg.Value<double?>("startCol") ?? 0);
+			int colCount = Math.Clamp(msg.Value<int?>("colCount") ?? 0, 0, MaxQueryColumns);
+			if (msPerCol < 1) msPerCol = 1;
+
+			SessionFeed feed = FindFeed(sessionId);
+			if (feed == null)
+			{
+				client.EnqueueBinary(BuildQueryFrame(queryId, sessionId, msPerCol, startCol, colCount, new List<(int, ColumnStats, int)>()));
+				return;
+			}
+			MonitoringSession s = feed.Session;
+			lock (s.DataLock)
+			{
+				List<(int ttl, ColumnStats stats, int nonEmpty)> results = s.Query(startCol, msPerCol, colCount);
+				client.EnqueueBinary(BuildQueryFrame(queryId, sessionId, msPerCol, startCol, colCount, results));
+			}
+		}
+
+		internal static byte[] BuildQueryFrame(uint queryId, int sessionId, int msPerCol, long startCol, int colCount, List<(int ttl, ColumnStats stats, int nonEmpty)> results)
+		{
+			int estimate = 32 + results.Sum(r => 3 + r.nonEmpty * 17);
+			BinaryFrameWriter w = new BinaryFrameWriter(estimate);
+			w.U8(BinaryFrameType.QueryResult);
+			w.U32(queryId);
+			w.U16((ushort)sessionId);
+			w.U32((uint)msPerCol);
+			w.F64(startCol);
+			w.U16((ushort)colCount);
+			w.U16((ushort)results.Count);
+			foreach ((int ttl, ColumnStats st, int nonEmpty) in results)
+			{
+				w.U8((byte)ttl);
+				w.U16((ushort)nonEmpty);
+				for (int c = 0; c < st.Length; c++)
+				{
+					if (st.N[c] == 0) continue;
+					w.U16((ushort)c);
+					w.U16(st.N[c]);
+					w.U16(st.Lost[c]);
+					w.U16(st.Min[c]);
+					w.U16(st.Max[c]);
+					w.F32(st.Sum[c]);
+					w.U16(st.Addr[c]);
+					w.U8(st.Flags[c]);
+				}
+			}
+			return w.ToArray();
+		}
+
+		private void HandleSelectConfig(string guid)
+		{
+			if (currentRun?.IsRunning == true)
+			{
+				BroadcastError("Stop the current session before choosing a different configuration.");
+				return;
+			}
+			PingConfiguration cfg = LoadConfig(guid);
+			if (cfg == null)
+			{
+				BroadcastError("Configuration not found.");
+				return;
+			}
+			currentConfigGuid = guid;
+			settings.lastLoadedConfigurationGuid = guid;
+			settings.Save();
+			Broadcast(Json(new { type = "configSelected", guid }));
+			Broadcast(BuildConfigDetailsJson(cfg));
+		}
+
+		private void HandleStart()
+		{
+			PingSession run;
+			lock (hubLock)
+			{
+				if (currentRun?.IsRunning == true)
+					return;
+				PingConfiguration cfg = LoadConfig(currentConfigGuid);
+				if (cfg == null)
+				{
+					BroadcastError(currentConfigGuid == null ? "No configuration selected." : "Configuration not found.");
+					return;
+				}
+				run = new PingSession(cfg, settings);
+				currentRun = run;
+			}
+			ClearView("live", null);
+			run.SessionCreated += AddToView;
+			run.Log += OnLog;
+			run.StatusChanged += s =>
+			{
+				status = s;
+				BroadcastStatus();
+			};
+			run.Stopped += () =>
+			{
+				BroadcastStatus();
+				// Re-send session metadata so clients learn each session's end time.
+				foreach (SessionFeed f in SnapshotFeeds())
+					f.Session.SetRunning(false);
+			};
+			Task.Run(() =>
+			{
+				try { run.Start(); }
+				catch (Exception ex)
+				{
+					OnLog("Failed to start: " + ex.Message);
+					Logger.Debug(ex, "PingSession.Start");
+				}
+			});
+		}
+
+		private List<SessionFeed> SnapshotFeeds()
+		{
+			lock (hubLock) return new List<SessionFeed>(feeds);
+		}
+
+		private void HandleStop()
+		{
+			PingSession run = currentRun;
+			if (run == null || !run.IsRunning)
+				return;
+			Task.Run(async () =>
+			{
+				try { await run.StopAsync().ConfigureAwait(false); }
+				catch (Exception ex) { Logger.Debug(ex, "PingSession.StopAsync"); }
+			});
+		}
+
+		/// <summary>Stops any active run. Called when the application exits.</summary>
+		public void Shutdown()
+		{
+			PingSession run = currentRun;
+			if (run != null && run.IsRunning)
+			{
+				try { run.StopAsync().Wait(TimeSpan.FromSeconds(10)); } catch { }
+			}
+		}
+
+		private void HandleSaveConfig(JToken t)
+		{
+			if (t == null)
+			{
+				BroadcastError("Invalid configuration data.");
+				return;
+			}
+			string guid = t.Value<string>("guid");
+			PingConfiguration cfg = string.IsNullOrEmpty(guid) ? null : LoadConfig(guid);
+			if (cfg == null)
+			{
+				cfg = new PingConfiguration();
+				if (!string.IsNullOrEmpty(guid))
+					cfg.guid = guid;
+			}
+			cfg.displayName = (t.Value<string>("displayName") ?? "").Trim();
+			if (t["hosts"] is JArray hostsArray)
+			{
+				cfg.hosts = new List<Host>();
+				foreach (JToken h in hostsArray)
+				{
+					string hostname = h.Type == JTokenType.String ? h.Value<string>() : h.Value<string>("hostname");
+					if (!string.IsNullOrWhiteSpace(hostname))
+						cfg.hosts.Add(new Host { hostname = hostname.Trim() });
+				}
+			}
+			if (string.IsNullOrWhiteSpace(cfg.displayName))
+				cfg.displayName = cfg.GetHostString();
+			cfg.rate = Math.Clamp(t.Value<int?>("rate") ?? cfg.rate, 1, 100);
+			cfg.pingsPerSecond = t.Value<bool?>("pingsPerSecond") ?? cfg.pingsPerSecond;
+			cfg.doTraceRoute = t.Value<bool?>("doTraceRoute") ?? cfg.doTraceRoute;
+			cfg.reverseDnsLookup = t.Value<bool?>("reverseDnsLookup") ?? cfg.reverseDnsLookup;
+			cfg.preferIPv4 = t.Value<bool?>("preferIPv4") ?? cfg.preferIPv4;
+			cfg.monitorUnresponsiveHops = t.Value<bool?>("monitorUnresponsiveHops") ?? cfg.monitorUnresponsiveHops;
+			cfg.drawServerNames = t.Value<bool?>("drawServerNames") ?? cfg.drawServerNames;
+			cfg.drawLastPing = t.Value<bool?>("drawLastPing") ?? cfg.drawLastPing;
+			cfg.drawAverage = t.Value<bool?>("drawAverage") ?? cfg.drawAverage;
+			cfg.drawJitter = t.Value<bool?>("drawJitter") ?? cfg.drawJitter;
+			cfg.drawMinMax = t.Value<bool?>("drawMinMax") ?? cfg.drawMinMax;
+			cfg.drawPacketLoss = t.Value<bool?>("drawPacketLoss") ?? cfg.drawPacketLoss;
+			cfg.drawLimitText = t.Value<bool?>("drawLimitText") ?? cfg.drawLimitText;
+			cfg.badThreshold = t.Value<int?>("badThreshold") ?? cfg.badThreshold;
+			cfg.worseThreshold = t.Value<int?>("worseThreshold") ?? cfg.worseThreshold;
+			cfg.upperLimit = t.Value<int?>("upperLimit") ?? cfg.upperLimit;
+			cfg.lowerLimit = t.Value<int?>("lowerLimit") ?? cfg.lowerLimit;
+			cfg.ScalingMethodID = t.Value<int?>("scalingMethodID") ?? cfg.ScalingMethodID;
+			cfg.logFailures = t.Value<bool?>("logFailures") ?? cfg.logFailures;
+			cfg.logSuccesses = t.Value<bool?>("logSuccesses") ?? cfg.logSuccesses;
+
+			PingConfigurations.SaveSingleConfiguration(cfg);
+			Broadcast(BuildConfigurationsJson());
+			if (cfg.guid == currentConfigGuid)
+				Broadcast(BuildConfigDetailsJson(cfg));
+			Broadcast(Json(new { type = "configSaved", guid = cfg.guid }));
+			if (currentConfigGuid == null)
+				HandleSelectConfig(cfg.guid);
+		}
+
+		private void HandleDeleteConfig(string guid)
+		{
+			if (string.IsNullOrEmpty(guid))
+			{
+				BroadcastError("Invalid configuration id.");
+				return;
+			}
+			if (currentRun?.IsRunning == true && currentConfigGuid == guid)
+			{
+				BroadcastError("Cannot delete the configuration that is currently running.");
+				return;
+			}
+			PingConfigurations all = new PingConfigurations();
+			all.Load();
+			all.configurations.RemoveAll(c => c.guid == guid);
+			all.Save();
+			if (currentConfigGuid == guid)
+				currentConfigGuid = null;
+			Broadcast(BuildConfigurationsJson());
+			Broadcast(Json(new { type = "configDeleted", guid }));
+		}
+
+		private void HandleSaveSettings(JToken t)
+		{
+			if (t == null) return;
+			settings.pingTimeoutMs = Math.Clamp(t.Value<int?>("pingTimeoutMs") ?? settings.pingTimeoutMs, 200, 30000);
+			settings.maxHopsDefault = Math.Clamp(t.Value<int?>("maxHops") ?? settings.maxHopsDefault, 1, 255);
+			settings.pingPayloadSizeBytes = Math.Clamp(t.Value<int?>("payloadBytes") ?? settings.pingPayloadSizeBytes, 0, 65500);
+			settings.saveSessionData = t.Value<bool?>("saveSessionData") ?? settings.saveSessionData;
+			long? retention = t.Value<long?>("retentionSeconds");
+			if (retention.HasValue)
+				settings.dataRetentionSeconds = Math.Clamp(retention.Value, 600, 400L * 86400);
+			settings.Save();
+			Broadcast(BuildSettingsJson());
+		}
+
+		private string DataDirectory => PingDataFile.ResolveDataDirectory(settings.dataDirectory, Settings.SettingsFolderPath);
+
+		private string BuildHistoryJson()
+		{
+			List<PingDataFile.FileInfoSummary> files = PingDataFile.ListSessionFiles(DataDirectory);
+			return Json(new
+			{
+				type = "history",
+				directory = Path.GetFullPath(DataDirectory),
+				files = files.Select(f => new
+				{
+					fileName = f.FileName,
+					sizeBytes = f.SizeBytes,
+					startMs = f.StartUnixMs,
+					lastWriteMs = f.LastWriteUnixMs,
+					displayName = f.DisplayName,
+					target = f.Target,
+					mode = f.Mode == SessionMode.Direct ? "direct" : "trace",
+				}).ToArray(),
+			});
+		}
+
+		private void HandleOpenHistory(string fileName)
+		{
+			if (currentRun?.IsRunning == true)
+			{
+				BroadcastError("Stop the current session before opening a saved one.");
+				return;
+			}
+			if (string.IsNullOrWhiteSpace(fileName) || fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || !fileName.EndsWith(PingDataFile.FileExtension, StringComparison.OrdinalIgnoreCase))
+			{
+				BroadcastError("Invalid file name.");
+				return;
+			}
+			string path = Path.Combine(DataDirectory, fileName);
+			Task.Run(() =>
+			{
+				try
+				{
+					PingDataReader.Result result = PingDataReader.Load(path);
+					ClearView("history", fileName);
+					AddToView(result.Session);
+					OnLog("Opened saved session " + fileName + (result.Truncated ? " (the file ends with an incomplete block, which was ignored)" : ""));
+				}
+				catch (Exception ex)
+				{
+					BroadcastError("Unable to open " + fileName + ": " + ex.Message);
+				}
+			});
+		}
+
+		private void HandleCloseHistory()
+		{
+			if (viewSource != "history")
+				return;
+			ClearView("live", null);
+			if (currentRun != null)
+				foreach (MonitoringSession s in currentRun.Sessions)
+					AddToView(s);
+		}
+
+		#endregion
+
+		#region JSON builders
+
+		private static readonly JsonSerializerSettings jsonSettings = new JsonSerializerSettings { NullValueHandling = NullValueHandling.Include };
+
+		private static string Json(object o) => JsonConvert.SerializeObject(o, jsonSettings);
+
+		private static PingConfiguration LoadConfig(string guid)
+		{
+			if (string.IsNullOrEmpty(guid)) return null;
+			PingConfigurations all = new PingConfigurations();
+			all.Load();
+			return all.configurations.FirstOrDefault(c => c.guid == guid);
+		}
+
+		private string BuildConfigurationsJson()
+		{
+			PingConfigurations all = new PingConfigurations();
+			all.Load();
+			return Json(new
 			{
 				type = "configurations",
-				configurations = configList,
-				selectedGuid = currentConfigGuid
-			}));
-
-			// Send current status
-			client.Send(JsonConvert.SerializeObject(new
-			{
-				type = "status",
-				status = currentStatus,
-				isRunning = currentSession?.IsRunning ?? false,
-				successfulPings = currentSession?.SuccessfulPings ?? 0,
-				failedPings = currentSession?.FailedPings ?? 0
-			}));
-
-			// Send current config details if one is selected
-			if (currentConfigGuid != null)
-			{
-				PingConfiguration cfg = allConfigs.configurations.FirstOrDefault(c => c.guid == currentConfigGuid);
-				if (cfg != null)
-					SendConfigDetails(client, cfg);
-			}
-
-			// Send the current binary topology snapshot so the new client can render
-			// even if it connected mid-run or after a stop.
-			SendTopologyAndRoutesTo(client);
+				configurations = all.configurations.Select(c => new
+				{
+					guid = c.guid,
+					displayName = c.displayName,
+					hosts = c.hosts?.Select(h => h.hostname).ToList() ?? new List<string>(),
+				}).ToList(),
+				selectedGuid = currentConfigGuid,
+			});
 		}
 
-		private void SendTopologyAndRoutesTo(ClientConnection client)
+		private static string BuildConfigDetailsJson(PingConfiguration cfg)
 		{
-			MonitoringSession[] sessions;
-			lock (sessionLock)
-				sessions = _sessionsByIndex;
-
-			if (sessions.Length == 0) return;
-
-			client.SendBinary(BuildSessionTopologyFrame(sessions));
-
-			for (byte i = 0; i < sessions.Length; i++)
-			{
-				RouteSnapshot snap = sessions[i].CurrentRoute;
-				if (snap != null)
-					client.SendBinary(BuildRouteUpdateFrame(i, snap));
-			}
-		}
-
-		private void SendConfigDetails(ClientConnection client, PingConfiguration cfg)
-		{
-			client.Send(JsonConvert.SerializeObject(new
+			return Json(new
 			{
 				type = "configDetails",
 				config = new
 				{
 					guid = cfg.guid,
 					displayName = cfg.displayName,
-					hosts = cfg.hosts?.Select(h => h.hostname).ToList(),
+					hosts = cfg.hosts?.Select(h => h.hostname).ToList() ?? new List<string>(),
 					rate = cfg.rate,
 					pingsPerSecond = cfg.pingsPerSecond,
 					doTraceRoute = cfg.doTraceRoute,
@@ -212,732 +719,64 @@ namespace PingTracer.Services
 					scalingMethodID = cfg.ScalingMethodID,
 					logFailures = cfg.logFailures,
 					logSuccesses = cfg.logSuccesses,
-				}
-			}));
+				},
+			});
 		}
 
-		private void HandleClientMessage(string clientId, string message)
+		private string BuildStatusJson()
 		{
-			try
-			{
-				JObject msg = JObject.Parse(message);
-				string action = msg.Value<string>("action");
-
-				switch (action)
-				{
-					case "selectConfig":
-						HandleSelectConfig(msg.Value<string>("guid"));
-						break;
-					case "start":
-						HandleStart();
-						break;
-					case "stop":
-						HandleStop();
-						break;
-					case "getConfigurations":
-						HandleGetConfigurations(clientId);
-						break;
-					case "saveConfig":
-						HandleSaveConfig(msg["config"]);
-						break;
-					case "deleteConfig":
-						HandleDeleteConfig(msg.Value<string>("guid"));
-						break;
-					case "setPingRate":
-						HandleSetPingRate(msg.Value<int>("rate"), msg.Value<bool>("pingsPerSecond"));
-						break;
-					case "queryData":
-						HandleQueryData(clientId, msg);
-						break;
-				}
-			}
-			catch (Exception ex)
-			{
-				if (clients.TryGetValue(clientId, out ClientConnection client))
-				{
-					client.Send(JsonConvert.SerializeObject(new
-					{
-						type = "error",
-						message = ex.Message
-					}));
-				}
-			}
-		}
-
-		private void HandleSelectConfig(string guid)
-		{
-			lock (sessionLock)
-			{
-				if (currentSession?.IsRunning == true)
-				{
-					BroadcastError("Cannot change configuration while pings are running.");
-					return;
-				}
-
-				PingConfigurations allConfigs = new PingConfigurations();
-				allConfigs.Load();
-				PingConfiguration cfg = allConfigs.configurations.FirstOrDefault(c => c.guid == guid);
-				if (cfg == null)
-				{
-					BroadcastError("Configuration not found.");
-					return;
-				}
-
-				currentConfigGuid = guid;
-				settings.lastLoadedConfigurationGuid = guid;
-				settings.Save();
-
-				Broadcast(JsonConvert.SerializeObject(new
-				{
-					type = "configSelected",
-					guid = guid
-				}));
-
-				foreach (var client in clients.Values)
-					SendConfigDetails(client, cfg);
-			}
-		}
-
-		private void HandleStart()
-		{
-			lock (sessionLock)
-			{
-				if (currentSession?.IsRunning == true) return;
-
-				if (currentConfigGuid == null)
-				{
-					BroadcastError("No configuration selected.");
-					return;
-				}
-
-				PingConfigurations allConfigs = new PingConfigurations();
-				allConfigs.Load();
-				PingConfiguration cfg = allConfigs.configurations.FirstOrDefault(c => c.guid == currentConfigGuid);
-				if (cfg == null)
-				{
-					BroadcastError("Configuration not found.");
-					return;
-				}
-
-				currentSession = new PingSession(cfg, settings);
-				currentSession.HopDiscovered += OnHopDiscovered;
-				currentSession.HopDeactivated += OnHopDeactivated;
-				currentSession.PingRecordCompleted += OnPingRecordCompleted;
-				currentSession.UnresponsiveHopProbed += OnUnresponsiveHopProbed;
-				currentSession.RouteChanged += OnRouteChanged;
-				currentSession.StatusChanged += OnStatusChanged;
-				currentSession.LogCreated += OnLogCreated;
-				currentSession.SessionStopped += OnSessionStopped;
-				currentSession.Start();
-
-				// Capture the index map after Start so HopDiscovered/RouteChanged
-				// callbacks (and queryData lookups) can resolve a SessionIndex.
-				MonitoringSession[] startedSessions = currentSession.Sessions.ToArray();
-				_sessionsByIndex = startedSessions;
-				_indexBySession.Clear();
-				for (byte i = 0; i < startedSessions.Length; i++)
-				{
-					_indexBySession[startedSessions[i]] = i;
-					// Subscribe per-series hostname updates so async DNS results
-					// reach connected clients.
-					foreach (HopHistory h in startedSessions[i].HopData)
-					{
-						// HopHistory.Series is empty at start; new series subscribe via OnHopDiscovered.
-					}
-				}
-
-				Broadcast(JsonConvert.SerializeObject(new
-				{
-					type = "started",
-					isRunning = true
-				}));
-
-				// Broadcast initial binary topology so all already-connected clients
-				// learn the new SessionIndex → MonitoringSession mapping.
-				if (startedSessions.Length > 0)
-				{
-					byte[] topology = BuildSessionTopologyFrame(startedSessions);
-					BroadcastBinary(topology);
-					// CurrentRoute is null until the first traceroute completes, so
-					// only routeUpdate frames will arrive via OnRouteChanged from now on.
-				}
-			}
-		}
-
-		private void HandleStop()
-		{
-			lock (sessionLock)
-			{
-				if (currentSession == null || !currentSession.IsRunning) return;
-				currentSession.Stop();
-			}
-		}
-
-		private void HandleSetPingRate(int rate, bool pingsPerSecond)
-		{
-			lock (sessionLock)
-			{
-				currentSession?.SetPingDelay(rate, pingsPerSecond);
-			}
-		}
-
-		private void HandleGetConfigurations(string clientId)
-		{
-			PingConfigurations allConfigs = new PingConfigurations();
-			allConfigs.Load();
-
-			var configList = allConfigs.configurations.Select(c => new
-			{
-				guid = c.guid,
-				displayName = c.displayName,
-				hosts = c.hosts?.Select(h => h.hostname).ToList() ?? new List<string>()
-			}).ToList();
-
-			if (clients.TryGetValue(clientId, out ClientConnection client))
-			{
-				client.Send(JsonConvert.SerializeObject(new
-				{
-					type = "configurations",
-					configurations = configList,
-					selectedGuid = currentConfigGuid
-				}));
-			}
-		}
-
-		private void HandleSaveConfig(JToken configToken)
-		{
-			if (configToken == null)
-			{
-				BroadcastError("Invalid config data.");
-				return;
-			}
-
-			PingConfigurations allConfigs = new PingConfigurations();
-			allConfigs.Load();
-
-			string guid = configToken.Value<string>("guid");
-			bool isNew = string.IsNullOrEmpty(guid);
-
-			PingConfiguration cfg;
-			if (isNew)
-			{
-				cfg = new PingConfiguration();
-			}
-			else
-			{
-				cfg = allConfigs.configurations.FirstOrDefault(c => c.guid == guid);
-				if (cfg == null)
-				{
-					cfg = new PingConfiguration();
-					cfg.guid = guid;
-				}
-			}
-
-			cfg.displayName = configToken.Value<string>("displayName") ?? "";
-			var hostsArray = configToken["hosts"];
-			if (hostsArray != null)
-			{
-				cfg.hosts = new List<Host>();
-				foreach (var h in hostsArray)
-				{
-					string hostname = h.Value<string>();
-					if (!string.IsNullOrWhiteSpace(hostname))
-						cfg.hosts.Add(new Host { hostname = hostname.Trim() });
-				}
-			}
-
-			cfg.rate = configToken.Value<int?>("rate") ?? cfg.rate;
-			cfg.pingsPerSecond = configToken.Value<bool?>("pingsPerSecond") ?? cfg.pingsPerSecond;
-			cfg.doTraceRoute = configToken.Value<bool?>("doTraceRoute") ?? cfg.doTraceRoute;
-			cfg.reverseDnsLookup = configToken.Value<bool?>("reverseDnsLookup") ?? cfg.reverseDnsLookup;
-			cfg.preferIPv4 = configToken.Value<bool?>("preferIPv4") ?? cfg.preferIPv4;
-			cfg.monitorUnresponsiveHops = configToken.Value<bool?>("monitorUnresponsiveHops") ?? cfg.monitorUnresponsiveHops;
-			cfg.drawServerNames = configToken.Value<bool?>("drawServerNames") ?? cfg.drawServerNames;
-			cfg.drawLastPing = configToken.Value<bool?>("drawLastPing") ?? cfg.drawLastPing;
-			cfg.drawAverage = configToken.Value<bool?>("drawAverage") ?? cfg.drawAverage;
-			cfg.drawJitter = configToken.Value<bool?>("drawJitter") ?? cfg.drawJitter;
-			cfg.drawMinMax = configToken.Value<bool?>("drawMinMax") ?? cfg.drawMinMax;
-			cfg.drawPacketLoss = configToken.Value<bool?>("drawPacketLoss") ?? cfg.drawPacketLoss;
-			cfg.drawLimitText = configToken.Value<bool?>("drawLimitText") ?? cfg.drawLimitText;
-			cfg.badThreshold = configToken.Value<int?>("badThreshold") ?? cfg.badThreshold;
-			cfg.worseThreshold = configToken.Value<int?>("worseThreshold") ?? cfg.worseThreshold;
-			cfg.upperLimit = configToken.Value<int?>("upperLimit") ?? cfg.upperLimit;
-			cfg.lowerLimit = configToken.Value<int?>("lowerLimit") ?? cfg.lowerLimit;
-			cfg.ScalingMethodID = configToken.Value<int?>("scalingMethodID") ?? cfg.ScalingMethodID;
-			cfg.logFailures = configToken.Value<bool?>("logFailures") ?? cfg.logFailures;
-			cfg.logSuccesses = configToken.Value<bool?>("logSuccesses") ?? cfg.logSuccesses;
-
-			PingConfigurations.SaveSingleConfiguration(cfg);
-
-			// Refresh and broadcast updated configurations list
-			HandleGetConfigurations_Broadcast();
-
-			// Send updated config details so clients reflect changes
-			foreach (var client in clients.Values)
-				SendConfigDetails(client, cfg);
-
-			Broadcast(JsonConvert.SerializeObject(new
-			{
-				type = "configSaved",
-				guid = cfg.guid
-			}));
-		}
-
-		private void HandleDeleteConfig(string guid)
-		{
-			if (string.IsNullOrEmpty(guid))
-			{
-				BroadcastError("Invalid configuration GUID.");
-				return;
-			}
-
-			if (currentSession?.IsRunning == true && currentConfigGuid == guid)
-			{
-				BroadcastError("Cannot delete the currently running configuration.");
-				return;
-			}
-
-			PingConfigurations allConfigs = new PingConfigurations();
-			allConfigs.Load();
-			allConfigs.configurations.RemoveAll(c => c.guid == guid);
-			allConfigs.Save();
-
-			if (currentConfigGuid == guid)
-				currentConfigGuid = null;
-
-			HandleGetConfigurations_Broadcast();
-
-			Broadcast(JsonConvert.SerializeObject(new
-			{
-				type = "configDeleted",
-				guid = guid
-			}));
-		}
-
-		private void HandleGetConfigurations_Broadcast()
-		{
-			PingConfigurations allConfigs = new PingConfigurations();
-			allConfigs.Load();
-
-			var configList = allConfigs.configurations.Select(c => new
-			{
-				guid = c.guid,
-				displayName = c.displayName,
-				hosts = c.hosts?.Select(h => h.hostname).ToList() ?? new List<string>()
-			}).ToList();
-
-			Broadcast(JsonConvert.SerializeObject(new
-			{
-				type = "configurations",
-				configurations = configList,
-				selectedGuid = currentConfigGuid
-			}));
-		}
-
-		#region Session Event Handlers
-
-		private void OnHopDiscovered(MonitoringSession session, HopTimeSeries series)
-		{
-			BroadcastLog($"Hop {series.HopNumber + 1} active: {series.Address}");
-
-			// Subscribe so async DNS resolution reaches clients. Use a closure
-			// keyed off the series so we capture the right address.
-			series.HostnameUpdated += s =>
-			{
-				try { BroadcastBinary(BuildHostnameUpdatedFrame(s.Address, s.Hostname ?? string.Empty)); }
-				catch { }
-				if (!string.IsNullOrEmpty(s.Hostname))
-					BroadcastLog($"Resolved {s.Address} -> {s.Hostname}");
-			};
-			// If hostname was already resolved (race), emit immediately.
-			if (!string.IsNullOrEmpty(series.Hostname))
-			{
-				try { BroadcastBinary(BuildHostnameUpdatedFrame(series.Address, series.Hostname)); }
-				catch { }
-				BroadcastLog($"Resolved {series.Address} -> {series.Hostname}");
-			}
-		}
-
-		private void OnHopDeactivated(MonitoringSession session, byte hop, IPAddress address)
-		{
-			byte idx = ResolveSessionIndex(session);
-			if (idx == BinaryFrameType.NoSession) return;
-			BroadcastLog($"Hop {hop + 1} deactivated: {address}");
-			try { BroadcastBinary(BuildHopDeactivatedFrame(idx, hop, address, DateTime.UtcNow)); }
-			catch { }
-		}
-
-		private void BroadcastLog(string message)
-		{
-			OnLogCreated(message);
-		}
-
-		private void OnPingRecordCompleted(MonitoringSession session, TraceRouteHostResult result, HopTimeSeries series, RecordHandle? handle)
-		{
-			if (result == null) return;
-			byte idx = ResolveSessionIndex(session);
-			if (idx == BinaryFrameType.NoSession) return;
-
-			DateTime ts = result.sentTimestampUtc;
-			if (ts == default) ts = DateTime.UtcNow;
-
-			if (series == null) return;
-
-			// Only treat the reply as a hit for THIS series when the responding IP
-			// matches. Otherwise the storage layer records a Timeout for this series
-			// (the reply belongs to a different hop / address change), so the live
-			// frame must do the same — else the bar renders green and then turns red
-			// when aggregated history overwrites the live tail.
-			bool isHitForSeries = result.success
-				&& result.replyFrom != null
-				&& series.Address != null
-				&& result.replyFrom.Equals(series.Address);
-
-			ushort rtt = isHitForSeries
-				? (ushort)Math.Min(Math.Max(result.roundTripTime, 0), 65533L)
-				: PingRecordStatus.Timeout;
-			try { BroadcastBinary(BuildPingUpdateFrame(idx, series, ts, rtt)); }
-			catch { }
-		}
-
-		private void OnUnresponsiveHopProbed(MonitoringSession session, byte hopNumber, DateTime sentAtUtc)
-		{
-			byte idx = ResolveSessionIndex(session);
-			if (idx == BinaryFrameType.NoSession) return;
-			DateTime ts = sentAtUtc == default ? DateTime.UtcNow : sentAtUtc;
-			try { BroadcastBinary(BuildUnresponsiveHopFrame(idx, hopNumber, ts)); }
-			catch { }
-		}
-
-		private void OnRouteChanged(MonitoringSession session, RouteSnapshot oldRoute, RouteSnapshot newRoute)
-		{
-			if (newRoute == null) return;
-			byte idx = ResolveSessionIndex(session);
-			if (idx == BinaryFrameType.NoSession) return;
-			try { BroadcastBinary(BuildRouteUpdateFrame(idx, newRoute)); }
-			catch { }
-		}
-
-		private byte ResolveSessionIndex(MonitoringSession session)
-		{
-			if (session == null) return BinaryFrameType.NoSession;
-			lock (sessionLock)
-			{
-				if (_indexBySession.TryGetValue(session, out byte idx))
-					return idx;
-			}
-			return BinaryFrameType.NoSession;
-		}
-
-		private void OnStatusChanged(string status)
-		{
-			currentStatus = status;
-			Broadcast(JsonConvert.SerializeObject(new
+			PingSession run = currentRun;
+			return Json(new
 			{
 				type = "status",
-				status = status,
-				isRunning = currentSession?.IsRunning ?? false,
-				successfulPings = currentSession?.SuccessfulPings ?? 0,
-				failedPings = currentSession?.FailedPings ?? 0
-			}));
+				status,
+				isRunning = run?.IsRunning ?? false,
+				sent = run?.SentCount ?? 0,
+				lost = run?.LostCount ?? 0,
+				serverTime = ServerClock.NowUnixMs,
+			});
 		}
 
-		private void OnLogCreated(string logEntry)
+		private string BuildSettingsJson()
 		{
-			lock (logLock)
+			return Json(new
 			{
-				logBuffer.Add(logEntry);
-				while (logBuffer.Count > MaxLogLines)
-					logBuffer.RemoveAt(0);
-			}
-			Broadcast(JsonConvert.SerializeObject(new
-			{
-				type = "log",
-				message = logEntry
-			}));
+				type = "settings",
+				pingTimeoutMs = settings.pingTimeoutMs,
+				maxHops = settings.maxHopsDefault,
+				payloadBytes = settings.pingPayloadSizeBytes,
+				saveSessionData = settings.saveSessionData,
+				retentionSeconds = settings.dataRetentionSeconds,
+				dataDirectory = Path.GetFullPath(DataDirectory),
+			});
 		}
-
-		private void OnSessionStopped()
-		{
-			Broadcast(JsonConvert.SerializeObject(new
-			{
-				type = "stopped",
-				isRunning = false
-			}));
-		}
-
-		#endregion
-
-		#region Binary Frame Builders
-
-		private static byte[] BuildSessionTopologyFrame(MonitoringSession[] sessions)
-		{
-			var w = new BinaryFrameWriter(BinaryFrameType.SessionTopology, BinaryFrameType.NoSession);
-			byte count = (byte)Math.Min(sessions.Length, 255);
-			w.WriteByte(count);
-			for (byte i = 0; i < count; i++)
-			{
-				w.WriteByte(i);
-				w.WriteIp(sessions[i].TargetAddress);
-				w.WriteUtf8String(sessions[i].DisplayName ?? string.Empty);
-				w.WriteUnixMs(sessions[i].StartTimeUtc);
-			}
-			return w.ToArray();
-		}
-
-		private static byte[] BuildRouteUpdateFrame(byte sessionIndex, RouteSnapshot snap)
-		{
-			var w = new BinaryFrameWriter(BinaryFrameType.RouteUpdate, sessionIndex);
-			w.WriteUnixMs(snap.TimestampUtc);
-
-			// Trim trailing nulls so the wire payload only carries discovered hops.
-			HopTimeSeries[] hops = snap.Hops ?? Array.Empty<HopTimeSeries>();
-			int hopCount = hops.Length;
-			while (hopCount > 0 && hops[hopCount - 1] == null) hopCount--;
-			w.WriteByte((byte)Math.Min(hopCount, 255));
-
-			for (int i = 0; i < hopCount; i++)
-			{
-				HopTimeSeries h = hops[i];
-				w.WriteByte((byte)i);
-				if (h == null)
-				{
-					w.WriteByte(0);
-				}
-				else
-				{
-					w.WriteByte(1);
-					w.WriteIp(h.Address);
-					w.WriteUtf8String(h.Hostname ?? string.Empty);
-					w.WriteUnixMs(h.StartTimeUtc);
-				}
-			}
-			return w.ToArray();
-		}
-
-		private static byte[] BuildHostnameUpdatedFrame(IPAddress address, string hostname)
-		{
-			var w = new BinaryFrameWriter(BinaryFrameType.HostnameUpdated, BinaryFrameType.NoSession);
-			w.WriteIp(address);
-			w.WriteUtf8String(hostname ?? string.Empty);
-			return w.ToArray();
-		}
-
-		private static byte[] BuildPingUpdateFrame(byte sessionIndex, HopTimeSeries series, DateTime timestampUtc, ushort rtt)
-		{
-			var w = new BinaryFrameWriter(BinaryFrameType.PingUpdate, sessionIndex);
-			w.WriteByte(series.HopNumber);
-			w.WriteUnixMs(series.StartTimeUtc);
-			w.WriteUnixMs(timestampUtc);
-			w.WriteUInt16(rtt);
-			return w.ToArray();
-		}
-
-		// Synthetic PingUpdate frame for hops that have never responded. Uses
-		// seriesStartUtc=0 as the placeholder marker that the front-end already
-		// recognizes (it creates a synthetic '*' segment so the row renders).
-		private static byte[] BuildUnresponsiveHopFrame(byte sessionIndex, byte hopNumber, DateTime timestampUtc)
-		{
-			var w = new BinaryFrameWriter(BinaryFrameType.PingUpdate, sessionIndex);
-			w.WriteByte(hopNumber);
-			w.WriteUnixMs(default(DateTime)); // seriesStartUtc=0 = unresponsive placeholder
-			w.WriteUnixMs(timestampUtc);
-			w.WriteUInt16(PingRecordStatus.Timeout);
-			return w.ToArray();
-		}
-
-private static byte[] BuildHopDeactivatedFrame(byte sessionIndex, byte hop, IPAddress address, DateTime endUtc)
-		{
-			var w = new BinaryFrameWriter(BinaryFrameType.HopDeactivated, sessionIndex);
-			w.WriteByte(hop);
-			w.WriteIp(address);
-			w.WriteUnixMs(endUtc);
-			return w.ToArray();
-		}
-
-		public static byte[] BuildAggregatedDataFrame(byte sessionIndex, uint queryId, IList<AggregateResult> results)
-		{
-			var w = new BinaryFrameWriter(BinaryFrameType.AggregatedData, sessionIndex);
-			w.WriteUInt32(queryId);
-			byte count = (byte)Math.Min(results.Count, 255);
-			w.WriteByte(count);
-			for (int i = 0; i < count; i++)
-			{
-				AggregateResult r = results[i];
-				HopTimeSeries s = r.Series;
-				w.WriteByte(s.HopNumber);
-				w.WriteIp(s.Address);
-				w.WriteUtf8String(s.Hostname ?? string.Empty);
-				w.WriteUnixMs(s.StartTimeUtc);
-				w.WriteUnixMs(s.EndTimeUtc ?? default(DateTime));
-				AggregatedPoint[] pts = r.Points ?? Array.Empty<AggregatedPoint>();
-				w.WriteUInt32((uint)pts.Length);
-				foreach (AggregatedPoint p in pts)
-				{
-					w.WriteUnixMs(p.TimestampUtc);
-					w.WriteUInt16(EncodeRtt(p.MinRtt, p.SampleCount));
-					w.WriteUInt16(EncodeRtt(p.MaxRtt, p.SampleCount));
-					w.WriteUInt16(EncodeRtt(p.AvgRtt, p.SampleCount));
-					int lossX100 = (int)Math.Round(p.PacketLossPercent * 100.0);
-					if (lossX100 < 0) lossX100 = 0;
-					if (lossX100 > 10000) lossX100 = 10000;
-					w.WriteUInt16((ushort)lossX100);
-					w.WriteUInt32((uint)Math.Max(0, p.SampleCount));
-				}
-			}
-			return w.ToArray();
-		}
-
-		private static ushort EncodeRtt(double v, int sampleCount)
-		{
-			// NaN signals "no successful samples in this bucket". A real 0ms RTT
-			// (common on the local LAN) must encode to 0, not 0xFFFF.
-			if (sampleCount <= 0 || double.IsNaN(v) || v < 0) return 0xFFFF;
-			if (v >= 65533) return 65533;
-			return (ushort)Math.Round(v);
-		}
-
-		#endregion
-
-		#region Query Data
-
-		private void HandleQueryData(string clientId, JObject msg)
-		{
-			if (!clients.TryGetValue(clientId, out ClientConnection client)) return;
-
-			uint queryId = (uint)(msg.Value<long?>("queryId") ?? 0);
-			int sessionIndex = msg.Value<int?>("sessionIndex") ?? 0;
-			long startMs = msg.Value<long?>("startTimeUtc") ?? 0;
-			long endMs = msg.Value<long?>("endTimeUtc") ?? 0;
-			int maxPoints = msg.Value<int?>("maxPointsPerHop") ?? 800;
-			if (maxPoints < 1) maxPoints = 1;
-
-			MonitoringSession session = null;
-			lock (sessionLock)
-			{
-				if (sessionIndex >= 0 && sessionIndex < _sessionsByIndex.Length)
-					session = _sessionsByIndex[sessionIndex];
-			}
-			if (session == null)
-			{
-				client.SendBinary(BuildAggregatedDataFrame((byte)0xFF, queryId, Array.Empty<AggregateResult>()));
-				return;
-			}
-
-			DateTime start = FromUnixMs(startMs);
-			DateTime end = FromUnixMs(endMs);
-			if (end <= start) end = start.AddMilliseconds(1);
-
-			var results = new List<AggregateResult>();
-			foreach (HopTimeSeries series in session.GetAggregatedData(start, end, maxPoints))
-			{
-				AggregateResult r = series.AggregateRange(start, end, maxPoints);
-				if (r != null && r.Points != null && r.Points.Length > 0)
-					results.Add(r);
-			}
-
-			client.SendBinary(BuildAggregatedDataFrame((byte)sessionIndex, queryId, results));
-		}
-
-		private static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-		private static DateTime FromUnixMs(long ms) => UnixEpoch.AddMilliseconds(ms);
 
 		#endregion
 
 		#region Broadcasting
 
-		private void Broadcast(string message)
+		private void BroadcastStatus() => Broadcast(BuildStatusJson());
+
+		private void OnLog(string message)
 		{
-			foreach (var client in clients.Values)
+			string line = DateTime.Now.ToString("HH:mm:ss") + "  " + message;
+			lock (logLock)
 			{
-				try
-				{
-					client.Send(message);
-				}
-				catch (Exception) { }
+				logBuffer.Add(line);
+				if (logBuffer.Count > MaxLogLines)
+					logBuffer.RemoveRange(0, logBuffer.Count - MaxLogLines);
 			}
+			Broadcast(Json(new { type = "log", message = line }));
 		}
 
-		private void BroadcastBinary(byte[] data)
+		private void Broadcast(string json)
 		{
-			if (data == null || data.Length == 0) return;
-			foreach (var client in clients.Values)
-			{
-				try { client.SendBinary(data); }
-				catch (Exception) { }
-			}
+			foreach (ClientConnection c in clients.Values)
+				c.EnqueueJson(json);
 		}
 
-		private void BroadcastError(string errorMessage)
-		{
-			Broadcast(JsonConvert.SerializeObject(new
-			{
-				type = "error",
-				message = errorMessage
-			}));
-		}
+		private void BroadcastError(string message) => Broadcast(Json(new { type = "error", message }));
 
 		#endregion
-	}
-
-	/// <summary>
-	/// Represents a connected WebSocket client.
-	/// </summary>
-	internal class ClientConnection
-	{
-		public string Id { get; }
-		private readonly WebSocket ws;
-		private readonly ManualResetEventSlim closeEvent = new ManualResetEventSlim(false);
-		private readonly object sendLock = new object();
-
-		public ClientConnection(string id, WebSocket ws)
-		{
-			Id = id;
-			this.ws = ws;
-		}
-
-		public void Send(string message)
-		{
-			lock (sendLock)
-			{
-				if (ws.State == WebSocketState.Open)
-					ws.Send(message);
-			}
-		}
-
-		public void SendBinary(byte[] data)
-		{
-			lock (sendLock)
-			{
-				if (ws.State == WebSocketState.Open)
-					ws.Send(data);
-			}
-		}
-
-		public void WaitForClose()
-		{
-			closeEvent.Wait();
-		}
-
-		public void SignalClose()
-		{
-			closeEvent.Set();
-		}
-	}
-
-	/// <summary>
-	/// Extension methods for DateTime to support Unix timestamp conversion.
-	/// </summary>
-	public static class DateTimeExtensions
-	{
-		private static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-
-		/// <summary>
-		/// Converts a DateTime to Unix time in milliseconds.
-		/// </summary>
-		public static long ToUnixTimeMs(this DateTime dt)
-		{
-			return (long)(dt.ToUniversalTime() - UnixEpoch).TotalMilliseconds;
-		}
 	}
 }

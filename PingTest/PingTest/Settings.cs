@@ -50,19 +50,16 @@ namespace PingTracer
 		/// </summary>
 		public long dataRetentionSeconds = (long)TimeSpan.FromDays(1).TotalSeconds;
 
-		/// <summary>Default initial maximum hop count for ContinuousRouteMonitor.</summary>
+		/// <summary>Largest TTL the route monitor will ever probe.</summary>
 		public int maxHopsDefault = 30;
 
-		/// <summary>Number of consecutive cycles where the destination fails to respond before a high-TTL probe is issued.</summary>
-		public int destinationProbeMissThreshold = 10;
+		/// <summary>Milliseconds after which an unanswered ping is considered lost.</summary>
+		public int pingTimeoutMs = 4000;
 
-		/// <summary>TTL used for the destination liveness probe.</summary>
-		public byte destinationProbeTtl = 128;
+		/// <summary>If true, monitoring sessions are saved to disk so they can be reviewed later.</summary>
+		public bool saveSessionData = true;
 
-		/// <summary>Cycle cadence for repeating the destination probe while the destination remains unresponsive.</summary>
-		public int destinationProbeIntervalCycles = 1;
-
-		/// <summary>Disk flush interval for the binary session log (Phase 5).</summary>
+		/// <summary>Disk flush interval for the binary session log.</summary>
 		public int diskFlushIntervalSeconds = 10;
 
 		/// <summary>

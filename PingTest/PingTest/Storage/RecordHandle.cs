@@ -1,7 +1,7 @@
 namespace PingTracer.Storage
 {
 	/// <summary>
-	/// Identifies the exact position of a PingRecord in a ChunkedSeriesBuffer.
+	/// Identifies the exact position of a <see cref="PingRecord"/> in a <see cref="HopSeries"/>.
 	/// Logical chunk indices are stable across front-pruning operations.
 	/// </summary>
 	public readonly struct RecordHandle

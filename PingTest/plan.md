@@ -1,5 +1,66 @@
 # Plan: Redesign PingTracer Route Monitoring & Data Storage
 
+> **Design revision (November 2026).** The original plan below was implemented, and testing exposed problems that
+> came from the design itself. The sections below this note are kept for history; where they conflict with this
+> note, this note describes the current code.
+>
+> ### What changed and why
+>
+> 1. **Series are keyed by TTL, not by (TTL, address).** Each TTL has one `HopSeries`; every `PingRecord` carries the
+>    id of the address that replied (`AddressTable`). The old `HopTimeSeries`/`HopHistory`/`RouteSnapshot` model
+>    started a new series whenever a hop's address changed. Load-balanced (ECMP) hops alternate addresses on nearly
+>    every ping, so the old model produced thousands of tiny series. Route changes also produced false timeouts
+>    (records begun on the old series) and lost data (replies deferred to end-of-cycle reconciliation, then clamped
+>    out of order). With per-TTL series a route change is just a different address id in the same series.
+> 2. **`RouteMonitor` replaces `ContinuousRouteMonitor`, `DirectPingMonitor` and `TraceThrottler`.**
+>    - Every ping is recorded at send time and completed in place; there is no end-of-cycle reconciliation.
+>    - The route length is tracked continuously. An echo at a lower TTL shortens the route immediately. A
+>      TTL-expired reply at the destination's TTL means the route got longer (an extension scan follows). While the
+>      destination is silent, extra TTLs are probed periodically.
+>    - Echo replies from TTLs beyond the destination are *voided* (`PingRecordStatus.Void`), including when they
+>      arrive before the real destination's reply. This replaces "expand MaxHops by 10 on every miss", which turned
+>      ordinary packet loss at the destination into bogus duplicate destination rows.
+>    - Only hops that have *never* answered (or not for 5 minutes) are throttled; the destination never is. The old
+>      throttler would have hidden outages after 10 seconds.
+> 3. **64-bit session time.** Records are still 8 bytes, but each storage chunk has a 64-bit base time, so a session
+>    can run indefinitely (32-bit relative milliseconds overflowed after 49.7 days). All times come from
+>    `ServerClock`, a monotonic clock, which also drives the web client's live edge (the client synchronizes to it).
+> 4. **Route events** (`RouteEvent`): "address X started answering at hop N" (only when not seen there in the last
+>    10 minutes, so steady ECMP produces no noise) and "destination moved to hop N". These drive the route-change
+>    markers. Events during route discovery are flagged `Initial` and not drawn.
+> 5. **Column queries.** The client asks for time-aligned columns: column `c` at `msPerCol` covers
+>    `[c * msPerCol, (c + 1) * msPerCol)` Unix time. Because columns are aligned to absolute time, cached columns stay
+>    valid while scrolling and each live ping folds into exactly one column per cached zoom level. Query responses and
+>    live updates for a session are queued while holding that session's lock, and each client's queue is delivered
+>    in order, so the client can replace a cached chunk with a response and then apply later live pings without
+>    double counting.
+> 6. **WebSocket hub** (`PingWebSocketHandler` + `ClientConnection`): each client has its own send queue and thread.
+>    Ping callbacks only enqueue, so a slow browser can no longer stall ping processing, which was a 30-second
+>    blocking send under a lock before. Live results are coalesced into batched binary frames.
+> 7. **File format v3** (`PingDataFile`): address, hostname, records (64-bit base + 16-bit deltas, 6 bytes per ping),
+>    and route-event blocks. Only "stable" records (older than the ping timeout) are written, so the file is strictly
+>    append-only. Saved sessions can be browsed from the web UI (History).
+> 8. **Simulated network** (`SimulatedNetwork`): a configuration host of `sim:anything` monitors a fake 12–13 hop path
+>    with a silent hop, an ECMP hop, ICMP rate limiting, periodic route changes, loss bursts, latency spikes and brief
+>    outages. It is meant for demonstrations and for testing the UI.
+>
+> ### Web client
+>
+> - Ping data never passes through Vue reactivity. `DataStore.js` caches columns in typed arrays (chunks of 256 columns
+>   per zoom level) and `GraphRenderer.js` draws them; Vue only handles the chrome.
+> - **Rendering:** one device pixel equals one time column. Canvas backing stores are sized from
+>   `devicePixelContentBoxSize`, and the canvases are offset by the sub-pixel remainder of their position, so the
+>   browser composites them 1:1 with no resampling. Resampling a canvas with a fractional size or position was what
+>   made the old renderer slow. Scrolling copies the canvas onto itself shifted by whole pixels, and only exposed or
+>   changed columns are redrawn into `ImageData`. Text lives on a separate overlay canvas that is redrawn at most a
+>   few times per second. Measured at 1280×887 device pixels (DPR 1.25): about 0.45 ms per frame while scrolling live,
+>   and about 3.5 ms for a full redraw.
+> - **Drawing:** classic PingTracer colors and thresholds. Aggregated columns draw the average as a solid bar and the
+>   maximum as a dimmer extension. Partial loss hangs from the top as a red "curtain" proportional to the loss fraction,
+>   and total loss is a full red column. Pings awaiting a reply are dark gray. Hops that answered from more than one
+>   address get a thin color strip (one color per address). Dashed cyan lines mark a new address at a hop, and dashed
+>   magenta lines mark a change in the destination's hop number. Hops that never answer are drawn as thin rows.
+
 ## TL;DR
 Replace PingTracer's single-shot traceroute + independent ping loops with continuous parallel traceroute monitoring, and replace the fixed-size PingLog class circular buffer with a struct-based, time-series storage system that supports variable-size collections, time-span retention, disk persistence, and server-side aggregation for the web client.
 
