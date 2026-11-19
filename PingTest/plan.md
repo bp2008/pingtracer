@@ -79,6 +79,8 @@
 >   and total loss is a full red column. Pings awaiting a reply are dark gray. Hops that answered from more than one
 >   address get a thin color strip (one color per address). Dashed cyan lines mark a new address at a hop, and dashed
 >   magenta lines mark a change in the destination's hop number. Hops that never answer are drawn as thin rows.
+>   While the destination has never answered, the first silent hop after the last answering one is kept as a
+>   full-size row labeled "* no reply: <target> not reached", so an unreachable target is obvious at a glance.
 > - **Fill-forward:** when zoomed in further than one ping per column, each ping's bar extends to where the next ping
 >   is due, judged from the recent spacing between pings (+10% for timer jitter), so data recorded before a ping-rate
 >   change keeps solid bars and a missing ping still leaves a gap.

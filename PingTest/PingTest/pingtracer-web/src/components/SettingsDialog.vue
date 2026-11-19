@@ -1,6 +1,7 @@
 <template>
-	<div class="dlg-overlay" @mousedown.self="$emit('close')" @keydown.esc="$emit('close')" tabindex="-1" ref="root">
-		<div class="dlg settings">
+	<div class="dlg-overlay" @mousedown.self="onOutsideClick" @keydown.esc="requestClose" @keydown.enter="onEnter"
+		tabindex="-1" ref="root">
+		<div class="dlg settings" role="dialog" aria-modal="true" aria-label="Settings">
 			<div class="dlg-header">
 				<h3>Settings</h3>
 				<button class="dlg-close" @click="$emit('close')">&times;</button>
@@ -33,6 +34,7 @@
 				</div>
 				<p class="muted">Changes apply the next time monitoring starts.</p>
 			</div>
+			<div v-if="error" class="form-error" role="alert">{{ error }}</div>
 			<div class="dlg-footer">
 				<div class="spacer"></div>
 				<button class="btn" @click="$emit('close')">Cancel</button>
@@ -53,7 +55,7 @@ export default {
 	emits: ['close', 'save'],
 	data()
 	{
-		return { form: this.settings ? { ...this.settings } : null };
+		return { form: this.settings ? { ...this.settings } : null, error: '' };
 	},
 	computed: {
 		retentionOptions()
@@ -71,13 +73,54 @@ export default {
 		},
 	},
 	watch: {
-		settings(v) { if (v && !this.form) this.form = { ...v }; },
+		settings(v)
+		{
+			if (v && !this.form)
+			{
+				this.form = { ...v };
+				this.initialState = JSON.stringify(this.form);
+			}
+		},
 	},
-	mounted() { this.$refs.root.focus(); },
+	mounted()
+	{
+		this.initialState = JSON.stringify(this.form);
+		this.$refs.root.focus();
+	},
 	methods: {
 		save()
 		{
-			this.$emit('save', { ...this.form });
+			const f = this.form;
+			const inRange = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
+			if (!inRange(f.pingTimeoutMs, 200, 30000))
+				this.error = 'The ping timeout must be a whole number of milliseconds from 200 to 30000.';
+			else if (!inRange(f.maxHops, 1, 255))
+				this.error = 'Maximum hops must be a whole number from 1 to 255.';
+			else if (!inRange(f.payloadBytes, 0, 65500))
+				this.error = 'The payload size must be a whole number of bytes from 0 to 65500.';
+			else
+			{
+				this.error = '';
+				this.$emit('save', { ...f });
+			}
+		},
+		isDirty() { return JSON.stringify(this.form) !== this.initialState; },
+		requestClose()
+		{
+			if (!this.isDirty() || confirm('Discard your changes to the settings?'))
+				this.$emit('close');
+		},
+		onOutsideClick()
+		{
+			if (!this.isDirty()) this.$emit('close');
+		},
+		onEnter(e)
+		{
+			if (e.target.tagName === 'INPUT' && e.target.type !== 'checkbox')
+			{
+				e.preventDefault();
+				this.save();
+			}
 		},
 	},
 };
@@ -85,5 +128,14 @@ export default {
 
 <style scoped>
 .settings { width: 480px; }
+.form-error {
+	margin: 0 16px 10px;
+	padding: 6px 10px;
+	border-radius: 4px;
+	background: #3a1414;
+	border: 1px solid #7a2a2a;
+	color: #ffb4b4;
+	font-size: 13px;
+}
 .settings input[type='number'] { width: 100px; }
 </style>

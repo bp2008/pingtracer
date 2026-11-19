@@ -26,9 +26,9 @@
 		</div>
 
 		<div class="group view-controls">
-			<button class="btn icon" @click="$emit('zoomOut')" title="Zoom out (−, mouse wheel)">−</button>
+			<button class="btn icon" @click="$emit('zoomOut')" :disabled="view.msPerCol >= maxZoomMs" title="Zoom out (−, mouse wheel)">−</button>
 			<span class="zoom-label" :title="zoomTitle">{{ spanLabel }}</span>
-			<button class="btn icon" @click="$emit('zoomIn')" title="Zoom in (+, mouse wheel)">+</button>
+			<button class="btn icon" @click="$emit('zoomIn')" :disabled="view.msPerCol <= minZoomMs" title="Zoom in (+, mouse wheel)">+</button>
 			<button class="btn" @click="$emit('fitAll')" title="Show everything (F)">Fit</button>
 			<button v-if="isRunning" class="btn live-btn" :class="{ on: view.live }" @click="$emit('goLive')"
 				:title="view.live ? 'Showing the latest data' : 'Jump to the latest data (End, double-click)'">
@@ -49,6 +49,7 @@
 
 <script>
 import { formatSpan } from '@/library/format';
+import { ZOOM_LEVELS } from '@/library/GraphRenderer';
 
 export default {
 	name: 'ToolBar',
@@ -66,6 +67,8 @@ export default {
 	},
 	emits: ['selectConfig', 'editConfig', 'newConfig', 'start', 'stop', 'zoomIn', 'zoomOut', 'fitAll', 'goLive', 'showHistory', 'showLog', 'showSettings', 'showHelp'],
 	computed: {
+		minZoomMs() { return ZOOM_LEVELS[0]; },
+		maxZoomMs() { return ZOOM_LEVELS[ZOOM_LEVELS.length - 1]; },
 		spanLabel()
 		{
 			return formatSpan(this.view.endMs - this.view.startMs);

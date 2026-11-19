@@ -72,6 +72,7 @@ export default {
 		// Diagnostics hook for the browser console (see RenderSelfTest.js).
 		window.__pingtracer = {
 			renderer: this.renderer,
+			socket,
 			selfTest: async (options) => (await import('@/library/RenderSelfTest')).runSelfTest(this.renderer, GraphRenderer, options),
 		};
 		let saved = 0;
@@ -252,13 +253,15 @@ export default {
 			this.tipX = this.mouse.x;
 			this.tipY = this.mouse.y;
 			if (!info) { this.tip = null; this.tipKey = ''; return; }
-			const title = info.ttl === 0 ? info.sessionName : `Hop ${info.ttl}`;
+			const title = info.ttl === 0 ? info.sessionName
+				: info.row.unreached ? `Hop ${info.ttl} and beyond: ${info.row.session.meta.target} has not answered`
+					: `Hop ${info.ttl}`;
 			const time = formatColumnRange(info.startMs, info.endMs, info.msPerCol);
 			let value, valueClass = '';
 			const succ = info.n - info.lost;
 			if (info.n === 0)
 			{
-				value = info.row.collapsed ? 'This hop does not answer pings' : 'No data';
+				value = info.pending ? 'Waiting for a reply…' : info.row.collapsed ? 'This hop does not answer pings' : 'No data';
 				valueClass = 'muted';
 			}
 			else if (succ === 0)

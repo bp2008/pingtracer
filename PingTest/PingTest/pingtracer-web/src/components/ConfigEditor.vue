@@ -1,6 +1,7 @@
 <template>
-	<div class="modal-overlay" @mousedown.self="$emit('close')" @keydown.esc="$emit('close')">
-		<div class="modal-content">
+	<div class="modal-overlay" @mousedown.self="onOutsideClick" @keydown.esc="requestClose"
+		@keydown.enter="onEnter">
+		<div class="modal-content" role="dialog" aria-modal="true" :aria-label="isNew ? 'New configuration' : 'Edit configuration'">
 			<div class="modal-header">
 				<h3>{{ isNew ? 'New Configuration' : 'Edit Configuration' }}</h3>
 				<button class="btn-close" @click="$emit('close')">&times;</button>
@@ -162,9 +163,33 @@ export default {
 	},
 	mounted()
 	{
+		this.initialState = this.snapshot();
 		this.$nextTick(() => this.$refs.hosts && this.$refs.hosts.focus());
 	},
 	methods: {
+		snapshot() { return JSON.stringify([this.form, this.hostsText]); },
+		isDirty() { return this.snapshot() !== this.initialState; },
+		/** Escape: closes at once if nothing was changed, otherwise asks first. */
+		requestClose()
+		{
+			if (!this.isDirty() || confirm('Discard your changes to this configuration?'))
+				this.$emit('close');
+		},
+		/** A click beside the dialog closes it only when nothing would be lost (a stray click must not discard edits). */
+		onOutsideClick()
+		{
+			if (!this.isDirty()) this.$emit('close');
+		},
+		/** Enter in a text field saves, as does Ctrl+Enter in the hosts box (where Enter starts a new line). */
+		onEnter(e)
+		{
+			const t = e.target;
+			if (t.tagName === 'TEXTAREA' ? (e.ctrlKey || e.metaKey) : (t.tagName === 'INPUT' && t.type !== 'checkbox'))
+			{
+				e.preventDefault();
+				this.onSave();
+			}
+		},
 		onSave()
 		{
 			// Hosts may be separated by commas, spaces or new lines (the server splits them the same way).

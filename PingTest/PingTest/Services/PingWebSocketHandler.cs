@@ -612,11 +612,11 @@ namespace PingTracer.Services
 		private void HandleSaveSettings(JToken t)
 		{
 			if (t == null) return;
-			settings.pingTimeoutMs = Math.Clamp(t.Value<int?>("pingTimeoutMs") ?? settings.pingTimeoutMs, 200, 30000);
-			settings.maxHopsDefault = Math.Clamp(t.Value<int?>("maxHops") ?? settings.maxHopsDefault, 1, 255);
-			settings.pingPayloadSizeBytes = Math.Clamp(t.Value<int?>("payloadBytes") ?? settings.pingPayloadSizeBytes, 0, 65500);
+			settings.pingTimeoutMs = Math.Clamp(IntOrNull(t, "pingTimeoutMs") ?? settings.pingTimeoutMs, 200, 30000);
+			settings.maxHopsDefault = Math.Clamp(IntOrNull(t, "maxHops") ?? settings.maxHopsDefault, 1, 255);
+			settings.pingPayloadSizeBytes = Math.Clamp(IntOrNull(t, "payloadBytes") ?? settings.pingPayloadSizeBytes, 0, 65500);
 			settings.saveSessionData = t.Value<bool?>("saveSessionData") ?? settings.saveSessionData;
-			long? retention = t.Value<long?>("retentionSeconds");
+			long? retention = IntOrNull(t, "retentionSeconds");
 			if (retention.HasValue)
 				settings.dataRetentionSeconds = Math.Clamp(retention.Value, 600, 400L * 86400);
 			settings.Save();

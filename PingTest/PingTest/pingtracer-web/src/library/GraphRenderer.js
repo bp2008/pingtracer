@@ -780,8 +780,20 @@ export class GraphRenderer
 				row.silent = row.stats.succ === 0 && (neverReplied || destReplied);
 				row.collapsed = row.silent && !cfg.monitorUnresponsiveHops;
 			}
-			// Drop trailing silent rows (TTLs beyond the last hop that answers).
-			while (sessionRows.length > 0 && sessionRows[sessionRows.length - 1].silent) sessionRows.pop();
+			// Drop trailing silent rows (TTLs beyond the last hop that answers).  But while the destination has never been
+			// reached, keep the first of them at full size: it stands for the destination not answering, which is the
+			// most important thing to show (otherwise an unreachable target would show nothing but the working hops).
+			let trailing = sessionRows.length;
+			while (trailing > 0 && sessionRows[trailing - 1].silent) trailing--;
+			if (trailing < sessionRows.length && !destReplied && !s.meta.destTtl && sessionRows[trailing].stats.n > 0)
+			{
+				const row = sessionRows[trailing];
+				row.unreached = true;
+				row.silent = false;
+				row.collapsed = false;
+				trailing++;
+			}
+			sessionRows.length = trailing;
 			rows.push(...sessionRows);
 		}
 
@@ -1152,6 +1164,7 @@ export class GraphRenderer
 	{
 		const s = row.session;
 		if (row.ttl === 0) return s.meta.displayName;
+		if (row.unreached) return `* no reply: ${s.meta.target || 'destination'} not reached`;
 		const a = row.labelAddr !== ADDR_NONE ? s.addresses.get(row.labelAddr) : null;
 		if (!a) return row.collapsed ? '* no reply' : (row.stats.n > 0 ? '* no reply' : '');
 		const showNames = cfg.drawServerNames ?? true;
@@ -1434,6 +1447,8 @@ export class GraphRenderer
 			filled,
 			n: 0, lost: 0, min: null, max: null, avg: null, address: null, host: null, multi: false,
 			isDestination: false,
+			// The gray area at the live edge: pings sent here have not been answered (or timed out) yet.
+			pending: !(d && d.n[d.i] > 0) && xDev >= row.pendX0 && xDev <= row.pendX1,
 		};
 		if (d && d.n[d.i] > 0)
 		{
