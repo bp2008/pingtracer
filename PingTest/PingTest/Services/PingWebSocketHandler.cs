@@ -56,8 +56,11 @@ namespace PingTracer.Services
 
 		#region Connection lifecycle
 
-		/// <summary>Handles a WebSocket upgrade request on /ws.  Blocks until the connection closes.</summary>
-		public void HandleConnection(HttpProcessor p)
+		/// <summary>
+		/// Handles a WebSocket upgrade request on /ws.  The returned task completes when the connection closes; no thread is
+		/// held while it is open (the WebSocket has its own reader thread and <see cref="ClientConnection"/> its own sender).
+		/// </summary>
+		public async Task HandleConnectionAsync(HttpProcessor p)
 		{
 			string clientId = Guid.NewGuid().ToString("N").Substring(0, 8);
 			ClientConnection client = null;
@@ -74,7 +77,7 @@ namespace PingTracer.Services
 					if (frame is WebSocketTextFrame tf)
 						HandleClientMessage(client, tf.Text);
 				}, close => client.Close());
-				client.WaitForClose();
+				await client.Closed.ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{

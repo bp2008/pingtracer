@@ -55,7 +55,7 @@ namespace PingTracer
 			// Handle WebSocket upgrade requests
 			if (WebSocket.IsWebSocketRequest(p) && p.Request.Page.IEquals("ws"))
 			{
-				PingWsHandler.HandleConnection(p);
+				await PingWsHandler.HandleConnectionAsync(p).ConfigureAwait(false);
 				return;
 			}
 
