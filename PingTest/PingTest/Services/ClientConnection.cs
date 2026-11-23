@@ -3,6 +3,7 @@ using BPUtil.SimpleHttp.WebSockets;
 using System;
 using System.Collections.Concurrent;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace PingTracer.Services
 {
@@ -21,7 +22,8 @@ namespace PingTracer.Services
 		private readonly WebSocket ws;
 		private readonly ConcurrentQueue<OutItem> queue = new ConcurrentQueue<OutItem>();
 		private readonly SemaphoreSlim signal = new SemaphoreSlim(0);
-		private readonly ManualResetEventSlim closed = new ManualResetEventSlim(false);
+		/// <summary>Continuations run asynchronously so that whoever calls <see cref="Close"/> (often the WebSocket's reader thread) does not run the connection's cleanup inline.</summary>
+		private readonly TaskCompletionSource closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		private int queued;
 		private volatile bool isClosed;
 
@@ -132,10 +134,11 @@ namespace PingTracer.Services
 			isClosed = true;
 			try { signal.Release(); } catch { }
 			try { ws.Close(); } catch { }
-			closed.Set();
+			closed.TrySetResult();
 		}
 
-		public void WaitForClose() => closed.Wait();
+		/// <summary>Completes when the connection has been closed.</summary>
+		public Task Closed => closed.Task;
 
 		private struct OutItem
 		{

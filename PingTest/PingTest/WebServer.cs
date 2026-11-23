@@ -50,12 +50,23 @@ namespace PingTracer
 		{
 			return new SelfSignedCertificateSelector();
 		}
+		/// <summary>
+		/// Starts processing each accepted connection on the thread pool.  The base class calls ProcessAsync directly from the
+		/// listener's accept loop, and when a request has already arrived by then, every await in the request pipeline
+		/// completes synchronously, so the handler runs on the accept loop itself.  A handler that took a long time (such as a
+		/// WebSocket connection, which lasts as long as the browser tab) then stopped the server from accepting anything else.
+		/// </summary>
+		protected override void AcceptClient(IProcessor processor, CancellationToken cancellationToken)
+		{
+			_ = Task.Run(() => processor.ProcessAsync(cancellationToken), CancellationToken.None);
+		}
+
 		public override async Task handleRequest(HttpProcessor p, string method, CancellationToken cancellationToken = default)
 		{
 			// Handle WebSocket upgrade requests
 			if (WebSocket.IsWebSocketRequest(p) && p.Request.Page.IEquals("ws"))
 			{
-				PingWsHandler.HandleConnection(p);
+				await PingWsHandler.HandleConnectionAsync(p).ConfigureAwait(false);
 				return;
 			}
 
