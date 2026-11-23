@@ -1685,7 +1685,7 @@ function blockSummary(h, b)
 {
 	if (h.blockVersion !== h.version)
 	{
-		h.blocks = new Array(CHUNK_COLS / BLOCK_COLS);
+		h.blocks = Array.from({ length: CHUNK_COLS / BLOCK_COLS });
 		h.blockVersion = h.version;
 	}
 	let sm = h.blocks[b];
@@ -1791,7 +1791,7 @@ const CONFIG_NUMBER_DEFAULTS = { badThreshold: 100, worseThreshold: 200, upperLi
  */
 function sanitizeConfig(cfg)
 {
-	const out = { ...(cfg || {}) };
+	const out = { ...cfg };
 	for (const [key, def] of Object.entries(CONFIG_NUMBER_DEFAULTS))
 	{
 		const v = out[key];
