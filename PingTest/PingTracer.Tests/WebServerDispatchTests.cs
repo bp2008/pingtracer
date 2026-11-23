@@ -11,6 +11,10 @@ namespace PingTracer.Tests
 	/// Regression tests for the web interface going silent: a WebSocket whose upgrade request had already arrived when the
 	/// listener accepted it was handled synchronously on the listener's accept loop, and <c>HandleConnection</c> blocked that
 	/// thread until the WebSocket closed.  An open browser tab therefore stopped the server from accepting anything else.
+	/// <para>Two fixes, each covered on its own: BPUtil's <c>HttpServerAsync.AcceptClient</c> no longer runs request code on the
+	/// accept loop (<see cref="HttpServerAsyncDoesNotRunHandlersOnTheAcceptLoop"/>; BPUtil's own tests run on .NET Framework,
+	/// where the awaits never complete synchronously and the hang does not reproduce), and the WebSocket handler no longer
+	/// blocks a thread (<see cref="OpenWebSocketsDoNotHoldThreadPoolThreads"/>).  The other tests check the result end to end.</para>
 	/// </summary>
 	public class WebServerDispatchTests
 	{
@@ -28,6 +32,56 @@ namespace PingTracer.Tests
 		{
 			public ExposedWebServer() : base(new Settings { saveSessionData = false }) { }
 			public void Dispatch(TcpClient c) => AcceptClient(MakeClientProcessor(c, this, certificateSelector, AllowedConnectionTypes.httpAndHttps), CancellationToken.None);
+		}
+
+		/// <summary>A BPUtil server whose handler blocks its thread until released, as the WebSocket handler used to.</summary>
+		private sealed class BlockingServer : HttpServerAsync
+		{
+			public readonly ManualResetEventSlim Release = new ManualResetEventSlim(false);
+			public BlockingServer() : base(new SelfSignedCertificateSelector()) { }
+			public override Task handleRequest(HttpProcessor p, string method, CancellationToken cancellationToken = default)
+			{
+				Release.Wait(10000);
+				p.Response.Simple("200 OK");
+				return Task.CompletedTask;
+			}
+			public void Dispatch(TcpClient c) => AcceptClient(MakeClientProcessor(c, this, certificateSelector, AllowedConnectionTypes.httpAndHttps), CancellationToken.None);
+			protected override void stopServer() { }
+		}
+
+		/// <summary>
+		/// BPUtil's dispatch on its own: when the request is already buffered, <c>AcceptClient</c> must return without waiting
+		/// for the handler, however long the handler takes.
+		/// </summary>
+		[Fact]
+		public void HttpServerAsyncDoesNotRunHandlersOnTheAcceptLoop()
+		{
+			BlockingServer server = new BlockingServer();
+			using TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
+			listener.Start();
+			using TcpClient client = new TcpClient();
+			client.Connect((IPEndPoint)listener.LocalEndpoint);
+			TcpClient serverSide = listener.AcceptTcpClient();
+			try
+			{
+				byte[] request = Encoding.ASCII.GetBytes("GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n");
+				client.GetStream().Write(request);
+				Stopwatch wait = Stopwatch.StartNew();
+				while (serverSide.Available < request.Length && wait.ElapsedMilliseconds < 5000)
+					Thread.Sleep(5);
+				Assert.Equal(request.Length, serverSide.Available);
+
+				Task dispatch = Task.Factory.StartNew(() => server.Dispatch(serverSide), TaskCreationOptions.LongRunning);
+				Assert.True(dispatch.Wait(2000), "HttpServerAsync.AcceptClient ran the request handler inline, which blocks the accept loop.");
+
+				server.Release.Set();
+				client.ReceiveTimeout = 5000;
+				Assert.StartsWith("HTTP/1.1 200", ReadHttpHead(client.GetStream()));
+			}
+			finally
+			{
+				server.Release.Set();
+			}
 		}
 
 		/// <summary>
