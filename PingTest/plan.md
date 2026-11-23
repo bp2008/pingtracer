@@ -81,6 +81,13 @@
 >   magenta lines mark a change in the destination's hop number. Hops that never answer are drawn as thin rows.
 >   While the destination has never answered, the first silent hop after the last answering one is kept as a
 >   full-size row labeled "* no reply: <target> not reached", so an unreachable target is obvious at a glance.
+>   While following live data, a green line marks the right edge and a "LIVE" pill sits at the end of the time axis;
+>   scrolled back during monitoring, the pill becomes a "Go live" button.
+> - **Zoom animation:** a mouse-wheel notch or a zoom button animates the step over 200 ms. Columns exist only at
+>   whole zoom levels, so the renderer switches level at once and the GPU stretches two images, the new view and a
+>   snapshot of the old one, between the two views (the finer image on top, the snapshot on top until the new
+>   level's data has loaded). The axis is redrawn for each in-between view. A frame of the animation costs 0.1–0.2 ms,
+>   and starting one about 0.3 ms. Touchpad scrolling and pinching zoom in unanimated steps as the fingers move.
 > - **Fill-forward:** when zoomed in further than one ping per column, each ping's bar extends to where the next ping
 >   is due, judged from the recent spacing between pings (+10% for timer jitter), so data recorded before a ping-rate
 >   change keeps solid bars and a missing ping still leaves a gap.

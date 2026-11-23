@@ -12,6 +12,11 @@ namespace PingTracer
 	{
 		public static WebServer webServer;
 		/// <summary>
+		/// Port of the web interface on the loopback address: 8010, or the PINGTRACER_WEB_PORT environment variable (so that a
+		/// second instance, such as a test build, can run beside the usual one).
+		/// </summary>
+		public static int WebPort { get; private set; } = 8010;
+		/// <summary>
 		/// The main entry point for the application.
 		/// </summary>
 		[STAThread]
@@ -26,7 +31,9 @@ namespace PingTracer
 			settings.Load();
 
 			webServer = new WebServer(settings);
-			webServer.SetBindings(new HttpServerBase.Binding(AllowedConnectionTypes.httpAndHttps, new IPEndPoint(IPAddress.Loopback, 8010)));
+			if (int.TryParse(Environment.GetEnvironmentVariable("PINGTRACER_WEB_PORT"), out int port) && port > 0 && port <= 65535)
+				WebPort = port;
+			webServer.SetBindings(new HttpServerBase.Binding(AllowedConnectionTypes.httpAndHttps, new IPEndPoint(IPAddress.Loopback, WebPort)));
 			//webServer.SetBindings(8010, 8010);
 
 			Application.SetHighDpiMode(HighDpiMode.DpiUnawareGdiScaled);

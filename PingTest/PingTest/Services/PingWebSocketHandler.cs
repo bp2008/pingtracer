@@ -788,7 +788,8 @@ namespace PingTracer.Services
 
 		private void OnLog(string message)
 		{
-			string line = DateTime.Now.ToString("HH:mm:ss") + "  " + message;
+			// The date too: the log keeps lines from runs that last for days.
+			string line = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture) + "  " + message;
 			lock (logLock)
 			{
 				logBuffer.Add(line);

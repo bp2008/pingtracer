@@ -9,7 +9,8 @@
 			<button class="hdr-btn close" @click="$emit('close')" title="Close the log">&times;</button>
 		</div>
 		<div class="log-body" ref="body" @scroll="onScroll">
-			<div v-for="(line, idx) in messages" :key="idx" class="log-line" :class="classify(line)">{{ line }}</div>
+			<div v-for="(line, idx) in lines" :key="idx" class="log-line" :class="line.cls"><span
+				v-if="line.stamp" class="stamp">{{ line.stamp }}</span>{{ line.text }}</div>
 			<div v-if="messages.length === 0" class="log-empty">No log messages yet.</div>
 		</div>
 	</div>
@@ -17,6 +18,7 @@
 
 <script>
 const HEIGHT_KEY = 'pingtracer.logHeight';
+const STAMP = /^((?:\d{4}-\d\d-\d\d )?\d\d:\d\d:\d\d) {2}/;
 
 export default {
 	name: 'LogViewer',
@@ -29,6 +31,18 @@ export default {
 		let height = 190;
 		try { height = parseInt(localStorage.getItem(HEIGHT_KEY), 10) || height; } catch { /* ignore */ }
 		return { height: Math.max(80, Math.min(600, height)), stickToBottom: true, copied: false };
+	},
+	computed: {
+		/** Each line split into its timestamp ("2026-11-22 14:03:05", or a time alone from older servers) and text. */
+		lines()
+		{
+			return this.messages.map((line) =>
+			{
+				const m = STAMP.exec(line);
+				const text = m ? line.slice(m[0].length) : line;
+				return { stamp: m ? m[1] : '', text, cls: this.classify(text) };
+			});
+		},
 	},
 	watch: {
 		messages()
@@ -140,7 +154,8 @@ export default {
 	font-size: 12px;
 	color: #c8c8d0;
 }
-.log-line { padding: 1px 0; white-space: pre-wrap; word-break: break-word; }
+.log-line { padding: 1px 0 1px 21ch; text-indent: -21ch; white-space: pre-wrap; word-break: break-word; }
+.stamp { display: inline-block; width: 21ch; text-indent: 0; color: #6c6c7c; }
 .log-line.bad { color: #ff9b9b; }
 .log-line.route { color: #7fd6ff; }
 .log-line.good { color: #9fe49f; }

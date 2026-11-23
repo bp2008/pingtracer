@@ -2,6 +2,12 @@
 	<div class="graph-view" ref="root" tabindex="0"
 		@mousedown="onMouseDown" @mousemove="onMouseMove" @mouseleave="onMouseLeave"
 		@wheel.prevent="onWheel" @dblclick="onDoubleClick" @keydown="onKeyDown">
+		<div v-if="liveState === 'live'" class="live-edge"></div>
+		<div v-if="liveState === 'live'" ref="liveBadge" class="live-badge" title="Showing the latest data as it arrives">
+			<span class="live-dot"></span>LIVE
+		</div>
+		<button v-else-if="liveState === 'behind'" ref="liveBadge" class="live-badge behind"
+			title="Jump to the latest data (End, double-click)" @mousedown.stop @dblclick.stop @click="goLive">Go live ⇥</button>
 		<div v-if="tip" class="tooltip" :style="tipStyle">
 			<div class="tip-title">{{ tip.title }}</div>
 			<div class="tip-time">{{ tip.time }}</div>
@@ -39,6 +45,8 @@ export default {
 			tip: null,
 			tipX: 0,
 			tipY: 0,
+			/** See GraphRenderer.liveState. */
+			liveState: null,
 		};
 	},
 	computed: {
@@ -49,6 +57,17 @@ export default {
 			const left = this.tipX + 18 + 300 > w ? Math.max(4, this.tipX - 318) : this.tipX + 18;
 			const top = Math.min(this.tipY + 16, h - 120);
 			return { left: left + 'px', top: Math.max(4, top) + 'px' };
+		},
+	},
+	watch: {
+		liveState()
+		{
+			// Keep the time axis labels clear of the indicator.
+			this.$nextTick(() =>
+			{
+				const el = this.$refs.liveBadge;
+				this.renderer.setAxisReserve(el ? el.offsetWidth + 8 : 0);
+			});
 		},
 	},
 	created()
@@ -100,8 +119,8 @@ export default {
 	},
 	methods: {
 		// ----- API for the toolbar -----
-		zoomIn() { this.renderer.zoomStep(-1); this.saveZoom(); },
-		zoomOut() { this.renderer.zoomStep(1); this.saveZoom(); },
+		zoomIn() { this.renderer.zoomStep(-1, null, true); this.saveZoom(); },
+		zoomOut() { this.renderer.zoomStep(1, null, true); this.saveZoom(); },
 		goLive() { this.renderer.setLive(); },
 		fitAll() { this.renderer.fitAll(); this.saveZoom(); },
 		pageBack() { this.renderer.panBy(this.renderer.W * 0.9); },
@@ -137,6 +156,7 @@ export default {
 			if (!force && t - this.lastViewEmit < 250) return;
 			this.lastViewEmit = t;
 			const r = this.renderer;
+			this.liveState = r.liveState();
 			const v = r.visibleRange();
 			this.$emit('viewChanged', { ...v, widthPx: r.W, dpr: r.dpr });
 		},
@@ -203,19 +223,22 @@ export default {
 				return;
 			}
 			if (e.deltaY === 0) return;
-			// A mouse wheel notch is one zoom step.  Touchpads and smooth-scrolling wheels send many small deltas; add them up
-			// so that a step needs about as much scrolling as a notch, instead of every tiny event zooming a whole step.
+			// A mouse wheel notch is one zoom step, shown as a quick animation so the jump is easy to follow.  Touchpads,
+			// pinch gestures and smooth-scrolling wheels send many small deltas; add them up so that a step needs about as
+			// much scrolling as a notch, instead of every tiny event zooming a whole step.  Those steps are not animated:
+			// they come in quick succession as the fingers move.
 			const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaMode === 2 ? e.deltaY * 800 : e.deltaY;
 			const now = performance.now();
 			if (now - this.wheelTime > 400 || Math.sign(dy) !== Math.sign(this.wheelAcc)) this.wheelAcc = 0;
 			this.wheelTime = now;
-			if (Math.abs(dy) < WHEEL_STEP)
+			const notch = Math.abs(dy) >= WHEEL_STEP;
+			if (!notch)
 			{
 				this.wheelAcc += dy;
 				if (Math.abs(this.wheelAcc) < WHEEL_STEP) return;
 			}
 			this.wheelAcc = 0;
-			this.renderer.zoomStep(dy > 0 ? 1 : -1, p.x * this.renderer.dpr);
+			this.renderer.zoomStep(dy > 0 ? 1 : -1, p.x * this.renderer.dpr, notch);
 			this.saveZoom();
 		},
 		onDoubleClick()
@@ -323,6 +346,61 @@ export default {
 	cursor: crosshair;
 	user-select: none;
 }
+
+.live-edge {
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 22px;
+	width: 2px;
+	z-index: 5;
+	pointer-events: none;
+	background: rgba(76, 224, 76, 0.6);
+	box-shadow: 0 0 6px rgba(76, 224, 76, 0.45);
+}
+.live-badge {
+	position: absolute;
+	right: 4px;
+	bottom: 3px;
+	z-index: 5;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	padding: 0 7px;
+	border-radius: 8px;
+	font: 600 10px/16px 'Segoe UI', system-ui, sans-serif;
+	letter-spacing: 0.08em;
+	color: #b8f0b8;
+	background: rgba(22, 44, 22, 0.92);
+	border: 1px solid #3a7030;
+	pointer-events: none;
+}
+.live-dot {
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: #4ce04c;
+	box-shadow: 0 0 5px #4ce04c;
+	animation: live-pulse 2s ease-in-out infinite;
+}
+@keyframes live-pulse {
+	50% { opacity: 0.45; }
+}
+@media (prefers-reduced-motion: reduce) {
+	.live-dot { animation: none; }
+}
+.live-badge.behind {
+	pointer-events: auto;
+	cursor: pointer;
+	letter-spacing: 0.02em;
+	font-weight: 500;
+	font-size: 11px;
+	color: #d8d8e4;
+	background: rgba(42, 42, 56, 0.95);
+	border-color: #5a5a74;
+}
+.live-badge.behind:hover { background: #3a3a52; color: #fff; border-color: #7a7a98; }
 
 .tooltip {
 	position: absolute;

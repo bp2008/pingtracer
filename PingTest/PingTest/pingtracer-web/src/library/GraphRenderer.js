@@ -43,6 +43,10 @@ const AXIS_FMT = {
 
 /** While the view merely follows the clock, row statistics (labels, vertical scale) are refreshed at most this often. */
 const STATS_INTERVAL_MS = 250;
+/** Duration of the animation that shows a zoom step (a mouse-wheel notch or a zoom button). */
+const ZOOM_ANIM_MS = 200;
+/** After a zoom animation, the old image stays up this long at most while the new zoom level's data loads. */
+const ZOOM_SNAPSHOT_HOLD_MS = 1500;
 const FONT_MAIN = '12px "Segoe UI", system-ui, sans-serif';
 const FONT_SMALL = '10.5px "Segoe UI", system-ui, sans-serif';
 
@@ -141,6 +145,14 @@ export class GraphRenderer
 		this.axisH = 0;
 		this.msPerCol = 500;
 		this.live = true;
+		/** The zoom step being animated (see setZoom), or null. */
+		this.zoomAnim = null;
+		/** Duration of zoom animations; a property so that it can be slowed down from the console to inspect them. */
+		this.zoomAnimMs = ZOOM_ANIM_MS;
+		this.snapCanvas = null;
+		this.axisReserve = 0;
+		/** Whether every column in view was loaded at the last frame. */
+		this.viewLoaded = true;
 		/** Whether a displayed session was monitoring at the last metadata change (see _onData). */
 		this.wasRunning = dataStore.getSessions().some(s => s.meta.running);
 		this.rightCol = 0;
@@ -189,7 +201,7 @@ export class GraphRenderer
 	_canvas()
 	{
 		const c = document.createElement('canvas');
-		c.style.cssText = 'position:absolute;left:0;display:block;image-rendering:pixelated;';
+		c.style.cssText = 'position:absolute;left:0;display:block;image-rendering:pixelated;transform-origin:0 0;';
 		// A 2D context restored after a GPU reset has lost its state and contents.
 		c.addEventListener('contextrestored', () =>
 		{
@@ -287,6 +299,7 @@ export class GraphRenderer
 				old.replaceWith(this.bars);
 				this.backend = new CpuBars(this.bars);
 			}
+			this._endZoomAnim();
 			this.backend.resize(W, H);
 			this.colBuf = null;
 			this.invalidateAll();
@@ -324,6 +337,21 @@ export class GraphRenderer
 		const rc = this.currentRightCol();
 		const lc = rc - this.W + 1;
 		return { startMs: lc * this.msPerCol, endMs: (rc + 1) * this.msPerCol, msPerCol: this.msPerCol, live: this.live };
+	}
+
+	/** 'live' while following a running session, 'behind' while monitoring with the view scrolled back, otherwise null. */
+	liveState()
+	{
+		if (!dataStore.getSessions().some(s => s.meta.running)) return null;
+		return this.live ? 'live' : 'behind';
+	}
+
+	/** Keeps axis labels out of the rightmost `cssPx` of the time axis (where the live indicator sits). */
+	setAxisReserve(cssPx)
+	{
+		if (cssPx === this.axisReserve) return;
+		this.axisReserve = cssPx;
+		this.axisDirty = true;
 	}
 
 	/** Jumps to the newest data: the live edge while monitoring, otherwise the end of the displayed sessions. */
@@ -420,11 +448,13 @@ export class GraphRenderer
 
 	/**
 	 * Changes zoom level.  `anchorX` (device px) keeps the time under that x position fixed, unless the view is live, in
-	 * which case it stays live.
+	 * which case it stays live.  With `animate`, the change is shown as a quick continuous zoom (see _applyZoomAnim).
 	 */
-	setZoom(msPerCol, anchorX = null)
+	setZoom(msPerCol, anchorX = null, animate = false)
 	{
 		if (msPerCol === this.msPerCol) return;
+		if (animate) this._beginZoomAnim();
+		else this._endZoomAnim();
 		const old = this.msPerCol;
 		const oldRc = this.currentRightCol();
 		const wasLive = this.live;
@@ -442,13 +472,13 @@ export class GraphRenderer
 		this._setRightCol(rc);
 	}
 
-	zoomStep(direction, anchorX = null)
+	zoomStep(direction, anchorX = null, animate = false)
 	{
 		const ms = this.msPerCol;
 		let next;
 		if (direction > 0) next = ZOOM_LEVELS.find(z => z > ms) ?? ZOOM_LEVELS[ZOOM_LEVELS.length - 1];
 		else next = [...ZOOM_LEVELS].reverse().find(z => z < ms) ?? ZOOM_LEVELS[0];
-		this.setZoom(next, anchorX);
+		this.setZoom(next, anchorX, animate);
 	}
 
 	/** Zooms to show the whole time span of all sessions. */
@@ -460,6 +490,7 @@ export class GraphRenderer
 		const span = Math.max(1000, end - start);
 		// Not limited to the zoom steps: columns can be any whole number of milliseconds, so the data fills the view.
 		const level = fitZoom(span / (this.W * 0.96));
+		this._endZoomAnim();
 		this.msPerCol = level;
 		const running = dataStore.getSessions().some(s => s.meta.running);
 		if (running)
@@ -578,8 +609,10 @@ export class GraphRenderer
 		const rc = this.live ? Math.floor(now / this.msPerCol) : this.rightCol;
 		const lc = rc - this.W + 1;
 		const sessions = dataStore.getSessions();
+		let loaded = true;
 		for (const s of sessions)
-			dataStore.ensure(s.id, this.msPerCol, lc, rc, now);
+			if (!dataStore.ensure(s.id, this.msPerCol, lc, rc, now)) loaded = false;
+		this.viewLoaded = loaded;
 
 		const t = performance.now();
 		if (rc !== this.drawnRightCol)
@@ -716,9 +749,10 @@ export class GraphRenderer
 			this._drawHover();
 			this.hoverDirty = false;
 		}
-		if (this.axisDirty || rc !== this.lastAxisRightCol)
+		if (this.zoomAnim) this._applyZoomAnim(lc);
+		if (!this.zoomAnim && (this.axisDirty || rc !== this.lastAxisRightCol))
 		{
-			this._drawAxis(renderCtx);
+			this._drawAxis(lc * this.msPerCol, this.msPerCol);
 			this.axisDirty = false;
 			this.lastAxisRightCol = rc;
 		}
@@ -1327,15 +1361,129 @@ export class GraphRenderer
 		ctx.fillText(t, lx, yCss - 13);
 	}
 
+	// ------------------------------------------------------------------ zoom animation
+
+	/*
+	 * Columns exist only at whole zoom levels (the server aggregates them), so a zoom step cannot be drawn at in-between
+	 * levels.  Instead the renderer switches to the new level at once and, for ZOOM_ANIM_MS, stretches two images
+	 * horizontally on the GPU (CSS transforms): the new view, and a snapshot of the old one.  Both are mapped to an
+	 * in-between view that zooms smoothly about the point that stays fixed.  The finer of the two images is shown on top:
+	 * it is the one that is shrunk, so the coarser one, being stretched, fills the edges around it.  Until the new level's
+	 * data has loaded, the snapshot stays on top.  The time axis is redrawn for the in-between view every frame.
+	 */
+
+	/** Starts (or, during an animation, retargets) a zoom animation from what is on screen now. */
+	_beginZoomAnim()
+	{
+		const a = this.zoomAnim;
+		if (a)
+		{
+			// Another step while animating: continue from the view on screen; the snapshot of the first view stays.
+			a.from = a.shown;
+			a.start = performance.now();
+			a.fadeFrom = null;
+			return;
+		}
+		const snapView = this._captureSnapshot();
+		if (!snapView) return;
+		this.zoomAnim = { from: snapView, shown: snapView, snapView, start: performance.now(), snapOnTop: null, fadeFrom: null };
+	}
+
+	/** Copies the bars as last drawn into the snapshot canvas.  Returns the view they show, or null. */
+	_captureSnapshot()
+	{
+		if (this.drawnRightCol == null || this.drawnMsPerCol == null || this.backend.lost) return null;
+		let c = this.snapCanvas;
+		if (!c)
+		{
+			c = this.snapCanvas = document.createElement('canvas');
+			c.style.cssText = this.bars.style.cssText;
+			c.style.display = 'none';
+			this.snapCtx = c.getContext('2d', { alpha: false });
+			this.bars.before(c);
+		}
+		if (c.width !== this.W || c.height !== this.H)
+		{
+			c.width = this.W;
+			c.height = this.H;
+		}
+		c.style.width = this.bars.style.width;
+		c.style.height = this.bars.style.height;
+		const lc = this.drawnRightCol - this.W + 1;
+		// A WebGL canvas keeps its image only until it is shown; repaint it from the column texture (cheap) to copy it.
+		if (this.backend.isGl) this.backend.draw(this._frameParams(lc), this.rows);
+		this.snapCtx.drawImage(this.bars, 0, 0);
+		return { t0: lc * this.drawnMsPerCol, ms: this.drawnMsPerCol };
+	}
+
+	_endZoomAnim()
+	{
+		if (!this.zoomAnim) return;
+		this.zoomAnim = null;
+		this.bars.style.transform = '';
+		this.snapCanvas.style.display = 'none';
+		this.snapCanvas.style.opacity = '';
+		this.axisDirty = true;
+	}
+
+	/** Places the two images for this frame of the zoom animation, or ends it. */
+	_applyZoomAnim(lc)
+	{
+		const a = this.zoomAnim;
+		const now = performance.now();
+		const p = Math.min(1, (now - a.start) / this.zoomAnimMs);
+		if (p >= 1 && (this.viewLoaded || now - a.start > this.zoomAnimMs + ZOOM_SNAPSHOT_HOLD_MS))
+		{
+			this._endZoomAnim();
+			return;
+		}
+		const to = { t0: lc * this.msPerCol, ms: this.msPerCol };
+		const from = a.from;
+		const e = 1 - Math.pow(1 - p, 3); // ease out: fast at first, so the response to the wheel feels immediate
+		// Zoom geometrically about the screen position that shows the same time in both views.  (It is the anchor of the
+		// zoom, unless the new view was clamped at the end of the data.)
+		const ms = from.ms * Math.pow(to.ms / from.ms, e);
+		let t0;
+		const dms = from.ms - to.ms;
+		if (Math.abs(dms) > to.ms * 1e-9) t0 = from.t0 + (to.t0 - from.t0) / dms * (from.ms - ms);
+		else t0 = from.t0 + (to.t0 - from.t0) * e;
+		a.shown = { t0, ms };
+
+		const place = (canvas, view) =>
+		{
+			const k = view.ms / ms, tx = (view.t0 - t0) / ms / this.dpr;
+			canvas.style.transform = `translateX(${tx}px) scaleX(${k})`;
+		};
+		const snap = this.snapCanvas;
+		place(this.bars, to);
+		place(snap, a.snapView);
+		snap.style.display = '';
+		const snapOnTop = !this.viewLoaded || a.snapView.ms < to.ms;
+		if (snapOnTop !== a.snapOnTop)
+		{
+			if (snapOnTop) this.bars.after(snap);
+			else this.bars.before(snap);
+			a.snapOnTop = snapOnTop;
+		}
+		// A shrunken snapshot on top of loaded data fades out over the last part of the animation instead of vanishing.
+		let opacity = 1;
+		if (snapOnTop && this.viewLoaded)
+		{
+			if (a.fadeFrom == null) a.fadeFrom = Math.max(p, 0.6);
+			if (p > a.fadeFrom) opacity = 1 - (p - a.fadeFrom) / (1 - a.fadeFrom);
+		}
+		snap.style.opacity = opacity < 1 ? String(opacity) : '';
+		this._drawAxis(t0, ms);
+	}
+
 	// ------------------------------------------------------------------ time axis
 
-	_drawAxis(rc_)
+	/** Draws the time axis for a view whose left edge is at `startMs` and whose columns are `ms` wide (both may be fractional). */
+	_drawAxis(startMs, ms)
 	{
-		const { lc, rc } = rc_;
 		const ctx = this.ctxAxis;
 		const dpr = this.dpr;
 		const W = this.W, H = this.axisH;
-		const ms = this.msPerCol;
 		ctx.setTransform(1, 0, 0, 1, 0, 0);
 		ctx.fillStyle = '#0b0b10';
 		ctx.fillRect(0, 0, W, H);
@@ -1347,19 +1495,19 @@ export class GraphRenderer
 		let interval = AXIS_INTERVALS[AXIS_INTERVALS.length - 1];
 		for (const iv of AXIS_INTERVALS) if (iv * pxPerMs >= minSpacingDev) { interval = iv; break; }
 
-		const startMs = lc * ms, endMs = (rc + 1) * ms;
+		const endMs = startMs + W * ms;
 		const tz = -new Date(startMs).getTimezoneOffset() * 60000;
 		let t = Math.ceil((startMs + tz) / interval) * interval - tz;
 		setFont(ctx, `${Math.round(11 * dpr)}px "Segoe UI", system-ui, sans-serif`);
 		ctx.textBaseline = 'middle';
 		for (; t <= endMs; t += interval)
 		{
-			const x = Math.floor(t / ms) - lc;
+			const x = Math.floor((t - startMs) / ms);
 			ctx.fillStyle = '#5a5a6a';
 			ctx.fillRect(x, 1, 1, Math.round(5 * dpr));
 			const { label, isMidnight } = this._axisLabel(t, interval);
 			const lx = x + Math.round(3 * dpr);
-			if (lx + textWidth(ctx, label) > W) continue; // would be cut off at the right edge
+			if (lx + textWidth(ctx, label) > W - this.axisReserve * dpr) continue; // would be cut off at the right edge
 			ctx.fillStyle = isMidnight ? '#e6e6a0' : '#b4b4c0';
 			ctx.fillText(label, lx, H / 2 + 1);
 		}
@@ -1370,7 +1518,7 @@ export class GraphRenderer
 			for (const e of s.routeEvents)
 			{
 				if (e.initial || e.t < startMs || e.t >= endMs) continue;
-				const x = Math.floor(e.t / ms) - lc;
+				const x = Math.floor((e.t - startMs) / ms);
 				ctx.fillStyle = e.kind === 'dest' ? cssOf(C.destMarker) : cssOf(C.marker);
 				const tri = Math.round(4 * dpr);
 				ctx.beginPath();
