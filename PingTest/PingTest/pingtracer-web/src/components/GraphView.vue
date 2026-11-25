@@ -107,14 +107,12 @@ export default {
 		this.raf = requestAnimationFrame(loop);
 		document.addEventListener('mousemove', this.onDocMouseMove);
 		document.addEventListener('mouseup', this.onDocMouseUp);
-		window.addEventListener('scroll', this.onScroll, true);
 	},
 	beforeUnmount()
 	{
 		cancelAnimationFrame(this.raf);
 		document.removeEventListener('mousemove', this.onDocMouseMove);
 		document.removeEventListener('mouseup', this.onDocMouseUp);
-		window.removeEventListener('scroll', this.onScroll, true);
 		this.renderer.destroy();
 	},
 	methods: {
@@ -244,10 +242,6 @@ export default {
 		onDoubleClick()
 		{
 			this.renderer.setLive();
-		},
-		onScroll()
-		{
-			this.renderer._snapToPixelGrid();
 		},
 		onKeyDown(e)
 		{
