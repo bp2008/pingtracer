@@ -33,6 +33,7 @@ namespace PingTracer
 		public static Brush brushTimestampsText = new SolidBrush(Color.FromArgb(200, 200, 200));
 		public static Pen penTimestampsMark = new Pen(Color.FromArgb(128, 128, 128), 1);
 		public static Pen penTimestampsBorder = new Pen(Color.FromArgb(128, 128, 128), 1);
+		public static Pen penBaseline = new Pen(Color.FromArgb(170, 0, 200, 255), 1) { DashStyle = System.Drawing.Drawing2D.DashStyle.Dash };
 		public static Font textFont = new Font(FontFamily.GenericSansSerif, 8.25f);
 		/// <summary>
 		/// Text that is displayed in the upper left corner of the graph.
@@ -250,6 +251,18 @@ namespace PingTracer
 		public bool ShowAverage = false;
 		public bool ShowJitter = false;
 		public bool ShowMinMax = false;
+		/// <summary>
+		/// If true, a dashed line is drawn at the lowest visible response time (the latency of the path when nothing is queued).
+		/// </summary>
+		public bool ShowBaseline = false;
+		/// <summary>
+		/// If true, the response time which 99% of visible pings were at or below is overlaid in text form.
+		/// </summary>
+		public bool ShowWorst1Percent = false;
+		/// <summary>
+		/// Reusable counting buffer for <see cref="GetPercentile99"/>, so painting does not allocate.
+		/// </summary>
+		private int[] histogram = new int[0];
 		public bool ShowPacketLoss = false;
 		public bool ShowTimestamps = true;
 		public bool DrawLimitText = false;
@@ -298,6 +311,8 @@ namespace PingTracer
 				min = 0;
 			if (max == int.MinValue)
 				max = 0;
+
+			int worst1Percent = ShowWorst1Percent && successCount > 0 ? GetPercentile99(start, count, min, max) : 0;
 
 			// Decide how to scale the Y-axis based on configuration and available data.
 			switch (ScalingMethod)
@@ -446,6 +461,13 @@ namespace PingTracer
 				}
 			}
 
+			if (ShowBaseline && successCount > 0 && min > lowerLimitDraw && min < upperLimitDraw)
+			{
+				// Drawn after the response time lines, because every one of them reaches at least this high and would hide it.
+				int baselineY = (int)(height - ((min - lowerLimitDraw) * vScale));
+				e.Graphics.DrawLine(penBaseline, 0, baselineY, this.Width - 1, baselineY);
+			}
+
 			if (count <= 0 && Interlocked.Read(ref _nextIndexOffset) != -1)
 				timelineOverlayString += "The graph begins " + -count + " lines to the right. ";
 			else if (scrollXOffset == 0 && Math.Abs(setLiveAtTime - Environment.TickCount) < 1000)
@@ -488,6 +510,8 @@ namespace PingTracer
 				intVals.Add(min);
 				intVals.Add(max);
 			}
+			if (ShowWorst1Percent)
+				intVals.Add(worst1Percent);
 
 			if (intVals.Count > 0)
 				statusStr += "[" + string.Join(",", intVals) + "] ";
@@ -544,6 +568,49 @@ namespace PingTracer
 		{
 			mouseX = mouseY = -1;
 			this.Invalidate();
+		}
+		/// <summary>
+		/// Returns the 99th percentile of the successful response times in the given window: the smallest time which at least 99% of them were at or below.  With fewer than 100 pings this is the longest time.
+		/// </summary>
+		/// <param name="start">Buffer index of the first ping in the window.</param>
+		/// <param name="count">Number of buffer slots in the window.</param>
+		/// <param name="min">Shortest successful response time in the window.</param>
+		/// <param name="max">Longest successful response time in the window.</param>
+		private int GetPercentile99(int start, int count, int min, int max)
+		{
+			// Response times are whole milliseconds in a small range, so counting them is cheaper than sorting.
+			int range = max - min + 1;
+			if (histogram.Length < range)
+				histogram = new int[range];
+			else
+				Array.Clear(histogram, 0, range);
+
+			PingLog[] buffer = pings;
+			int samples = 0;
+			for (int i = 0; i < count; i++)
+			{
+				PingLog p = buffer[(start + i) % buffer.Length];
+				if (p == null || p.result != IPStatus.Success)
+					continue;
+				int bin = p.pingTime - min;
+				if (bin < 0 || bin >= range)
+					continue; // A response which arrived after min and max were calculated.
+				histogram[bin]++;
+				samples++;
+			}
+			if (samples == 0)
+				return 0;
+
+			// Walk down from the longest time, passing over the slowest 1% of pings.
+			int allowedAbove = samples - (int)Math.Ceiling(samples * 0.99);
+			int seen = 0;
+			for (int bin = range - 1; bin > 0; bin--)
+			{
+				seen += histogram[bin];
+				if (seen > allowedAbove)
+					return min + bin;
+			}
+			return min;
 		}
 		public string GetMouseoverHintText()
 		{

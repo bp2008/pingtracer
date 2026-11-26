@@ -47,6 +47,8 @@
 			this.cbAverage = new System.Windows.Forms.CheckBox();
 			this.cbJitter = new System.Windows.Forms.CheckBox();
 			this.cbMinMax = new System.Windows.Forms.CheckBox();
+			this.cbBaseline = new System.Windows.Forms.CheckBox();
+			this.cbWorst1Percent = new System.Windows.Forms.CheckBox();
 			this.lblBadThreshold = new System.Windows.Forms.Label();
 			this.nudBadThreshold = new System.Windows.Forms.NumericUpDown();
 			this.lblWorseThreshold = new System.Windows.Forms.Label();
@@ -380,6 +382,8 @@
 			this.grpGraphOptions.Controls.Add(this.cbAverage);
 			this.grpGraphOptions.Controls.Add(this.cbJitter);
 			this.grpGraphOptions.Controls.Add(this.cbMinMax);
+			this.grpGraphOptions.Controls.Add(this.cbBaseline);
+			this.grpGraphOptions.Controls.Add(this.cbWorst1Percent);
 			this.grpGraphOptions.Controls.Add(this.lblBadThreshold);
 			this.grpGraphOptions.Controls.Add(this.nudBadThreshold);
 			this.grpGraphOptions.Controls.Add(this.lblWorseThreshold);
@@ -490,6 +494,33 @@
         ".");
 			this.cbMinMax.UseVisualStyleBackColor = true;
 			this.cbMinMax.CheckedChanged += new System.EventHandler(this.AnyControl_Changed);
+			//
+			// cbBaseline
+			//
+			this.cbBaseline.AutoSize = true;
+			this.cbBaseline.Location = new System.Drawing.Point(302, 71);
+			this.cbBaseline.Name = "cbBaseline";
+			this.cbBaseline.Size = new System.Drawing.Size(66, 17);
+			this.cbBaseline.TabIndex = 26;
+			this.cbBaseline.Text = "Baseline";
+			this.toolTip1.SetToolTip(this.cbBaseline, "If checked, a dashed line marks the shortest visible ping time.\r\nHow far pings ri" +
+        "se above this line is time spent waiting in queues.");
+			this.cbBaseline.UseVisualStyleBackColor = true;
+			this.cbBaseline.CheckedChanged += new System.EventHandler(this.AnyControl_Changed);
+			//
+			// cbWorst1Percent
+			//
+			this.cbWorst1Percent.AutoSize = true;
+			this.cbWorst1Percent.Location = new System.Drawing.Point(380, 71);
+			this.cbWorst1Percent.Name = "cbWorst1Percent";
+			this.cbWorst1Percent.Size = new System.Drawing.Size(73, 17);
+			this.cbWorst1Percent.TabIndex = 27;
+			this.cbWorst1Percent.Text = "Worst 1%";
+			this.toolTip1.SetToolTip(this.cbWorst1Percent, "If checked, the ping time which 99% of visible pings were at or below is overlaid" +
+        " in text form,\r\nafter the other numbers. The slowest 1% of pings were longer tha" +
+        "n this.");
+			this.cbWorst1Percent.UseVisualStyleBackColor = true;
+			this.cbWorst1Percent.CheckedChanged += new System.EventHandler(this.AnyControl_Changed);
 			// 
 			// lblBadThreshold
 			// 
@@ -781,6 +812,8 @@
 		private System.Windows.Forms.CheckBox cbAverage;
 		private System.Windows.Forms.CheckBox cbJitter;
 		private System.Windows.Forms.CheckBox cbMinMax;
+		private System.Windows.Forms.CheckBox cbBaseline;
+		private System.Windows.Forms.CheckBox cbWorst1Percent;
 		private System.Windows.Forms.Label lblBadThreshold;
 		private System.Windows.Forms.NumericUpDown nudBadThreshold;
 		private System.Windows.Forms.Label lblWorseThreshold;

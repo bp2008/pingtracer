@@ -276,6 +276,8 @@ namespace PingTracer
 				cbAverage.Checked = cfg.drawAverage;
 				cbJitter.Checked = cfg.drawJitter;
 				cbMinMax.Checked = cfg.drawMinMax;
+				cbBaseline.Checked = cfg.drawBaseline;
+				cbWorst1Percent.Checked = cfg.drawWorst1Percent;
 				cbPacketLoss.Checked = cfg.drawPacketLoss;
 				cbDrawLimits.Checked = cfg.drawLimitText;
 				nudBadThreshold.Value = Math.Max(nudBadThreshold.Minimum, Math.Min(nudBadThreshold.Maximum, cfg.badThreshold));
@@ -351,6 +353,8 @@ namespace PingTracer
 			cfg.drawAverage = cbAverage.Checked;
 			cfg.drawJitter = cbJitter.Checked;
 			cfg.drawMinMax = cbMinMax.Checked;
+			cfg.drawBaseline = cbBaseline.Checked;
+			cfg.drawWorst1Percent = cbWorst1Percent.Checked;
 			cfg.drawPacketLoss = cbPacketLoss.Checked;
 			cfg.drawLimitText = cbDrawLimits.Checked;
 			cfg.badThreshold = (int)nudBadThreshold.Value;
@@ -384,6 +388,8 @@ namespace PingTracer
 				cbAverage.Checked,
 				cbJitter.Checked,
 				cbMinMax.Checked,
+				cbBaseline.Checked,
+				cbWorst1Percent.Checked,
 				cbPacketLoss.Checked,
 				cbDrawLimits.Checked,
 				nudBadThreshold.Value,

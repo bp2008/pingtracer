@@ -662,6 +662,8 @@ namespace PingTracer
 						graph.ShowAverage = currentConfiguration.drawAverage;
 						graph.ShowJitter = currentConfiguration.drawJitter;
 						graph.ShowMinMax = currentConfiguration.drawMinMax;
+						graph.ShowBaseline = currentConfiguration.drawBaseline;
+						graph.ShowWorst1Percent = currentConfiguration.drawWorst1Percent;
 						graph.ShowPacketLoss = currentConfiguration.drawPacketLoss;
 						graph.DrawLimitText = currentConfiguration.drawLimitText;
 					}
@@ -1422,6 +1424,8 @@ namespace PingTracer
 			currentConfiguration.drawAverage = cfg.drawAverage;
 			currentConfiguration.drawJitter = cfg.drawJitter;
 			currentConfiguration.drawMinMax = cfg.drawMinMax;
+			currentConfiguration.drawBaseline = cfg.drawBaseline;
+			currentConfiguration.drawWorst1Percent = cfg.drawWorst1Percent;
 			currentConfiguration.drawPacketLoss = cfg.drawPacketLoss;
 			currentConfiguration.drawLimitText = cfg.drawLimitText;
 			currentConfiguration.badThreshold = cfg.badThreshold;
@@ -1442,6 +1446,8 @@ namespace PingTracer
 				graph.ShowAverage = cfg.drawAverage;
 				graph.ShowJitter = cfg.drawJitter;
 				graph.ShowMinMax = cfg.drawMinMax;
+				graph.ShowBaseline = cfg.drawBaseline;
+				graph.ShowWorst1Percent = cfg.drawWorst1Percent;
 				graph.ShowPacketLoss = cfg.drawPacketLoss;
 				graph.DrawLimitText = cfg.drawLimitText;
 				graph.InvalidateSync();

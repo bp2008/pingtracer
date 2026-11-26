@@ -62,6 +62,14 @@ namespace PingTracer.Tracer
 		public bool drawAverage = true;
 		public bool drawJitter = false;
 		public bool drawMinMax = false;
+		/// <summary>
+		/// If true, a dashed line marks the lowest visible response time on each graph.
+		/// </summary>
+		public bool drawBaseline = false;
+		/// <summary>
+		/// If true, the response time which 99% of visible pings were at or below is overlaid in text form.
+		/// </summary>
+		public bool drawWorst1Percent = false;
 		public bool drawPacketLoss = true;
 		public bool drawLimitText = false;
 		public int badThreshold = 100;
