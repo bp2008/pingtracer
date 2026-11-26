@@ -128,7 +128,7 @@ export class GraphRenderer
 		this.root = root;
 		this.opts = opts;
 		this.layer = document.createElement('div');
-		this.layer.style.cssText = 'position:absolute;left:0;top:0;will-change:transform;';
+		this.layer.style.cssText = 'position:absolute;left:0;top:0;';
 		root.appendChild(this.layer);
 		this.bars = this._canvas();
 		this.overlay = this._canvas();
@@ -304,17 +304,9 @@ export class GraphRenderer
 			this.colBuf = null;
 			this.invalidateAll();
 		}
-		this._snapToPixelGrid();
-	}
-
-	/** Offsets the canvases by a sub-pixel amount so that their top-left corner lands exactly on a device pixel. */
-	_snapToPixelGrid()
-	{
-		const dpr = this.dpr;
-		const rect = this.root.getBoundingClientRect();
-		const fx = rect.left * dpr - Math.round(rect.left * dpr);
-		const fy = rect.top * dpr - Math.round(rect.top * dpr);
-		this.layer.style.transform = (fx || fy) ? `translate(${-fx / dpr}px, ${-fy / dpr}px)` : '';
+		// No sub-pixel correction of the canvases' position is needed: the browser already snaps a canvas to device
+		// pixels. Adding one moved them by up to half a pixel, and at exactly half a pixel (common at 125% scaling) the
+		// GPU sampled the wrong row on one side of the quad's diagonal.
 	}
 
 	invalidateAll()
