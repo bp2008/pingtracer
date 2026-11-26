@@ -26,6 +26,10 @@ namespace PingTracer
 		/// Milliseconds to wait for each ping response before it is considered timed out.  Set from the current configuration.
 		/// </summary>
 		private volatile int pingTimeoutMs = 5000;
+		/// <summary>
+		/// Size in bytes of the payload sent with each ping.  Set from the current configuration.
+		/// </summary>
+		private volatile int pingPayloadSize = 32;
 
 		private long successfulPings = 0;
 		private long failedPings = 0;
@@ -454,7 +458,7 @@ namespace PingTracer
 					}
 					if (target != null)
 					{
-						foreach (TracertEntry entry in Tracert.Trace(target, 64, 5000, settings.pingPayloadSizeBytes))
+						foreach (TracertEntry entry in Tracert.Trace(target, 64, 5000, pingPayloadSize))
 						{
 							if (self.CancellationPending)
 								break;
@@ -491,7 +495,7 @@ namespace PingTracer
 				CreateLogEntry("Now beginning pings");
 				UpdateStatus("Pinging Active" + statusNote);
 				Stopwatch sw = null;
-				byte[] buffer = new byte[settings.pingPayloadSizeBytes];
+				byte[] buffer = new byte[pingPayloadSize];
 
 				long numberOfPingLoopIterations = 0;
 				DateTime tenPingsAt = DateTime.MinValue;
@@ -556,8 +560,9 @@ namespace PingTracer
 									long offset = graph.ClearNextOffset();
 									Ping pinger = PingInstancePool.Get();
 									pinger.PingCompleted += pinger_PingCompleted;
-									if (buffer.Length != settings.pingPayloadSizeBytes)
-										buffer = new byte[settings.pingPayloadSizeBytes];
+									int payloadSize = pingPayloadSize;
+									if (buffer.Length != payloadSize)
+										buffer = new byte[payloadSize];
 									pinger.SendAsync(targetMapping.Value, pingTimeoutMs, buffer, new object[] { lastPingAt, offset, graph, targetMapping.Key, targetMapping.Value, pinger });
 								}
 							}
@@ -874,6 +879,7 @@ namespace PingTracer
 					pingDelay = Math.Max(100, (int)(1000 * currentConfiguration.rate));
 
 				pingTimeoutMs = currentConfiguration.GetPingTimeoutMs();
+				pingPayloadSize = currentConfiguration.GetPingPayloadSizeBytes(settings.pingPayloadSizeBytes);
 
 				if (currentConfiguration.hosts != null && currentConfiguration.hosts.Count > 1)
 					traceRoute = false;
@@ -1407,6 +1413,10 @@ namespace PingTracer
 			// Update ping timeout (applies to pings sent from now on)
 			pingTimeoutMs = cfg.GetPingTimeoutMs();
 			currentConfiguration.pingTimeoutMs = cfg.pingTimeoutMs;
+
+			// Update ping payload size (applies to pings sent from now on)
+			pingPayloadSize = cfg.GetPingPayloadSizeBytes(settings.pingPayloadSizeBytes);
+			currentConfiguration.pingPayloadSizeBytes = cfg.pingPayloadSizeBytes;
 
 			// Update non-live properties (take effect on next start)
 			currentConfiguration.hosts = cfg.hosts;
