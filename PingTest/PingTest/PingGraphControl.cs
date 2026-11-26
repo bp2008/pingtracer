@@ -206,7 +206,12 @@ namespace PingTracer
 			this.Invalidate();
 		}
 		/// <summary>
-		/// Writes every completed ping currently held in the buffer, oldest first, as CSV rows (Host,Time,Result,RoundTripMs).  Does not write a header row.
+		/// Header row matching the columns written by <see cref="WriteCsvRows"/>.  Sent and Received are local times to the microsecond; RoundTripMs is the operating system's figure in whole milliseconds; MeasuredMs is Received minus Sent as timed by this program.
+		/// </summary>
+		public const string CsvHeader = "Host,Sent,Received,Result,RoundTripMs,MeasuredMs";
+		private const string csvTimeFormat = "yyyy-MM-dd HH:mm:ss.ffffff";
+		/// <summary>
+		/// Writes every completed ping currently held in the buffer, oldest first, as CSV rows (see <see cref="CsvHeader"/>).  Does not write a header row.
 		/// </summary>
 		/// <param name="writer">Destination for the CSV rows.</param>
 		/// <returns>The number of rows written.</returns>
@@ -226,17 +231,25 @@ namespace PingTracer
 				if (p == null)
 					continue; // Never sent, or still waiting for a response.
 				writer.Write(hostColumn);
-				writer.Write(p.startTime.ToString("yyyy-MM-dd HH:mm:ss.fff", invariant));
-				if (p.result == IPStatus.Success)
+				writer.Write(p.startTime.ToString(csvTimeFormat, invariant));
+				writer.Write(',');
+				bool success = p.result == IPStatus.Success;
+				DateTime? received = success ? p.ReceivedTime : null;
+				if (received.HasValue)
+					writer.Write(received.Value.ToString(csvTimeFormat, invariant));
+				if (success)
 				{
 					writer.Write(",Success,");
 					writer.Write(p.pingTime.ToString(invariant));
+					writer.Write(',');
+					if (received.HasValue)
+						writer.Write((p.measuredMicroseconds / 1000.0).ToString("0.000", invariant));
 				}
 				else
 				{
 					writer.Write(',');
 					writer.Write(p.result.ToString());
-					writer.Write(',');
+					writer.Write(",,");
 				}
 				writer.WriteLine();
 				written++;

@@ -105,6 +105,7 @@
     <Compile Include="Tracer\PingController.cs" />
     <Compile Include="Tracer\HostSettings.cs" />
     <Compile Include="Util\PingInstancePool.cs" />
+    <Compile Include="Util\PreciseClock.cs" />
     <Compile Include="PingLog.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
