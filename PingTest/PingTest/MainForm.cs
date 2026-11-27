@@ -551,7 +551,6 @@ namespace PingTracer
 							if (!self.CancellationPending)
 							{
 								nextPingDueMs = GetNextPingDueMs(nextPingDueMs, sw.ElapsedMilliseconds, pingDelay);
-								DateTime lastPingAt = DateTime.Now;
 								// We can't re-use the same Ping instance because it is only capable of one ping at a time.
 								foreach (KeyValuePair<int, IPAddress> targetMapping in pingTargets)
 								{
@@ -562,7 +561,11 @@ namespace PingTracer
 									int payloadSize = pingPayloadSize;
 									if (buffer.Length != payloadSize)
 										buffer = new byte[payloadSize];
-									pinger.SendAsync(targetMapping.Value, pingTimeoutMs, buffer, new object[] { lastPingAt, offset, graph, targetMapping.Key, targetMapping.Value, pinger });
+									// Each ping is stamped separately, immediately before it is sent.
+									object[] state = new object[] { null, offset, graph, targetMapping.Key, targetMapping.Value, pinger, null };
+									state[0] = PingTracer.Util.PreciseClock.Now;
+									state[6] = PingTracer.Util.PreciseClock.Timestamp;
+									pinger.SendAsync(targetMapping.Value, pingTimeoutMs, buffer, state);
 								}
 							}
 						}
@@ -620,10 +623,13 @@ namespace PingTracer
 
 		void pinger_PingCompleted(object sender, PingCompletedEventArgs e)
 		{
+			// Taken first, so as little of this method's own work as possible is counted in the measurement.
+			long completedTimestamp = PingTracer.Util.PreciseClock.Timestamp;
 			try
 			{
 				object[] args = (object[])e.UserState;
 				DateTime time = (DateTime)args[0];
+				int measuredMicroseconds = PingTracer.Util.PreciseClock.MicrosecondsBetween((long)args[6], completedTimestamp);
 				long pingNum = (long)args[1];
 
 				PingGraphControl graph = (PingGraphControl)args[2];
@@ -638,7 +644,7 @@ namespace PingTracer
 					Interlocked.Increment(ref failedPings);
 					return;
 				}
-				graph.AddPingLogToSpecificOffset(pingNum, new PingLog(time, (short)e.Reply.RoundtripTime, e.Reply.Status));
+				graph.AddPingLogToSpecificOffset(pingNum, new PingLog(time, (short)e.Reply.RoundtripTime, e.Reply.Status, measuredMicroseconds));
 				if (e.Reply.Status != IPStatus.Success)
 				{
 					Interlocked.Increment(ref failedPings);
@@ -929,6 +935,47 @@ namespace PingTracer
 				panel_Graphs.DrawToBitmap(bmp, new Rectangle(0, 0, bmp.Width, bmp.Height));
 				bmp.Save("PingTracer " + address + " " + DateTime.Now.ToString(fileNameFriendlyDateFormatString) + ".png", System.Drawing.Imaging.ImageFormat.Png);
 			}
+		}
+
+		private void mi_exportCsv_Click(object sender, EventArgs e)
+		{
+			if (pingGraphs.Count == 0)
+			{
+				MessageBox.Show("There is no ping data to export yet.");
+				return;
+			}
+			using (SaveFileDialog dialog = new SaveFileDialog())
+			{
+				dialog.Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*";
+				dialog.FileName = "PingTracer " + (currentIPAddress ?? "pings") + " " + DateTime.Now.ToString(fileNameFriendlyDateFormatString) + ".csv";
+				if (dialog.ShowDialog(this) != DialogResult.OK)
+					return;
+				try
+				{
+					ExportPingsToCsv(dialog.FileName);
+				}
+				catch (Exception ex)
+				{
+					MessageBox.Show("Unable to export ping data: " + ex.Message);
+				}
+			}
+		}
+
+		/// <summary>
+		/// Writes the buffered pings of every graph to a CSV file.
+		/// </summary>
+		/// <param name="path">File to create or overwrite.</param>
+		/// <returns>The number of pings written.</returns>
+		public static int ExportPingsToCsv(string path)
+		{
+			int rows = 0;
+			using (StreamWriter writer = new StreamWriter(path, false, new UTF8Encoding(true), 65536))
+			{
+				writer.WriteLine(PingGraphControl.CsvHeader);
+				foreach (PingGraphControl graph in pingGraphs.Values)
+					rows += graph.WriteCsvRows(writer);
+			}
+			return rows;
 		}
 
 		#endregion

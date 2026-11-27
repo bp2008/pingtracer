@@ -206,6 +206,57 @@ namespace PingTracer
 			Interlocked.Exchange(ref _nextIndexOffset, -1);
 			this.Invalidate();
 		}
+		/// <summary>
+		/// Header row matching the columns written by <see cref="WriteCsvRows"/>.  Sent and Received are local times to the microsecond; RoundTripMs is the operating system's figure in whole milliseconds; MeasuredMs is Received minus Sent as timed by this program.
+		/// </summary>
+		public const string CsvHeader = "Host,Sent,Received,Result,RoundTripMs,MeasuredMs";
+		private const string csvTimeFormat = "yyyy-MM-dd HH:mm:ss.ffffff";
+		/// <summary>
+		/// Writes every completed ping currently held in the buffer, oldest first, as CSV rows (see <see cref="CsvHeader"/>).  Does not write a header row.
+		/// </summary>
+		/// <param name="writer">Destination for the CSV rows.</param>
+		/// <returns>The number of rows written.</returns>
+		public int WriteCsvRows(System.IO.TextWriter writer)
+		{
+			PingLog[] buffer = pings;
+			long newest = Interlocked.Read(ref _nextIndexOffset);
+			if (newest < 0)
+				return 0;
+			long total = Math.Min(newest + 1, buffer.Length);
+			string hostColumn = "\"" + DisplayName.Replace("\"", "\"\"") + "\",";
+			System.Globalization.CultureInfo invariant = System.Globalization.CultureInfo.InvariantCulture;
+			int written = 0;
+			for (long n = newest + 1 - total; n <= newest; n++)
+			{
+				PingLog p = buffer[n % buffer.Length];
+				if (p == null)
+					continue; // Never sent, or still waiting for a response.
+				writer.Write(hostColumn);
+				writer.Write(p.startTime.ToString(csvTimeFormat, invariant));
+				writer.Write(',');
+				bool success = p.result == IPStatus.Success;
+				DateTime? received = success ? p.ReceivedTime : null;
+				if (received.HasValue)
+					writer.Write(received.Value.ToString(csvTimeFormat, invariant));
+				if (success)
+				{
+					writer.Write(",Success,");
+					writer.Write(p.pingTime.ToString(invariant));
+					writer.Write(',');
+					if (received.HasValue)
+						writer.Write((p.measuredMicroseconds / 1000.0).ToString("0.000", invariant));
+				}
+				else
+				{
+					writer.Write(',');
+					writer.Write(p.result.ToString());
+					writer.Write(",,");
+				}
+				writer.WriteLine();
+				written++;
+			}
+			return written;
+		}
 
 		int timestampsHeight = 13;
 		public int TimestampsHeight

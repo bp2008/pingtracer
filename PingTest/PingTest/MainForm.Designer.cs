@@ -45,6 +45,7 @@ namespace PingTracer
 			this.mi_Exit = new System.Windows.Forms.MenuItem();
 			this.menuItem1 = new System.Windows.Forms.MenuItem();
 			this.mi_snapshotGraphs = new System.Windows.Forms.MenuItem();
+			this.mi_exportCsv = new System.Windows.Forms.MenuItem();
 			this.menuItem4 = new System.Windows.Forms.MenuItem();
 			this.mi_Options = new System.Windows.Forms.MenuItem();
 			this.mi_OutputLog = new System.Windows.Forms.MenuItem();
@@ -187,8 +188,15 @@ namespace PingTracer
 			// 
 			this.menuItem1.Index = 1;
 			this.menuItem1.MenuItems.AddRange(new System.Windows.Forms.MenuItem[] {
-            this.mi_snapshotGraphs});
+            this.mi_snapshotGraphs,
+            this.mi_exportCsv});
 			this.menuItem1.Text = "E&xport";
+			//
+			// mi_exportCsv
+			//
+			this.mi_exportCsv.Index = 1;
+			this.mi_exportCsv.Text = "&Ping data to CSV...";
+			this.mi_exportCsv.Click += new System.EventHandler(this.mi_exportCsv_Click);
 			// 
 			// mi_snapshotGraphs
 			// 
@@ -312,6 +320,7 @@ namespace PingTracer
 		private System.Windows.Forms.MainMenu mainMenu1;
 		private System.Windows.Forms.MenuItem menuItem1;
 		private System.Windows.Forms.MenuItem mi_snapshotGraphs;
+		private System.Windows.Forms.MenuItem mi_exportCsv;
 		private System.Windows.Forms.MenuItem menuItem4;
 		private System.Windows.Forms.MenuItem mi_Options;
 		private System.Windows.Forms.MenuItem mi_OutputLog;
