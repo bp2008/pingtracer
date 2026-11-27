@@ -43,6 +43,17 @@ namespace PingTracer.Services
 		private PingSession currentRun;
 		private string currentConfigGuid;
 		private string status = "Idle";
+
+		/// <summary>Guards <see cref="data"/>, <see cref="dataLoad"/>, <see cref="loadGeneration"/> and <see cref="starting"/>.  Taken before hubLock.</summary>
+		private readonly object dataLock = new object();
+		/// <summary>The selected configuration's graph data (kept across runs), or null while it loads.</summary>
+		private ConfigDataSet data;
+		private Task<ConfigDataSet> dataLoad;
+		private string dataLoadGuid;
+		private int loadGeneration;
+		private bool loading;
+		/// <summary>True from a Start request until the run has been created.</summary>
+		private bool starting;
 		/// <summary>Describes what the graphs show: "live" (current/last run) or "history" (a loaded file).</summary>
 		private string viewSource = "live";
 		private string viewFileName = null;
@@ -52,7 +63,89 @@ namespace PingTracer.Services
 			this.settings = settings;
 			currentConfigGuid = settings.lastLoadedConfigurationGuid;
 			statusTimer = new Timer(_ => { if (currentRun?.IsRunning == true) BroadcastStatus(); }, null, 1000, 1000);
+			PingConfiguration cfg = LoadConfig(currentConfigGuid);
+			if (cfg != null)
+				BeginLoad(cfg);
 		}
+
+		private bool IsBusy => currentRun?.IsRunning == true || starting;
+
+		#region Configuration data
+
+		/// <summary>
+		/// Starts loading a configuration's saved graph data in the background, replacing the data shown.  The returned task
+		/// completes with the loaded data (or an empty set if saving is disabled or loading failed).
+		/// </summary>
+		private Task<ConfigDataSet> BeginLoad(PingConfiguration cfg)
+		{
+			string guid = cfg.guid;
+			List<(string, SessionMode)> keys = PingSession.GetSessionKeys(cfg);
+			long retentionMs = Math.Max(60, cfg.dataRetentionSeconds) * 1000L;
+			string displayName = cfg.displayName;
+			int gen;
+			lock (dataLock)
+			{
+				gen = ++loadGeneration;
+				data = null;
+				loading = true;
+				if (viewSource == "live")
+					ClearView("live", null);
+				dataLoad = Task.Run(() =>
+				{
+					ConfigDataSet d;
+					System.Diagnostics.Stopwatch sw = System.Diagnostics.Stopwatch.StartNew();
+					try
+					{
+						d = settings.saveSessionData
+							? ConfigDataSet.Load(settings.DataRoot, guid, keys, retentionMs, OnLog)
+							: new ConfigDataSet(settings.DataRoot, guid);
+					}
+					catch (Exception ex)
+					{
+						OnLog("Unable to load the saved data for " + displayName + ": " + ex.Message);
+						Logger.Debug(ex, "ConfigDataSet.Load");
+						d = new ConfigDataSet(settings.DataRoot, guid);
+					}
+					lock (dataLock)
+					{
+						if (gen != loadGeneration)
+							return d;
+						data = d;
+						loading = false;
+						if (viewSource == "live")
+							foreach (MonitoringSession s in d.Sessions)
+								AddToView(s);
+					}
+					IReadOnlyList<MonitoringSession> loaded = d.Sessions;
+					if (loaded.Count > 0)
+					{
+						long records = 0;
+						foreach (MonitoringSession s in loaded)
+							foreach (HopSeries h in s.GetHops())
+								records += h.Count;
+						OnLog("Loaded the saved data for " + displayName + " (" + records.ToString("N0") + " pings) in " + sw.ElapsedMilliseconds + " ms.");
+					}
+					BroadcastStatus();
+					return d;
+				});
+				dataLoadGuid = guid;
+			}
+			BroadcastStatus();
+			return dataLoad;
+		}
+
+		/// <summary>The data of a configuration: the data being loaded or already loaded for it, or a new load.</summary>
+		private Task<ConfigDataSet> GetData(PingConfiguration cfg)
+		{
+			lock (dataLock)
+			{
+				if (dataLoad != null && dataLoadGuid == cfg.guid)
+					return dataLoad;
+			}
+			return BeginLoad(cfg);
+		}
+
+		#endregion
 
 		#region Connection lifecycle
 
@@ -238,8 +331,10 @@ namespace PingTracer.Services
 				id = s.Id,
 				target = s.TargetAddress.ToString(),
 				displayName = s.DisplayName,
-				startMs = s.StartUnixMs,
-				endMs = s.IsRunning ? (long?)null : s.ToUnixMs(s.LastRecordTimeMs),
+				startMs = s.DataStartUnixMs,
+				endMs = s.IsRunning ? (long?)null : Math.Max(s.DataStartUnixMs, s.ToUnixMs(s.LastRecordTimeMs)),
+				// Times between runs when nothing was monitored: [[start, end], ...]
+				gaps = s.Gaps.Select(g => new[] { g.start, g.end }).ToArray(),
 				mode = s.Mode == SessionMode.Direct ? "direct" : "trace",
 				intervalMs = s.IntervalMs,
 				timeoutMs = s.TimeoutMs,
@@ -417,7 +512,7 @@ namespace PingTracer.Services
 
 		private void HandleSelectConfig(string guid)
 		{
-			if (currentRun?.IsRunning == true)
+			if (IsBusy)
 			{
 				BroadcastError("Stop the current session before choosing a different configuration.");
 				return;
@@ -433,25 +528,85 @@ namespace PingTracer.Services
 			settings.Save();
 			Broadcast(Json(new { type = "configSelected", guid }));
 			Broadcast(BuildConfigDetailsJson(cfg));
+			BeginLoad(cfg);
 		}
 
 		private void HandleStart()
 		{
-			PingSession run;
-			lock (hubLock)
+			PingConfiguration cfg;
+			lock (dataLock)
 			{
-				if (currentRun?.IsRunning == true)
+				if (IsBusy)
 					return;
-				PingConfiguration cfg = LoadConfig(currentConfigGuid);
+				cfg = LoadConfig(currentConfigGuid);
 				if (cfg == null)
 				{
 					BroadcastError(currentConfigGuid == null ? "No configuration selected." : "Configuration not found.");
 					return;
 				}
-				run = new PingSession(cfg, settings);
-				currentRun = run;
+				starting = true;
 			}
-			ClearView("live", null);
+			Task.Run(async () =>
+			{
+				try
+				{
+					await StartAsync(cfg).ConfigureAwait(false);
+				}
+				catch (Exception ex)
+				{
+					OnLog("Failed to start: " + ex.Message);
+					Logger.Debug(ex, "PingSession.Start");
+				}
+				finally
+				{
+					lock (dataLock) starting = false;
+					BroadcastStatus();
+				}
+			});
+		}
+
+		private async Task StartAsync(PingConfiguration cfg)
+		{
+			ConfigDataSet d = await GetData(cfg).ConfigureAwait(false);
+			ConfigDataSet.RunLock runLock;
+			try
+			{
+				runLock = d.TryAcquireRunLock();
+			}
+			catch (Exception ex)
+			{
+				BroadcastError("Unable to start " + cfg.displayName + ": " + ex.Message);
+				return;
+			}
+			if (runLock == null)
+			{
+				BroadcastError("\"" + cfg.displayName + "\" is already running in another PingTracer instance.");
+				return;
+			}
+			try
+			{
+				if (settings.saveSessionData && d.IsStale())
+				{
+					OnLog("Reloading the saved data for " + cfg.displayName + ": another PingTracer instance has run it since it was loaded.");
+					d = await BeginLoad(cfg).ConfigureAwait(false);
+				}
+			}
+			catch
+			{
+				runLock.Dispose();
+				throw;
+			}
+			PingSession run = new PingSession(cfg, settings, d, runLock);
+			lock (dataLock)
+			{
+				currentRun = run;
+				if (viewSource != "live")
+				{
+					ClearView("live", null);
+					foreach (MonitoringSession s in d.Sessions)
+						AddToView(s);
+				}
+			}
 			run.SessionCreated += AddToView;
 			run.Log += OnLog;
 			run.StatusChanged += s =>
@@ -466,15 +621,7 @@ namespace PingTracer.Services
 				foreach (SessionFeed f in SnapshotFeeds())
 					f.Session.SetRunning(false);
 			};
-			Task.Run(() =>
-			{
-				try { run.Start(); }
-				catch (Exception ex)
-				{
-					OnLog("Failed to start: " + ex.Message);
-					Logger.Debug(ex, "PingSession.Start");
-				}
-			});
+			run.Start();
 		}
 
 		private List<SessionFeed> SnapshotFeeds()
@@ -514,6 +661,8 @@ namespace PingTracer.Services
 			string guid = t.Value<string>("guid");
 			PingConfiguration cfg = string.IsNullOrEmpty(guid) ? null : LoadConfig(guid);
 			bool isNew = cfg == null;
+			// What decides which saved data is shown; when it changes, the selected configuration's data is reloaded.
+			string dataIdentity = cfg == null ? null : DataIdentity(cfg);
 			if (cfg == null)
 			{
 				cfg = new PingConfiguration();
@@ -558,6 +707,9 @@ namespace PingTracer.Services
 			cfg.ScalingMethodID = IntOrNull(t, "scalingMethodID") ?? cfg.ScalingMethodID;
 			cfg.logFailures = t.Value<bool?>("logFailures") ?? cfg.logFailures;
 			cfg.logSuccesses = t.Value<bool?>("logSuccesses") ?? cfg.logSuccesses;
+			long? retentionSeconds = t["dataRetentionSeconds"]?.Type is JTokenType.Integer or JTokenType.Float ? (long)t.Value<double>("dataRetentionSeconds") : null;
+			if (retentionSeconds.HasValue)
+				cfg.dataRetentionSeconds = Math.Clamp(retentionSeconds.Value, MinRetentionSeconds, MaxRetentionSeconds);
 			cfg.badThreshold = Math.Max(0, cfg.badThreshold);
 			cfg.worseThreshold = Math.Max(0, cfg.worseThreshold);
 			cfg.lowerLimit = Math.Max(0, cfg.lowerLimit);
@@ -570,9 +722,17 @@ namespace PingTracer.Services
 				Broadcast(BuildConfigDetailsJson(cfg));
 			Broadcast(Json(new { type = "configSaved", guid = cfg.guid }));
 			// A newly created configuration becomes the selected one (unless a session is running), so Start runs it.
-			if (currentConfigGuid == null || (isNew && currentRun?.IsRunning != true))
+			if (currentConfigGuid == null || (isNew && !IsBusy))
 				HandleSelectConfig(cfg.guid);
+			else if (!isNew && cfg.guid == currentConfigGuid && !IsBusy && dataIdentity != DataIdentity(cfg))
+				BeginLoad(cfg);
 		}
+
+		public const long MinRetentionSeconds = 600;
+		public const long MaxRetentionSeconds = 400L * 86400;
+
+		private static string DataIdentity(PingConfiguration cfg)
+			=> string.Join("|", PingSession.GetSessionKeys(cfg).Select(k => k.hostKey + "/" + k.mode)) + "#" + cfg.dataRetentionSeconds;
 
 		/// <summary>Reads an integer field, accepting numbers or numeric strings; anything else (missing, empty, not a number) is null.</summary>
 		private static int? IntOrNull(JToken t, string name)
@@ -597,10 +757,36 @@ namespace PingTracer.Services
 				BroadcastError("Invalid configuration id.");
 				return;
 			}
-			if (currentRun?.IsRunning == true && currentConfigGuid == guid)
+			if (IsBusy && currentConfigGuid == guid)
 			{
 				BroadcastError("Cannot delete the configuration that is currently running.");
 				return;
+			}
+			try
+			{
+				if (!ConfigDataSet.DeleteData(settings.DataRoot, guid))
+				{
+					BroadcastError("This configuration is running in another PingTracer instance, so it cannot be deleted now.");
+					return;
+				}
+			}
+			catch (Exception ex)
+			{
+				BroadcastError("Unable to delete the configuration's saved data: " + ex.Message);
+				return;
+			}
+			if (currentConfigGuid == guid)
+			{
+				lock (dataLock)
+				{
+					loadGeneration++;
+					data = null;
+					dataLoad = null;
+					dataLoadGuid = null;
+					loading = false;
+					if (viewSource == "live")
+						ClearView("live", null);
+				}
 			}
 			PingConfigurations all = new PingConfigurations();
 			all.Load();
@@ -619,18 +805,15 @@ namespace PingTracer.Services
 			settings.maxHopsDefault = Math.Clamp(IntOrNull(t, "maxHops") ?? settings.maxHopsDefault, 1, 255);
 			settings.pingPayloadSizeBytes = Math.Clamp(IntOrNull(t, "payloadBytes") ?? settings.pingPayloadSizeBytes, 0, 65500);
 			settings.saveSessionData = t.Value<bool?>("saveSessionData") ?? settings.saveSessionData;
-			long? retention = IntOrNull(t, "retentionSeconds");
-			if (retention.HasValue)
-				settings.dataRetentionSeconds = Math.Clamp(retention.Value, 600, 400L * 86400);
 			settings.Save();
 			Broadcast(BuildSettingsJson());
 		}
 
-		private string DataDirectory => PingDataFile.ResolveDataDirectory(settings.dataDirectory, Settings.SettingsFolderPath);
+		private string DataDirectory => settings.DataRoot;
 
 		private string BuildHistoryJson()
 		{
-			List<PingDataFile.FileInfoSummary> files = PingDataFile.ListSessionFiles(DataDirectory);
+			List<PingDataFile.FileInfoSummary> files = PingDataFile.ListSessionFiles(DataDirectory, recursive: true);
 			return Json(new
 			{
 				type = "history",
@@ -651,17 +834,17 @@ namespace PingTracer.Services
 
 		private void HandleOpenHistory(string fileName)
 		{
-			if (currentRun?.IsRunning == true)
+			if (IsBusy)
 			{
 				BroadcastError("Stop the current session before opening a saved one.");
 				return;
 			}
-			if (string.IsNullOrWhiteSpace(fileName) || fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || !fileName.EndsWith(PingDataFile.FileExtension, StringComparison.OrdinalIgnoreCase))
+			string path = ResolveHistoryPath(fileName);
+			if (path == null)
 			{
 				BroadcastError("Invalid file name.");
 				return;
 			}
-			string path = Path.Combine(DataDirectory, fileName);
 			Task.Run(() =>
 			{
 				try
@@ -678,14 +861,30 @@ namespace PingTracer.Services
 			});
 		}
 
+		/// <summary>Resolves a history file name (a path relative to the data directory) to a full path inside it, or null.</summary>
+		private string ResolveHistoryPath(string fileName)
+		{
+			if (string.IsNullOrWhiteSpace(fileName) || !fileName.EndsWith(PingDataFile.FileExtension, StringComparison.OrdinalIgnoreCase))
+				return null;
+			foreach (string part in fileName.Split('/', '\\'))
+				if (part.Length == 0 || part == "." || part == ".." || part.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+					return null;
+			string root = Path.GetFullPath(DataDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+			string full = Path.GetFullPath(Path.Combine(root, fileName));
+			return full.StartsWith(root, StringComparison.OrdinalIgnoreCase) ? full : null;
+		}
+
 		private void HandleCloseHistory()
 		{
-			if (viewSource != "history")
-				return;
-			ClearView("live", null);
-			if (currentRun != null)
-				foreach (MonitoringSession s in currentRun.Sessions)
-					AddToView(s);
+			lock (dataLock)
+			{
+				if (viewSource != "history")
+					return;
+				ClearView("live", null);
+				if (data != null)
+					foreach (MonitoringSession s in data.Sessions)
+						AddToView(s);
+			}
 		}
 
 		#endregion
@@ -751,6 +950,7 @@ namespace PingTracer.Services
 					scalingMethodID = cfg.ScalingMethodID,
 					logFailures = cfg.logFailures,
 					logSuccesses = cfg.logSuccesses,
+					dataRetentionSeconds = cfg.dataRetentionSeconds,
 				},
 			});
 		}
@@ -761,8 +961,9 @@ namespace PingTracer.Services
 			return Json(new
 			{
 				type = "status",
-				status,
+				status = loading && !(run?.IsRunning ?? false) ? "Loading saved data…" : status,
 				isRunning = run?.IsRunning ?? false,
+				loading,
 				sent = run?.SentCount ?? 0,
 				lost = run?.LostCount ?? 0,
 				serverTime = ServerClock.NowUnixMs,
@@ -778,7 +979,6 @@ namespace PingTracer.Services
 				maxHops = settings.maxHopsDefault,
 				payloadBytes = settings.pingPayloadSizeBytes,
 				saveSessionData = settings.saveSessionData,
-				retentionSeconds = settings.dataRetentionSeconds,
 				dataDirectory = Path.GetFullPath(DataDirectory),
 			});
 		}

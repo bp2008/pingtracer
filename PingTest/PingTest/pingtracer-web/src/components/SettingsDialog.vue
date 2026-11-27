@@ -22,15 +22,9 @@
 					<input type="number" min="0" max="65500" v-model.number="form.payloadBytes" /> bytes
 				</div>
 				<div class="field">
-					<label>Keep data for</label>
-					<select v-model.number="form.retentionSeconds">
-						<option v-for="o in retentionOptions" :key="o.v" :value="o.v">{{ o.label }}</option>
-					</select>
-					<div class="help">Older data is discarded from memory while monitoring.</div>
-				</div>
-				<div class="field">
-					<label class="check"><input type="checkbox" v-model="form.saveSessionData" /> Save sessions to disk</label>
-					<div class="help">Saved sessions can be reopened from History. Folder: {{ settings.dataDirectory }}</div>
+					<label class="check"><input type="checkbox" v-model="form.saveSessionData" /> Save graph data to disk</label>
+					<div class="help">Each configuration's graphs are saved (compressed) and reloaded when it is selected, so they continue
+						after PingTracer is closed. How much is kept is set in each configuration. Folder: {{ settings.dataDirectory }}</div>
 				</div>
 				<p class="muted">Changes apply the next time monitoring starts.</p>
 			</div>
@@ -45,8 +39,6 @@
 </template>
 
 <script>
-const DAY = 86400;
-
 export default {
 	name: 'SettingsDialog',
 	props: {
@@ -56,21 +48,6 @@ export default {
 	data()
 	{
 		return { form: this.settings ? { ...this.settings } : null, error: '' };
-	},
-	computed: {
-		retentionOptions()
-		{
-			const opts = [
-				{ v: 6 * 3600, label: '6 hours' },
-				{ v: DAY, label: '1 day' },
-				{ v: 3 * DAY, label: '3 days' },
-				{ v: 7 * DAY, label: '1 week' },
-				{ v: 30 * DAY, label: '30 days' },
-			];
-			if (this.form && !opts.some(o => o.v === this.form.retentionSeconds))
-				opts.push({ v: this.form.retentionSeconds, label: `${(this.form.retentionSeconds / DAY).toFixed(1)} days` });
-			return opts;
-		},
 	},
 	watch: {
 		settings(v)

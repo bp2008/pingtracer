@@ -123,6 +123,8 @@ export default {
 				return { title: 'Choose a configuration', text: 'Select a configuration from the list above.' };
 			if (st.isRunning)
 				return { title: 'Starting…' };
+			if (st.loading)
+				return { title: 'Loading saved data…' };
 			return { title: st.selectedConfig ? st.selectedConfig.displayName : 'Ready', text: 'Press Start to begin monitoring.', action: { label: '▶ Start', fn: st.start } };
 		},
 	},
@@ -145,7 +147,8 @@ export default {
 				this.fitPending = false;
 				this.$nextTick(() => this.graph('fitAll'));
 			}
-			else if (this.store.view.source === 'live' && list.length > 0 && list[0].running)
+			// Live view: the first sessions to appear (a run starting, or saved data loading) choose a zoom that suits their interval.
+			else if (this.store.view.source === 'live' && list.length > 0)
 			{
 				const g = this.$refs.graph;
 				if (g && !this._zoomDefaulted)

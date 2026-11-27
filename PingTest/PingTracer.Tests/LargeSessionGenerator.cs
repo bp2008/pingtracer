@@ -84,10 +84,8 @@ namespace PingTracer.Tests
 				return;
 			long start = ServerClock.NowUnixMs - (long)TimeSpan.FromDays(3).TotalMilliseconds;
 			MonitoringSession s = Generate(TimeSpan.FromDays(3), 15, start);
-			string path = Path.Combine(dir, PingDataFile.BuildSessionFileName(s.TargetAddress, s.StartUnixMs));
-			if (File.Exists(path)) File.Delete(path);
-			using (new PingDataWriter(s, path, 3600)) { }
-			output.WriteLine("Wrote " + path + " (" + new FileInfo(path).Length + " bytes)");
+			foreach (string path in ConfigDataSet.ImportSession(s, dir, "generated", s.HostKey))
+				output.WriteLine("Wrote " + path + " (" + new FileInfo(path).Length + " bytes)");
 		}
 	}
 }

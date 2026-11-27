@@ -35,6 +35,11 @@ namespace PingTracer.Tracer
 		/// If true, addresses that responded to the intial traceroute but refuse to respond to regular pings will continue to be monitored indefinitely.  If false, such addresses will be removed from monitoring after a timeout period.  This only applies to traceroute hops, not the main hosts being pinged.
 		/// </summary>
 		public bool monitorUnresponsiveHops = false;
+		/// <summary>
+		/// How much graph data to keep, measured in monitoring time (time this configuration was running), not calendar time.
+		/// See <see cref="PingTracer.Storage.ConfigDataSet"/>.
+		/// </summary>
+		public long dataRetentionSeconds = 86400;
 
 		// --- Graph display options ---
 

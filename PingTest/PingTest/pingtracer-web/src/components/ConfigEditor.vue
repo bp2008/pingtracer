@@ -43,6 +43,14 @@
 					<label class="checkbox-label" title="Hops that never answer are normally drawn as thin rows. Check this to draw them at full size."><input type="checkbox" v-model="form.monitorUnresponsiveHops" /> Full-size rows for silent hops</label>
 				</div>
 
+				<div class="form-group">
+					<label>Keep graph data for</label>
+					<select v-model.number="form.dataRetentionSeconds" class="form-input retention">
+						<option v-for="o in retentionOptions" :key="o.v" :value="o.v">{{ o.label }}</option>
+					</select>
+					<div class="hint">of monitoring. Time this configuration is not running does not count, so stopping it never loses data; older data is deleted while it runs.</div>
+				</div>
+
 				<h4>Graph Display</h4>
 				<div class="form-row">
 					<label class="checkbox-label"><input type="checkbox" v-model="form.drawServerNames" /> Server Names</label>
@@ -101,6 +109,8 @@
 </template>
 
 <script>
+const DAY = 86400;
+
 export default {
 	name: 'ConfigEditor',
 	props: {
@@ -133,6 +143,7 @@ export default {
 			scalingMethodID: 0,
 			logFailures: true,
 			logSuccesses: false,
+			dataRetentionSeconds: DAY,
 		};
 
 		const form = this.config ? { ...defaults, ...this.config } : { ...defaults };
@@ -150,7 +161,24 @@ export default {
 			if (this.form.pingsPerSecond)
 				return this.form.rate + '/sec';
 			return 'every ' + this.form.rate + 's';
-		}
+		},
+		retentionOptions()
+		{
+			const opts = [
+				{ v: 3600, label: '1 hour' },
+				{ v: 6 * 3600, label: '6 hours' },
+				{ v: DAY, label: '1 day' },
+				{ v: 3 * DAY, label: '3 days' },
+				{ v: 7 * DAY, label: '1 week' },
+				{ v: 30 * DAY, label: '30 days' },
+				{ v: 90 * DAY, label: '90 days' },
+				{ v: 365 * DAY, label: '1 year' },
+			];
+			const cur = this.form.dataRetentionSeconds;
+			if (!opts.some(o => o.v === cur))
+				opts.push({ v: cur, label: cur >= DAY ? `${+(cur / DAY).toFixed(1)} days` : `${+(cur / 3600).toFixed(1)} hours` });
+			return opts.sort((a, b) => a.v - b.v);
+		},
 	},
 	watch: {
 		form: {
@@ -215,7 +243,7 @@ export default {
 		},
 		onDelete()
 		{
-			if (confirm('Delete configuration "' + this.form.displayName + '"?'))
+			if (confirm('Delete configuration "' + this.form.displayName + '" and its saved graph data?'))
 				this.$emit('delete', this.form.guid);
 		}
 	}
@@ -223,6 +251,7 @@ export default {
 </script>
 
 <style scoped>
+.retention { width: auto; }
 .modal-overlay {
 	position: fixed;
 	top: 0;

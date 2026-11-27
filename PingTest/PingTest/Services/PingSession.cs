@@ -14,6 +14,10 @@ namespace PingTracer.Services
 	/// <summary>
 	/// One run of a <see cref="PingConfiguration"/>: a <see cref="MonitoringSession"/> and <see cref="RouteMonitor"/> per host,
 	/// plus disk writers and periodic pruning.  Independent of any user interface.
+	/// <para>
+	/// Given a <see cref="ConfigDataSet"/>, a run continues the sessions it already holds (matched by host and mode), so the
+	/// graphs pick up where the previous run left off, and it saves to and prunes the configuration's data directory.
+	/// </para>
 	/// </summary>
 	public sealed class PingSession
 	{
@@ -24,6 +28,8 @@ namespace PingTracer.Services
 		public bool IsRunning { get; private set; }
 
 		private readonly Settings settings;
+		private readonly ConfigDataSet data;
+		private ConfigDataSet.RunLock runLock;
 		private readonly object stateLock = new object();
 		private readonly List<MonitoringSession> sessions = new List<MonitoringSession>();
 		private readonly List<RouteMonitor> monitors = new List<RouteMonitor>();
@@ -47,18 +53,48 @@ namespace PingTracer.Services
 			get { lock (stateLock) return sessions.ToArray(); }
 		}
 
-		/// <summary>Raised for each session as it is created, before its monitor starts.</summary>
+		/// <summary>Raised for each new session as it is created, before its monitor starts.  (Resumed sessions already exist.)</summary>
 		public event Action<MonitoringSession> SessionCreated;
 		public event Action<string> Log;
 		public event Action<string> StatusChanged;
 		/// <summary>Raised after the session has fully stopped (monitors stopped, files closed).</summary>
 		public event Action Stopped;
 
-		public PingSession(PingConfiguration config, Settings settings)
+		/// <param name="config">The configuration to run.</param>
+		/// <param name="settings">Application settings.</param>
+		/// <param name="data">The configuration's data, whose sessions are resumed and which is saved to disk if
+		/// <see cref="Settings.saveSessionData"/> is set.  Null for a run that is neither resumed nor saved.</param>
+		/// <param name="runLock">The configuration's run lock, released when the run stops.</param>
+		public PingSession(PingConfiguration config, Settings settings, ConfigDataSet data = null, ConfigDataSet.RunLock runLock = null)
 		{
 			Configuration = config ?? throw new ArgumentNullException(nameof(config));
 			this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
+			this.data = data;
+			this.runLock = runLock;
 			PingerFactory = DefaultPingerFactory;
+		}
+
+		/// <summary>Monitoring time to keep, from the configuration.</summary>
+		private long RetentionMs => Math.Max(60, Configuration.dataRetentionSeconds) * 1000L;
+
+		private bool SaveToDisk => data != null && settings.saveSessionData;
+
+		/// <summary>Host entries of a configuration, split and trimmed.</summary>
+		public static List<string> GetHostList(PingConfiguration config)
+		{
+			return (config.hosts ?? new List<Host>())
+				.SelectMany(h => (h?.hostname ?? "").Split(new[] { ',', ' ', '\r', '\n', '\t' }, StringSplitOptions.RemoveEmptyEntries))
+				.Select(h => h.Trim())
+				.Where(h => h.Length > 0)
+				.ToList();
+		}
+
+		/// <summary>The (host key, mode) pairs a run of the configuration creates sessions for, in display order.</summary>
+		public static List<(string hostKey, SessionMode mode)> GetSessionKeys(PingConfiguration config)
+		{
+			List<string> hosts = GetHostList(config);
+			SessionMode mode = config.doTraceRoute && hosts.Count == 1 ? SessionMode.TraceRoute : SessionMode.Direct;
+			return hosts.Select(h => (MonitoringSession.NormalizeHostKey(h), mode)).Distinct().ToList();
 		}
 
 		public static int ComputeIntervalMs(int rate, bool pingsPerSecond)
@@ -100,11 +136,7 @@ namespace PingTracer.Services
 		{
 			StatusChanged?.Invoke("Starting...");
 
-			List<string> hosts = (Configuration.hosts ?? new List<Host>())
-				.SelectMany(h => (h?.hostname ?? "").Split(new[] { ',', ' ', '\r', '\n', '\t' }, StringSplitOptions.RemoveEmptyEntries))
-				.Select(h => h.Trim())
-				.Where(h => h.Length > 0)
-				.ToList();
+			List<string> hosts = GetHostList(Configuration);
 			if (hosts.Count == 0)
 			{
 				Log?.Invoke("Unable to start: the configuration has no hosts.");
@@ -113,6 +145,22 @@ namespace PingTracer.Services
 			}
 
 			traceRoute = Configuration.doTraceRoute && hosts.Count == 1;
+			if (data != null)
+			{
+				long now = ServerClock.NowUnixMs;
+				data.BeginRun(now);
+				// Starting is when old data is discarded (never merely loading it): see ConfigDataSet.
+				try
+				{
+					int deleted = data.ApplyRetention(RetentionMs, now, deleteFiles: SaveToDisk, Log);
+					if (deleted > 0)
+						Log?.Invoke("Deleted " + deleted + " saved data file" + (deleted == 1 ? "" : "s") + " older than the configuration keeps.");
+				}
+				catch (Exception ex)
+				{
+					Log?.Invoke("Unable to discard old data: " + ex.Message);
+				}
+			}
 			List<string> unresolved = new List<string>();
 			foreach (string host in hosts)
 			{
@@ -192,7 +240,23 @@ namespace PingTracer.Services
 			}
 
 			IPinger pinger = PingerFactory(host);
-			MonitoringSession session = new MonitoringSession(ip, displayName, traceRoute ? SessionMode.TraceRoute : SessionMode.Direct, intervalMs, timeoutMs);
+			SessionMode mode = traceRoute ? SessionMode.TraceRoute : SessionMode.Direct;
+			string hostKey = MonitoringSession.NormalizeHostKey(host);
+			MonitoringSession session = data?.Find(hostKey, mode);
+			bool isNew = session == null;
+			lock (stateLock)
+			{
+				// The same host listed twice: monitor it once.
+				if (sessions.Any(s => s.HostKey == hostKey && s.Mode == mode))
+					return true;
+			}
+			if (isNew)
+				session = new MonitoringSession(ip, displayName, mode, intervalMs, timeoutMs, hostKey: hostKey);
+			else
+			{
+				session.UpdateTarget(ip, displayName, timeoutMs);
+				session.ResetRouteTracking();
+			}
 			if (Configuration.reverseDnsLookup)
 				session.HostnameResolver = pinger.ReverseLookupAsync;
 			RouteMonitor monitor = new RouteMonitor(session, pinger, new RouteMonitorOptions
@@ -213,27 +277,34 @@ namespace PingTracer.Services
 			}
 			WireSessionEvents(session);
 			PingDataWriter writer = null;
-			if (settings.saveSessionData)
+			if (SaveToDisk)
 				writer = TryCreateWriter(session);
 			lock (stateLock)
 			{
 				if (stopRequested && quietFailure)
 				{
 					writer?.Dispose();
+					UnwireSessionEvents(session);
 					return true;
 				}
 				sessions.Add(session);
 				monitors.Add(monitor);
 				if (writer != null) writers.Add(writer);
 			}
-			SessionCreated?.Invoke(session);
-			Log?.Invoke((traceRoute ? "Tracing route to " : "Pinging ") + displayName + " every " + intervalMs + " ms");
+			if (isNew)
+			{
+				data?.Add(session);
+				SessionCreated?.Invoke(session);
+			}
+			Log?.Invoke((traceRoute ? "Tracing route to " : "Pinging ") + displayName + " every " + intervalMs + " ms" + (isNew ? "" : " (continuing the saved graph)"));
 			monitor.Start();
 			return true;
 		}
 
 		private void FailStart()
 		{
+			data?.CancelRun();
+			ReleaseRunLock();
 			lock (stateLock) IsRunning = false;
 			StatusChanged?.Invoke("Idle");
 			Stopped?.Invoke();
@@ -268,6 +339,18 @@ namespace PingTracer.Services
 			{
 				try { w.Dispose(); } catch { }
 			}
+			List<MonitoringSession> ended;
+			lock (stateLock) ended = new List<MonitoringSession>(sessions);
+			if (data != null)
+			{
+				long end = 0;
+				foreach (MonitoringSession s in ended)
+					end = Math.Max(end, s.ToUnixMs(s.LastRecordTimeMs));
+				data.EndRun(end > 0 ? Math.Min(end, ServerClock.NowUnixMs) : ServerClock.NowUnixMs);
+			}
+			foreach (MonitoringSession s in ended)
+				UnwireSessionEvents(s);
+			ReleaseRunLock();
 			lock (stateLock) IsRunning = false;
 			StatusChanged?.Invoke("Idle");
 			Log?.Invoke("Stopped.");
@@ -283,10 +366,28 @@ namespace PingTracer.Services
 				m.IntervalMs = interval;
 		}
 
+		private void ReleaseRunLock()
+		{
+			Interlocked.Exchange(ref runLock, null)?.Dispose();
+		}
+
 		public void RunPrune()
 		{
-			TimeSpan retention = settings.DataRetentionPeriod;
-			if (retention <= TimeSpan.Zero) return;
+			if (data != null)
+			{
+				try
+				{
+					int deleted = data.ApplyRetention(RetentionMs, ServerClock.NowUnixMs, deleteFiles: SaveToDisk, Log);
+					if (deleted > 0)
+						Log?.Invoke("Deleted " + deleted + " saved data file" + (deleted == 1 ? "" : "s") + " older than the configuration keeps.");
+				}
+				catch (Exception ex)
+				{
+					Log?.Invoke("Unable to discard old data: " + ex.Message);
+				}
+				return;
+			}
+			TimeSpan retention = TimeSpan.FromMilliseconds(RetentionMs);
 			foreach (MonitoringSession s in Sessions)
 			{
 				try { s.PruneOlderThan(retention); } catch { }
@@ -297,18 +398,34 @@ namespace PingTracer.Services
 		{
 			try
 			{
-				string dir = PingDataFile.ResolveDataDirectory(settings.dataDirectory, Settings.SettingsFolderPath);
-				string path = System.IO.Path.Combine(dir, PingDataFile.BuildSessionFileName(session.TargetAddress, session.StartUnixMs));
-				for (int i = 2; System.IO.File.Exists(path); i++)
-					path = System.IO.Path.Combine(dir, System.IO.Path.GetFileNameWithoutExtension(PingDataFile.BuildSessionFileName(session.TargetAddress, session.StartUnixMs)) + "-" + i + PingDataFile.FileExtension);
-				PingDataWriter w = new PingDataWriter(session, path, settings.diskFlushIntervalSeconds);
-				w.WriteFailed += ex => Log?.Invoke("Saving session data failed and has been disabled: " + ex.Message);
+				PingDataWriter w = new PingDataWriter(session, data.Directory, data.ConfigGuid, settings.dataFlushIntervalSeconds);
+				w.WriteFailed += ex => Log?.Invoke("Saving data for " + session.DisplayName + " failed and has been disabled: " + ex.Message);
+				w.SegmentClosed += data.NoteSegmentClosed;
 				return w;
 			}
 			catch (Exception ex)
 			{
-				Log?.Invoke("Session data will not be saved (could not create file): " + ex.Message);
+				Log?.Invoke("Data for " + session.DisplayName + " will not be saved (could not create a file): " + ex.Message);
 				return null;
+			}
+		}
+
+		/// <summary>Event handlers this run attached to each session, so they can be detached when it stops (sessions outlive runs).</summary>
+		private readonly Dictionary<MonitoringSession, (Action<MonitoringSession, int, PingSample> completed, Action<MonitoringSession, int, PingSample> voided, Action<MonitoringSession, RouteEvent> route)> handlers
+			= new Dictionary<MonitoringSession, (Action<MonitoringSession, int, PingSample>, Action<MonitoringSession, int, PingSample>, Action<MonitoringSession, RouteEvent>)>();
+
+		private void UnwireSessionEvents(MonitoringSession session)
+		{
+			lock (stateLock)
+			{
+				if (!handlers.Remove(session, out var h))
+					return;
+				lock (session.DataLock)
+				{
+					session.SampleCompleted -= h.completed;
+					session.SampleVoided -= h.voided;
+					session.RouteEventAdded -= h.route;
+				}
 			}
 		}
 
@@ -317,7 +434,7 @@ namespace PingTracer.Services
 			LossTracker tracker = new LossTracker(t => FormatTime(session, t));
 			lock (stateLock) lossTrackers[session] = tracker;
 
-			session.SampleCompleted += (s, ttl, record) =>
+			Action<MonitoringSession, int, PingSample> completed = (s, ttl, record) =>
 			{
 				Interlocked.Increment(ref sent);
 				if (record.IsLost)
@@ -326,13 +443,13 @@ namespace PingTracer.Services
 				if (ttl == destTtl && (s.Mode == SessionMode.Direct || destTtl > 0))
 					TrackDestinationResult(s, tracker, record);
 			};
-			session.SampleVoided += (s, ttl, record) =>
+			Action<MonitoringSession, int, PingSample> voided = (s, ttl, record) =>
 			{
 				Interlocked.Decrement(ref sent);
 				if (record.IsLost)
 					Interlocked.Decrement(ref lost);
 			};
-			session.RouteEventAdded += (s, e) =>
+			Action<MonitoringSession, RouteEvent> route = (s, e) =>
 			{
 				if (e.Initial || e.Kind != RouteEventKind.HopAddress)
 					return;
@@ -340,6 +457,16 @@ namespace PingTracer.Services
 				string host = s.Addresses.GetHostname(e.Value);
 				Log?.Invoke($"{s.DisplayName}: hop {e.Ttl} is now answering from {ip}{(string.IsNullOrEmpty(host) ? "" : " (" + host + ")")}");
 			};
+			lock (stateLock)
+			{
+				handlers[session] = (completed, voided, route);
+				lock (session.DataLock)
+				{
+					session.SampleCompleted += completed;
+					session.SampleVoided += voided;
+					session.RouteEventAdded += route;
+				}
+			}
 		}
 
 		private void TrackDestinationResult(MonitoringSession s, LossTracker t, PingSample record)

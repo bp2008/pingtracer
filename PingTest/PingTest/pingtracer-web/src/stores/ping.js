@@ -17,6 +17,8 @@ export const usePingStore = defineStore('ping', () =>
 	const selectedConfigGuid = ref(null);
 	const configDetails = ref(null);
 	const isRunning = ref(false);
+	/** True while the selected configuration's saved data is being read. */
+	const loading = ref(false);
 	const status = ref('Idle');
 	const sentCount = ref(0);
 	const lostCount = ref(0);
@@ -53,6 +55,7 @@ export const usePingStore = defineStore('ping', () =>
 			{
 				status.value = m.status;
 				isRunning.value = m.isRunning;
+				loading.value = !!m.loading;
 				sentCount.value = m.sent;
 				lostCount.value = m.lost;
 			});
@@ -104,7 +107,7 @@ export const usePingStore = defineStore('ping', () =>
 	function dismissError(id) { errors.value = errors.value.filter(e => e.id !== id); }
 
 	return {
-		connected, configurations, selectedConfigGuid, configDetails, isRunning, status, sentCount, lostCount,
+		connected, configurations, selectedConfigGuid, configDetails, isRunning, loading, status, sentCount, lostCount,
 		logMessages, errors, settings, history, view, sessions, selectedConfig,
 		connect, disconnect, selectConfig, start, stop, saveConfig, deleteConfig, setPingRate, saveSettings,
 		listHistory, openHistory, closeHistory, dismissError,

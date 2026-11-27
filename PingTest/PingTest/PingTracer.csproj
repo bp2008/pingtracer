@@ -7,7 +7,7 @@
 		<AssemblyName>PingTracer</AssemblyName>
 		<UseWindowsForms>true</UseWindowsForms>
 		<ApplicationIcon>pingtracer.ico</ApplicationIcon>
-		<Version>2.1.0.0</Version>
+		<Version>3.0.0.0-dev</Version>
 		<Copyright>Copyright Brian Pearce 2026</Copyright>
 		<Product>PingTracer</Product>
 		<ForceDesignerDpiUnaware>true</ForceDesignerDpiUnaware>

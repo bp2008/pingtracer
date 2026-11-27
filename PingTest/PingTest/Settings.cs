@@ -45,8 +45,8 @@ namespace PingTracer
 		// --- PingTracer 3 monitoring/retention/persistence settings ---
 
 		/// <summary>
-		/// How long ping data is retained in memory (and on disk) before pruning.
-		/// Stored as seconds for portable XML serialization; access via <see cref="DataRetentionPeriod"/>.
+		/// Legacy global retention.  Retention is now set per configuration (<see cref="PingConfiguration.dataRetentionSeconds"/>);
+		/// this is only read so that old settings files load.
 		/// </summary>
 		public long dataRetentionSeconds = (long)TimeSpan.FromDays(1).TotalSeconds;
 
@@ -56,17 +56,30 @@ namespace PingTracer
 		/// <summary>Milliseconds after which an unanswered ping is considered lost.</summary>
 		public int pingTimeoutMs = 4000;
 
-		/// <summary>If true, monitoring sessions are saved to disk so they can be reviewed later.</summary>
+		/// <summary>
+		/// If true, each configuration's graph data is saved to disk (and loaded again when the configuration is selected), so
+		/// it survives closing PingTracer.  Old data is deleted according to each configuration's retention.
+		/// </summary>
 		public bool saveSessionData = true;
 
-		/// <summary>Disk flush interval for the binary session log.</summary>
+		/// <summary>Legacy flush interval (10 seconds), ignored.  See <see cref="dataFlushIntervalSeconds"/>.</summary>
 		public int diskFlushIntervalSeconds = 10;
 
 		/// <summary>
-		/// Directory where session data files are written. Null means default to
-		/// <c>{SettingsFolderPath}/data/</c> resolved at use time.
+		/// How often graph data is written to disk.  Longer intervals compress better (Brotli restarts its entropy coding at
+		/// every flush); a crash loses at most this much data.
+		/// </summary>
+		public int dataFlushIntervalSeconds = 60;
+
+		/// <summary>
+		/// Directory where data files are written. Null means <c>{Globals.WritableDirectoryBase}/data/</c>, which holds a
+		/// subdirectory per configuration.
 		/// </summary>
 		public string dataDirectory = null;
+
+		/// <summary>The directory holding every configuration's data directory.</summary>
+		[XmlIgnore]
+		public string DataRoot => Storage.PingDataFile.ResolveDataDirectory(dataDirectory, BPUtil.Globals.WritableDirectoryBase);
 
 		/// <summary>Strongly-typed accessor for <see cref="dataRetentionSeconds"/>.</summary>
 		[XmlIgnore]

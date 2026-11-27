@@ -596,6 +596,16 @@ export class GraphRenderer
 			this.statsDirty = true;
 			this.overlayDirty = true;
 			this.axisDirty = true;
+			// Where each session has data (its start, end and the gaps between runs) decides which columns are drawn as
+			// "outside"; redraw everything when that changes.
+			let extentKey = '';
+			for (const s of dataStore.getSessions())
+				extentKey += s.id + ':' + s.meta.startMs + ',' + s.meta.endMs + ',' + (s.meta.gaps ? s.meta.gaps.join(',') : '') + ';';
+			if (extentKey !== this.extentKey)
+			{
+				this.extentKey = extentKey;
+				this.invalidateAll();
+			}
 		}
 
 		const rc = this.live ? Math.floor(now / this.msPerCol) : this.rightCol;
@@ -1017,6 +1027,15 @@ export class GraphRenderer
 			// View columns inside the session: column c is outside if it ends before the start or starts after the end.
 			const xIn0 = Math.floor(s.meta.startMs / ms) - lc;
 			const xIn1 = s.meta.endMs != null ? Math.floor(s.meta.endMs / ms) - lc : Infinity;
+			// Gaps between runs, as ranges of view columns that lie entirely inside a gap ([gx0[i], gx1[i]], ascending).
+			const gx0 = [], gx1 = [];
+			if (s.meta.gaps)
+				for (const [g0, g1] of s.meta.gaps)
+				{
+					const a = Math.ceil(g0 / ms) - lc, b = Math.floor(g1 / ms) - 1 - lc;
+					if (b >= a && b >= x0 && a < x1) { gx0.push(a); gx1.push(b); }
+				}
+			let gi = 0;
 			const isStrip = row.strip > 0;
 			const markers = this._markersFor(s, ttl, lc + x0, lc + x1 - 1, ms);
 			if (markers !== null) for (const [c, kind] of markers) mk[c - lc] = kind;
@@ -1051,6 +1070,8 @@ export class GraphRenderer
 				const L = hc ? hc.lost : null, S = hc ? hc.sum : null, MX = hc ? hc.max : null, A = hc ? hc.addr : null, F = hc ? hc.flags : null;
 				for (; i < iEnd; i++, x++)
 				{
+					while (gi < gx1.length && x > gx1[gi]) gi++;
+					const inGap = gi < gx1.length && x >= gx0[gi];
 					let n = 0, lost = 0, sum = 0, max = 0, addr = ADDR_NONE, flags = 0;
 					if (N !== null && N[i] > 0)
 					{
@@ -1058,6 +1079,8 @@ export class GraphRenderer
 						p3 = p2; p2 = lastX; lastX = x;
 						lN = n; lLost = lost; lSum = sum; lMax = max; lAddr = addr; lFlags = flags;
 					}
+					else if (inGap)
+						lastX = p2 = p3 = -Infinity; // nothing was monitored: do not fill forward into or across the gap
 					else if (x - lastX <= maxBack && _fillAllows(x, lastX, p2, p3, fillCols, maxBack))
 					{
 						n = lN; lost = lLost; sum = lSum; max = lMax; addr = lAddr; flags = lFlags;
@@ -1067,7 +1090,7 @@ export class GraphRenderer
 					if (++tx === W) tx = 0;
 					let st, bTop = plotBottom, rTop = plotBottom, cBottom = plotTop;
 					if (n === 0)
-						st = x < xIn0 || x > xIn1 ? KIND_OUTSIDE : KIND_EMPTY;
+						st = x < xIn0 || x > xIn1 || inGap ? KIND_OUTSIDE : KIND_EMPTY;
 					else
 					{
 						const succ = n - lost;

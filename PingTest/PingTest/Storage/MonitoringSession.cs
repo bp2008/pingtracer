@@ -37,10 +37,21 @@ namespace PingTracer.Storage
 		public readonly object DataLock = new object();
 
 		public readonly int Id;
-		public readonly IPAddress TargetAddress;
-		public readonly string DisplayName;
+		/// <summary>The address being pinged.  May change when a resumed session's host name resolves differently.</summary>
+		public IPAddress TargetAddress { get; private set; }
+		public string DisplayName { get; private set; }
+		/// <summary>Origin of the session-relative times.  For a session rebuilt from saved segments, the start of the oldest one.</summary>
 		public readonly long StartUnixMs;
 		public readonly SessionMode Mode;
+		/// <summary>
+		/// Identifies which host entry of a ping configuration this session belongs to (the entry's text, trimmed and lower-cased).
+		/// Together with <see cref="Mode"/> it decides which saved data a run resumes.
+		/// </summary>
+		public readonly string HostKey;
+		/// <summary>Earliest time that data is kept for (Unix ms).  Advances as old data is pruned.</summary>
+		public long DataStartUnixMs { get; private set; }
+		/// <summary>Periods between runs during which nothing was monitored (Unix ms, ascending), for drawing.</summary>
+		public IReadOnlyList<(long start, long end)> Gaps { get; private set; } = Array.Empty<(long, long)>();
 
 		/// <summary>True if this session was loaded from disk and will never receive new data.</summary>
 		public bool IsReadOnly { get; }
@@ -72,7 +83,7 @@ namespace PingTracer.Storage
 		/// <summary>Raised when destination TTL, replied TTLs, interval, or running state change.</summary>
 		public event Action<MonitoringSession> StateChanged;
 
-		public MonitoringSession(IPAddress target, string displayName, SessionMode mode, int intervalMs, int timeoutMs, long startUnixMs = 0, bool readOnly = false)
+		public MonitoringSession(IPAddress target, string displayName, SessionMode mode, int intervalMs, int timeoutMs, long startUnixMs = 0, bool readOnly = false, string hostKey = null)
 		{
 			Id = Interlocked.Increment(ref nextId);
 			TargetAddress = target ?? throw new ArgumentNullException(nameof(target));
@@ -81,8 +92,13 @@ namespace PingTracer.Storage
 			IntervalMs = intervalMs;
 			TimeoutMs = timeoutMs;
 			StartUnixMs = startUnixMs > 0 ? startUnixMs : ServerClock.NowUnixMs;
+			DataStartUnixMs = StartUnixMs;
 			IsReadOnly = readOnly;
+			HostKey = string.IsNullOrWhiteSpace(hostKey) ? NormalizeHostKey(target.ToString()) : hostKey;
 		}
+
+		/// <summary>Normalizes a configuration host entry into a <see cref="HostKey"/>.</summary>
+		public static string NormalizeHostKey(string host) => (host ?? "").Trim().ToLowerInvariant();
 
 		/// <summary>Current session-relative time in milliseconds.</summary>
 		public long NowMs => Math.Max(0, ServerClock.NowUnixMs - StartUnixMs);
@@ -210,13 +226,57 @@ namespace PingTracer.Storage
 			}
 		}
 
+		/// <summary>Appends completed records for one TTL (disk loading).</summary>
+		internal void LoadRecords(int ttl, List<PingSample> records)
+		{
+			if ((uint)ttl >= 256 || records.Count == 0)
+				return;
+			lock (DataLock)
+			{
+				HopSeries hop = GetOrCreateHop(ttl);
+				foreach (PingSample record in records)
+				{
+					hop.AppendCompleted(record);
+					if (record.TimeMs > LastRecordTimeMs) LastRecordTimeMs = record.TimeMs;
+					if (record.IsSuccess)
+						replied[ttl] = true;
+				}
+			}
+		}
+
+		/// <summary>Adds a route event as if it had just happened, notifying subscribers (importing data into a new session).</summary>
+		internal void ImportRouteEvent(RouteEvent e)
+		{
+			lock (DataLock)
+			{
+				if (e.Kind == RouteEventKind.DestinationTtl && Mode != SessionMode.Direct)
+					DestinationTtl = e.Ttl;
+				AddRouteEvent(e);
+			}
+		}
+
+		/// <summary>Adds an address to the table without starting a hostname lookup (disk loading).  Returns its id.</summary>
+		internal ushort LoadAddress(IPAddress address)
+		{
+			lock (DataLock)
+				return Addresses.GetOrAdd(address, out _);
+		}
+
+		/// <summary>Sets the destination TTL without recording a route event (disk loading).</summary>
+		internal void LoadDestinationTtl(int ttl)
+		{
+			lock (DataLock)
+				DestinationTtl = Mode == SessionMode.Direct ? 0 : ttl;
+		}
+
 		internal void LoadRouteEvent(RouteEvent e)
 		{
 			lock (DataLock)
 			{
 				routeEvents.Add(e);
-				if (e.Kind == RouteEventKind.DestinationTtl)
+				if (e.Kind == RouteEventKind.DestinationTtl && Mode != SessionMode.Direct)
 					DestinationTtl = e.Ttl;
+				if (e.TimeMs > LastRecordTimeMs) LastRecordTimeMs = e.TimeMs;
 			}
 		}
 
@@ -290,6 +350,46 @@ namespace PingTracer.Storage
 			}
 		}
 
+		/// <summary>Updates the target before a resumed run (its host name may now resolve to a different address).</summary>
+		public void UpdateTarget(IPAddress target, string displayName, int timeoutMs)
+		{
+			lock (DataLock)
+			{
+				TargetAddress = target ?? TargetAddress;
+				if (!string.IsNullOrWhiteSpace(displayName))
+					DisplayName = displayName;
+				TimeoutMs = timeoutMs;
+				StateChanged?.Invoke(this);
+			}
+		}
+
+		/// <summary>
+		/// Forgets which addresses each hop has answered from, so that a resumed run treats the route it finds as discovery
+		/// rather than reporting every hop as changed after the time it was stopped.
+		/// </summary>
+		public void ResetRouteTracking()
+		{
+			lock (DataLock)
+				Array.Clear(routeState);
+		}
+
+		/// <summary>Sets the data start and the gaps between runs, raising <see cref="StateChanged"/> if they changed.</summary>
+		public void SetHistory(long dataStartUnixMs, IReadOnlyList<(long start, long end)> gaps)
+		{
+			lock (DataLock)
+			{
+				gaps ??= Array.Empty<(long, long)>();
+				bool changed = dataStartUnixMs != DataStartUnixMs || gaps.Count != Gaps.Count;
+				for (int i = 0; !changed && i < gaps.Count; i++)
+					changed = gaps[i] != Gaps[i];
+				if (!changed)
+					return;
+				DataStartUnixMs = dataStartUnixMs;
+				Gaps = gaps;
+				StateChanged?.Invoke(this);
+			}
+		}
+
 		public void SetIntervalMs(int intervalMs)
 		{
 			lock (DataLock)
@@ -338,11 +438,20 @@ namespace PingTracer.Storage
 		/// <summary>Discards data older than <paramref name="maxAge"/>.</summary>
 		public void PruneOlderThan(TimeSpan maxAge)
 		{
+			PruneBeforeUnix(ServerClock.NowUnixMs - (long)maxAge.TotalMilliseconds);
+		}
+
+		/// <summary>
+		/// Discards data recorded before <paramref name="cutoffUnixMs"/>.  Records are dropped in whole chunks (see
+		/// <see cref="HopSeries.PruneOlderThan"/>), so a little older data may remain.
+		/// </summary>
+		public void PruneBeforeUnix(long cutoffUnixMs)
+		{
+			if (cutoffUnixMs <= StartUnixMs) // also avoids overflow for "keep everything" (long.MinValue)
+				return;
 			lock (DataLock)
 			{
-				long cutoff = ServerClock.NowUnixMs - (long)maxAge.TotalMilliseconds - StartUnixMs;
-				if (cutoff <= 0)
-					return;
+				long cutoff = cutoffUnixMs - StartUnixMs;
 				foreach (HopSeries h in hops)
 					h?.PruneOlderThan(cutoff);
 				int remove = 0;
