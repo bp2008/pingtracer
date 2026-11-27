@@ -269,6 +269,7 @@ namespace PingTracer
 				cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.Checked = !cfg.monitorUnresponsiveHops;
 				UpdateRateLabel();
 				nudPingTimeout.Value = cfg.GetPingTimeoutMs();
+				nudPingPayloadSize.Value = cfg.GetPingPayloadSizeBytes(mainForm != null ? mainForm.settings.pingPayloadSizeBytes : 32);
 
 				// Graph options
 				cbAlwaysShowServerNames.Checked = cfg.drawServerNames;
@@ -345,6 +346,7 @@ namespace PingTracer
 			}
 
 			cfg.pingTimeoutMs = (int)nudPingTimeout.Value;
+			cfg.pingPayloadSizeBytes = (int)nudPingPayloadSize.Value;
 
 			cfg.drawServerNames = cbAlwaysShowServerNames.Checked;
 			cfg.drawLastPing = cbLastPing.Checked;
@@ -378,6 +380,7 @@ namespace PingTracer
 				cbReverseDNS.Checked,
 				trackBarRate.Value,
 				nudPingTimeout.Value,
+				nudPingPayloadSize.Value,
 				cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings.Checked,
 				cbAlwaysShowServerNames.Checked,
 				cbLastPing.Checked,

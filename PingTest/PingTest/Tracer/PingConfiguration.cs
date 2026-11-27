@@ -54,6 +54,23 @@ namespace PingTracer.Tracer
 		{
 			return Math.Max(pingTimeoutMsMin, Math.Min(pingTimeoutMsMax, pingTimeoutMs));
 		}
+		/// <summary>
+		/// Size in bytes of the payload sent with each ping, or -1 to use the program-wide <see cref="Settings.pingPayloadSizeBytes"/>.  Configurations saved before this field existed load as -1, so they keep behaving as they did.
+		/// </summary>
+		public int pingPayloadSizeBytes = -1;
+		/// <summary>
+		/// The largest payload a ping can carry.
+		/// </summary>
+		public const int pingPayloadSizeBytesMax = 65500;
+		/// <summary>
+		/// Gets the payload size to use for this configuration.
+		/// </summary>
+		/// <param name="programWideSize">The program-wide payload size, used when this configuration does not set its own.</param>
+		public int GetPingPayloadSizeBytes(int programWideSize)
+		{
+			int size = pingPayloadSizeBytes >= 0 ? pingPayloadSizeBytes : programWideSize;
+			return Math.Max(0, Math.Min(pingPayloadSizeBytesMax, size));
+		}
 
 		// --- Graph display options ---
 

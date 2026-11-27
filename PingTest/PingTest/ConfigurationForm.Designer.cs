@@ -39,6 +39,9 @@
 			this.lblPingTimeout = new System.Windows.Forms.Label();
 			this.nudPingTimeout = new System.Windows.Forms.NumericUpDown();
 			this.lblPingTimeoutUnit = new System.Windows.Forms.Label();
+			this.lblPingPayload = new System.Windows.Forms.Label();
+			this.nudPingPayloadSize = new System.Windows.Forms.NumericUpDown();
+			this.lblPingPayloadUnit = new System.Windows.Forms.Label();
 			this.grpGraphOptions = new System.Windows.Forms.GroupBox();
 			this.cbAlwaysShowServerNames = new System.Windows.Forms.CheckBox();
 			this.cbPacketLoss = new System.Windows.Forms.CheckBox();
@@ -74,6 +77,7 @@
 			this.grpMonitoring.SuspendLayout();
 			((System.ComponentModel.ISupportInitialize)(this.trackBarRate)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.nudPingTimeout)).BeginInit();
+			((System.ComponentModel.ISupportInitialize)(this.nudPingPayloadSize)).BeginInit();
 			this.grpGraphOptions.SuspendLayout();
 			((System.ComponentModel.ISupportInitialize)(this.nudBadThreshold)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.nudWorseThreshold)).BeginInit();
@@ -98,7 +102,7 @@
 			// 
 			this.splitContainerMain.Panel2.AutoScroll = true;
 			this.splitContainerMain.Panel2.Controls.Add(this.panelEditor);
-			this.splitContainerMain.Size = new System.Drawing.Size(804, 489);
+			this.splitContainerMain.Size = new System.Drawing.Size(804, 513);
 			this.splitContainerMain.SplitterDistance = 200;
 			this.splitContainerMain.TabIndex = 0;
 			// 
@@ -108,7 +112,7 @@
 			this.treeConfigurations.HideSelection = false;
 			this.treeConfigurations.Location = new System.Drawing.Point(0, 0);
 			this.treeConfigurations.Name = "treeConfigurations";
-			this.treeConfigurations.Size = new System.Drawing.Size(200, 489);
+			this.treeConfigurations.Size = new System.Drawing.Size(200, 513);
 			this.treeConfigurations.TabIndex = 0;
 			this.treeConfigurations.AfterSelect += new System.Windows.Forms.TreeViewEventHandler(this.treeConfigurations_AfterSelect);
 			// 
@@ -132,7 +136,7 @@
 			this.panelEditor.Dock = System.Windows.Forms.DockStyle.Fill;
 			this.panelEditor.Location = new System.Drawing.Point(0, 0);
 			this.panelEditor.Name = "panelEditor";
-			this.panelEditor.Size = new System.Drawing.Size(600, 489);
+			this.panelEditor.Size = new System.Drawing.Size(600, 513);
 			this.panelEditor.TabIndex = 0;
 			// 
 			// lblTitle
@@ -220,9 +224,12 @@
 			this.grpMonitoring.Controls.Add(this.lblPingTimeout);
 			this.grpMonitoring.Controls.Add(this.nudPingTimeout);
 			this.grpMonitoring.Controls.Add(this.lblPingTimeoutUnit);
+			this.grpMonitoring.Controls.Add(this.lblPingPayload);
+			this.grpMonitoring.Controls.Add(this.nudPingPayloadSize);
+			this.grpMonitoring.Controls.Add(this.lblPingPayloadUnit);
 			this.grpMonitoring.Location = new System.Drawing.Point(8, 196);
 			this.grpMonitoring.Name = "grpMonitoring";
-			this.grpMonitoring.Size = new System.Drawing.Size(576, 91);
+			this.grpMonitoring.Size = new System.Drawing.Size(576, 115);
 			this.grpMonitoring.TabIndex = 6;
 			this.grpMonitoring.TabStop = false;
 			this.grpMonitoring.Text = "Monitoring Options";
@@ -368,6 +375,44 @@
 			this.lblPingTimeoutUnit.Size = new System.Drawing.Size(20, 13);
 			this.lblPingTimeoutUnit.TabIndex = 28;
 			this.lblPingTimeoutUnit.Text = "ms";
+			//
+			// lblPingPayload
+			//
+			this.lblPingPayload.AutoSize = true;
+			this.lblPingPayload.Location = new System.Drawing.Point(10, 91);
+			this.lblPingPayload.Name = "lblPingPayload";
+			this.lblPingPayload.Size = new System.Drawing.Size(72, 13);
+			this.lblPingPayload.TabIndex = 29;
+			this.lblPingPayload.Text = "Ping Payload:";
+			this.toolTip1.SetToolTip(this.lblPingPayload, "Size in bytes of the data sent with each ping. 32 is the Windows default.\r\nLarger sizes can reveal problems that small pings do not, but some hosts refuse to answer them.");
+			//
+			// nudPingPayloadSize
+			//
+			this.nudPingPayloadSize.Location = new System.Drawing.Point(88, 88);
+			this.nudPingPayloadSize.Maximum = new decimal(new int[] {
+            65500,
+            0,
+            0,
+            0});
+			this.nudPingPayloadSize.Name = "nudPingPayloadSize";
+			this.nudPingPayloadSize.Size = new System.Drawing.Size(64, 20);
+			this.nudPingPayloadSize.TabIndex = 30;
+			this.toolTip1.SetToolTip(this.nudPingPayloadSize, "Size in bytes of the data sent with each ping. 32 is the Windows default.\r\nLarger sizes can reveal problems that small pings do not, but some hosts refuse to answer them.");
+			this.nudPingPayloadSize.Value = new decimal(new int[] {
+            32,
+            0,
+            0,
+            0});
+			this.nudPingPayloadSize.ValueChanged += new System.EventHandler(this.AnyControl_Changed);
+			//
+			// lblPingPayloadUnit
+			//
+			this.lblPingPayloadUnit.AutoSize = true;
+			this.lblPingPayloadUnit.Location = new System.Drawing.Point(156, 91);
+			this.lblPingPayloadUnit.Name = "lblPingPayloadUnit";
+			this.lblPingPayloadUnit.Size = new System.Drawing.Size(32, 13);
+			this.lblPingPayloadUnit.TabIndex = 31;
+			this.lblPingPayloadUnit.Text = "bytes";
 			// 
 			// grpGraphOptions
 			// 
@@ -390,7 +435,7 @@
 			this.grpGraphOptions.Controls.Add(this.nudLowLimit);
 			this.grpGraphOptions.Controls.Add(this.lblScalingMethod);
 			this.grpGraphOptions.Controls.Add(this.cbScalingMethod);
-			this.grpGraphOptions.Location = new System.Drawing.Point(8, 293);
+			this.grpGraphOptions.Location = new System.Drawing.Point(8, 317);
 			this.grpGraphOptions.Name = "grpGraphOptions";
 			this.grpGraphOptions.Size = new System.Drawing.Size(576, 100);
 			this.grpGraphOptions.TabIndex = 7;
@@ -629,7 +674,7 @@
             | System.Windows.Forms.AnchorStyles.Right)));
 			this.grpLogging.Controls.Add(this.cbLogFailures);
 			this.grpLogging.Controls.Add(this.cbLogSuccesses);
-			this.grpLogging.Location = new System.Drawing.Point(8, 398);
+			this.grpLogging.Location = new System.Drawing.Point(8, 422);
 			this.grpLogging.Name = "grpLogging";
 			this.grpLogging.Size = new System.Drawing.Size(576, 42);
 			this.grpLogging.TabIndex = 8;
@@ -661,7 +706,7 @@
 			// btnSave
 			// 
 			this.btnSave.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-			this.btnSave.Location = new System.Drawing.Point(8, 450);
+			this.btnSave.Location = new System.Drawing.Point(8, 474);
 			this.btnSave.Name = "btnSave";
 			this.btnSave.Size = new System.Drawing.Size(80, 28);
 			this.btnSave.TabIndex = 9;
@@ -673,7 +718,7 @@
 			// 
 			this.btnDiscard.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
 			this.btnDiscard.Enabled = false;
-			this.btnDiscard.Location = new System.Drawing.Point(94, 450);
+			this.btnDiscard.Location = new System.Drawing.Point(94, 474);
 			this.btnDiscard.Name = "btnDiscard";
 			this.btnDiscard.Size = new System.Drawing.Size(80, 28);
 			this.btnDiscard.TabIndex = 10;
@@ -685,7 +730,7 @@
 			// btnDelete
 			// 
 			this.btnDelete.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-			this.btnDelete.Location = new System.Drawing.Point(180, 450);
+			this.btnDelete.Location = new System.Drawing.Point(180, 474);
 			this.btnDelete.Name = "btnDelete";
 			this.btnDelete.Size = new System.Drawing.Size(80, 28);
 			this.btnDelete.TabIndex = 11;
@@ -696,7 +741,7 @@
 			// btnLoad
 			// 
 			this.btnLoad.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-			this.btnLoad.Location = new System.Drawing.Point(266, 450);
+			this.btnLoad.Location = new System.Drawing.Point(266, 474);
 			this.btnLoad.Name = "btnLoad";
 			this.btnLoad.Size = new System.Drawing.Size(220, 28);
 			this.btnLoad.TabIndex = 12;
@@ -707,7 +752,7 @@
 			// btnClone
 			// 
 			this.btnClone.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
-			this.btnClone.Location = new System.Drawing.Point(509, 450);
+			this.btnClone.Location = new System.Drawing.Point(509, 474);
 			this.btnClone.Name = "btnClone";
 			this.btnClone.Size = new System.Drawing.Size(75, 28);
 			this.btnClone.TabIndex = 13;
@@ -727,10 +772,10 @@
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-			this.ClientSize = new System.Drawing.Size(804, 489);
+			this.ClientSize = new System.Drawing.Size(804, 513);
 			this.Controls.Add(this.splitContainerMain);
 			this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
-			this.MinimumSize = new System.Drawing.Size(820, 441);
+			this.MinimumSize = new System.Drawing.Size(820, 465);
 			this.Name = "ConfigurationForm";
 			this.StartPosition = System.Windows.Forms.FormStartPosition.Manual;
 			this.Text = "Configuration Editor - PingTracer";
@@ -746,6 +791,7 @@
 			this.grpMonitoring.PerformLayout();
 			((System.ComponentModel.ISupportInitialize)(this.trackBarRate)).EndInit();
 			((System.ComponentModel.ISupportInitialize)(this.nudPingTimeout)).EndInit();
+			((System.ComponentModel.ISupportInitialize)(this.nudPingPayloadSize)).EndInit();
 			this.grpGraphOptions.ResumeLayout(false);
 			this.grpGraphOptions.PerformLayout();
 			((System.ComponentModel.ISupportInitialize)(this.nudBadThreshold)).EndInit();
@@ -806,6 +852,9 @@
 		private System.Windows.Forms.Label lblPingTimeout;
 		private System.Windows.Forms.NumericUpDown nudPingTimeout;
 		private System.Windows.Forms.Label lblPingTimeoutUnit;
+		private System.Windows.Forms.Label lblPingPayload;
+		private System.Windows.Forms.NumericUpDown nudPingPayloadSize;
+		private System.Windows.Forms.Label lblPingPayloadUnit;
 		private System.Windows.Forms.CheckBox cbStopMonitoringIntermediateHopsThatDoNotRepondToRegularPings;
 	}
 }
