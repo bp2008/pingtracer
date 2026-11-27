@@ -223,7 +223,11 @@ namespace PingTracer
 			if (newest < 0)
 				return 0;
 			long total = Math.Min(newest + 1, buffer.Length);
-			string hostColumn = "\"" + DisplayName.Replace("\"", "\"\"") + "\",";
+			string hostName = DisplayName ?? "";
+			// The name can come from a reverse DNS lookup, which the remote network controls.  Stop spreadsheet programs from treating it as a formula.
+			if (hostName.Length > 0 && "=+-@\t\r".IndexOf(hostName[0]) >= 0)
+				hostName = "'" + hostName;
+			string hostColumn = "\"" + hostName.Replace("\"", "\"\"") + "\",";
 			System.Globalization.CultureInfo invariant = System.Globalization.CultureInfo.InvariantCulture;
 			int written = 0;
 			for (long n = newest + 1 - total; n <= newest; n++)
@@ -674,7 +678,8 @@ namespace PingTracer
 				return 0;
 
 			// Walk down from the longest time, passing over the slowest 1% of pings.
-			int allowedAbove = samples - (int)Math.Ceiling(samples * 0.99);
+			// Integer division: samples - ceil(0.99 * samples) == floor(samples / 100), without floating-point rounding error.
+			int allowedAbove = samples / 100;
 			int seen = 0;
 			for (int bin = range - 1; bin > 0; bin--)
 			{

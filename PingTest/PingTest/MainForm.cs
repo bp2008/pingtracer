@@ -638,9 +638,12 @@ namespace PingTracer
 				Ping pinger = (Ping)args[5];
 				pinger.PingCompleted -= pinger_PingCompleted;
 				PingInstancePool.Recycle(pinger);
-				if (e.Cancelled)
+				if (e.Cancelled || e.Error != null || e.Reply == null)
 				{
+					// Record the ping as failed so its slot does not stay empty (an empty slot is treated as still awaiting a response, and would be left out of the packet loss figure).
 					graph.AddPingLogToSpecificOffset(pingNum, new PingLog(time, 0, IPStatus.Unknown));
+					if (e.Error != null && clearedDeadHosts && LogFailures && pingTargets.ContainsKey(pingTargetId))
+						CreateLogEntry("" + GetTimestamp(time) + ", " + remoteHost.ToString() + ": " + e.Error.GetBaseException().Message);
 					Interlocked.Increment(ref failedPings);
 					return;
 				}
@@ -947,7 +950,11 @@ namespace PingTracer
 			using (SaveFileDialog dialog = new SaveFileDialog())
 			{
 				dialog.Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*";
-				dialog.FileName = "PingTracer " + (currentIPAddress ?? "pings") + " " + DateTime.Now.ToString(fileNameFriendlyDateFormatString) + ".csv";
+				string fileName = "PingTracer " + (currentIPAddress ?? "pings") + " " + DateTime.Now.ToString(fileNameFriendlyDateFormatString) + ".csv";
+				// The address may be an IPv6 address or other text containing characters that are not allowed in file names.
+				foreach (char c in Path.GetInvalidFileNameChars())
+					fileName = fileName.Replace(c, '_');
+				dialog.FileName = fileName;
 				if (dialog.ShowDialog(this) != DialogResult.OK)
 					return;
 				try
