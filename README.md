@@ -64,3 +64,9 @@ See the latest command line arguments in-app with a usage example via Ping Trace
 ## Building from source
 
 PingTracer (as of version 1.17) is a relatively simple C# and Windows Forms app with no third-party dependencies except .NET Framework 4.6.2.  You should have no trouble building it in a standard installation of Visual Studio Community Edition.
+
+## Branches
+
+PingTracer 2.x is in the `net462` branch and must continue to target .NET Framework 4.6.2 indefinitely for compatibility with older Windows installations.  Any contributions based on PingTracer 2.x should be done in the `net462` branch.
+
+The `master` branch is for PingTracer 3.x development.  PingTracer 3.x is a major redesign that is currently in an experimental phase and may undergo significant breaking changes without notice as I work through ideas.
