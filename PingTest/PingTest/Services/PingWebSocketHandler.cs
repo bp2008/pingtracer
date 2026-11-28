@@ -330,6 +330,8 @@ namespace PingTracer.Services
 				type = "session",
 				id = s.Id,
 				target = s.TargetAddress.ToString(),
+				// Every address the session has pinged as its destination (its host name may have resolved differently over time).
+				targets = s.GetTargets().Select(ip => ip.ToString()).ToArray(),
 				displayName = s.DisplayName,
 				startMs = s.DataStartUnixMs,
 				endMs = s.IsRunning ? (long?)null : Math.Max(s.DataStartUnixMs, s.ToUnixMs(s.LastRecordTimeMs)),
@@ -354,7 +356,7 @@ namespace PingTracer.Services
 				items = events.Select(e => new
 				{
 					t = s.ToUnixMs(e.TimeMs),
-					kind = e.Kind == RouteEventKind.HopAddress ? "addr" : "dest",
+					kind = e.Kind switch { RouteEventKind.HopAddress => "addr", RouteEventKind.Target => "target", _ => "dest" },
 					ttl = e.Ttl,
 					value = e.Value,
 					initial = e.Initial,

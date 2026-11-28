@@ -20,15 +20,18 @@ namespace PingTracer.Tests
 		private sealed class FakePinger : IPinger
 		{
 			public Func<int, PingOutcome> Respond;
+			/// <summary>If set, answers instead of <see cref="Respond"/>, given the address pinged.</summary>
+			public Func<IPAddress, int, PingOutcome> RespondTo;
 			public readonly List<int> Sent = new List<int>();
+			public readonly List<IPAddress> SentTo = new List<IPAddress>();
 			public bool Manual;
 			public readonly Dictionary<int, TaskCompletionSource<PingOutcome>> Waiting = new Dictionary<int, TaskCompletionSource<PingOutcome>>();
 
 			public Task<PingOutcome> PingAsync(IPAddress target, int ttl, int timeoutMs, CancellationToken ct)
 			{
-				lock (Sent) Sent.Add(ttl);
+				lock (Sent) { Sent.Add(ttl); SentTo.Add(target); }
 				if (!Manual)
-					return Task.FromResult(Respond(ttl));
+					return Task.FromResult(RespondTo != null ? RespondTo(target, ttl) : Respond(ttl));
 				TaskCompletionSource<PingOutcome> tcs = new TaskCompletionSource<PingOutcome>();
 				Waiting[ttl] = tcs;
 				return tcs.Task;
@@ -227,6 +230,82 @@ namespace PingTracer.Tests
 			// Both happened within the learning period, so both count as discovery.
 			Assert.All(events, e => Assert.True(e.Initial));
 			Assert.Equal(hop2, s.Addresses.GetAddress(events[1].Value));
+		}
+
+		private static readonly IPAddress OtherTarget = IPAddress.Parse("198.51.100.20");
+
+		/// <summary>Two servers for one host name: <see cref="Target"/> at the given hop, and <see cref="OtherTarget"/> at another.</summary>
+		private static Func<IPAddress, int, PingOutcome> TwoServers(int targetHops, int otherHops)
+		{
+			return (to, ttl) =>
+			{
+				int len = to.Equals(OtherTarget) ? otherHops : targetHops;
+				if (ttl >= len)
+					return new PingOutcome(PingOutcomeKind.EchoReply, to, 20);
+				// The routes share their first hops and then diverge.
+				return new PingOutcome(PingOutcomeKind.TtlExpired, ttl <= 2 || !to.Equals(OtherTarget) ? Router(ttl) : IPAddress.Parse("192.0.2." + ttl), ttl);
+			};
+		}
+
+		[Fact]
+		public void ChangingTheTargetPingsTheNewAddressAndFollowsItsRoute()
+		{
+			var (m, s, p) = Create(null);
+			p.RespondTo = TwoServers(4, 6);
+			m.RunCycle();
+			Assert.Equal(4, s.DestinationTtl);
+			Assert.All(p.SentTo, a => Assert.Equal(Target, a));
+
+			Assert.True(s.UpdateTarget(OtherTarget, "test [other]"));
+			Assert.False(s.UpdateTarget(OtherTarget, "test [other]"), "the same address again is not a change");
+			RouteEvent change = Assert.Single(s.GetRouteEvents(), e => e.Kind == RouteEventKind.Target);
+			Assert.False(change.Initial);
+			Assert.Equal(OtherTarget, s.Addresses.GetAddress(change.Value));
+			Assert.Equal(new[] { Target, OtherTarget }, s.GetTargets());
+
+			lock (p.Sent) { p.Sent.Clear(); p.SentTo.Clear(); }
+			for (int i = 0; i < 3; i++)
+				m.RunCycle();
+			Assert.All(p.SentTo, a => Assert.Equal(OtherTarget, a));
+			// The new server is further away: found by the usual route-lengthening logic.
+			Assert.Equal(6, s.DestinationTtl);
+			Assert.Contains(s.GetRouteEvents(), e => e.Kind == RouteEventKind.DestinationTtl && e.Ttl == 6 && e.Value == 4 && !e.Initial);
+			Assert.True(s.Addresses.TryGetId(IPAddress.Parse("192.0.2.3"), out _), "the new route's hops are recorded");
+		}
+
+		[Fact]
+		public async Task LateRepliesToThePreviousTargetDoNotMoveTheDestination()
+		{
+			var (m, s, p) = Create(null);
+			p.RespondTo = TwoServers(4, 6);
+			m.RunCycle();
+			Assert.Equal(4, s.DestinationTtl);
+
+			// A cycle to the old server is still in flight when the name starts resolving to the new one.
+			p.Manual = true;
+			RouteMonitor.Cycle old = m.RunCycle();
+			Assert.True(SpinWait.SpinUntil(() => p.Waiting.Count == 4, 2000));
+			s.UpdateTarget(OtherTarget, "test [other]");
+			p.Manual = false;
+			for (int i = 0; i < 3; i++)
+				m.RunCycle();
+			Assert.Equal(6, s.DestinationTtl);
+
+			// The old server's echo at TTL 4 arrives late.  It is recorded, but it says nothing about the route to the new server.
+			foreach (int ttl in new[] { 4, 1, 2, 3 })
+				p.Waiting[ttl].SetResult(TwoServers(4, 6)(Target, ttl));
+			Assert.Same(old.Completion, await Task.WhenAny(old.Completion, Task.Delay(2000)));
+			lock (s.DataLock) { }
+			Assert.Equal(6, s.DestinationTtl);
+			Assert.True(s.Addresses.TryGetId(Target, out ushort oldId));
+			List<PingSample> hop4 = new List<PingSample>();
+			lock (s.DataLock)
+			{
+				HopSeries h = s.GetHop(4);
+				long cursor = h.FirstIndex;
+				h.CopyStableRecords(ref cursor, long.MaxValue, hop4);
+			}
+			Assert.Equal(2, hop4.Count(r => r.IsSuccess && r.Addr == oldId)); // the first cycle's echo and the late one
 		}
 
 		[Fact]

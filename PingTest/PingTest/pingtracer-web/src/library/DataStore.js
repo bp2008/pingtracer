@@ -136,14 +136,31 @@ export class SessionData
 		this.meta = meta;
 		/** @type {Map<number, {ip: string, host: string}>} */
 		this.addresses = new Map();
-		/** Route events sorted by time: { t, kind: 'addr'|'dest', ttl, value, initial } */
+		/** Route events sorted by time: { t, kind: 'addr'|'dest'|'target', ttl, value, initial } */
 		this.routeEvents = [];
 		/** ttl -> array of address ids in order of first appearance at that hop */
 		this.hopAddresses = new Map();
 		this.repliedTtls = new Set(meta.repliedTtls || []);
 		/** @type {Map<number, ZoomCache>} */
 		this.zooms = new Map();
-		this.targetAddrId = ADDR_NONE;
+		/** Ids of every address the session has pinged as its destination (its host name can resolve differently over time). */
+		this.targetAddrIds = new Set();
+	}
+
+	/** True if an address id is (or was) the session's destination. */
+	isTargetAddr(addrId)
+	{
+		return addrId !== ADDR_NONE && this.targetAddrIds.has(addrId);
+	}
+
+	/** Recomputes the destination address ids from the session's target addresses. */
+	_updateTargets()
+	{
+		const ips = new Set(this.meta.targets || []);
+		if (this.meta.target) ips.add(this.meta.target);
+		this.targetAddrIds.clear();
+		for (const [id, a] of this.addresses)
+			if (ips.has(a.ip)) this.targetAddrIds.add(id);
 	}
 
 	/** Index of an address among the addresses seen at a hop (0 for the first), used to pick a stable color. */
@@ -259,6 +276,7 @@ class DataStore
 			const endChanged = s.meta.endMs !== m.endMs;
 			s.meta = m;
 			s.repliedTtls = new Set(m.repliedTtls || []);
+			s._updateTargets();
 			if (endChanged)
 			{
 				// Chunks that were assumed empty because they were in the future may now be in range; reload them.
@@ -278,8 +296,8 @@ class DataStore
 		{
 			const prev = s.addresses.get(a.id);
 			s.addresses.set(a.id, { ip: a.ip || (prev && prev.ip) || '', host: a.host || (prev && prev.host) || '' });
-			if (a.ip === s.meta.target) s.targetAddrId = a.id;
 		}
+		s._updateTargets();
 		this._meta();
 	}
 

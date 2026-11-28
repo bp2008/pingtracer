@@ -1,8 +1,11 @@
 using PingTracer.Services;
+using PingTracer.Storage;
 using PingTracer.Tracer;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -47,6 +50,90 @@ namespace PingTracer.Tests
 				await run.StopAsync();
 			}
 			Assert.False(run.IsRunning);
+		}
+
+		/// <summary>Answers every ping with an echo reply from the address pinged, recording where each ping went.</summary>
+		private sealed class EchoPinger : PingTracer.Services.Pinging.IPinger
+		{
+			public readonly List<IPAddress> SentTo = new List<IPAddress>();
+
+			public Task<PingTracer.Services.Pinging.PingOutcome> PingAsync(IPAddress target, int ttl, int timeoutMs, System.Threading.CancellationToken ct)
+			{
+				lock (SentTo) SentTo.Add(target);
+				return Task.FromResult(new PingTracer.Services.Pinging.PingOutcome(PingTracer.Services.Pinging.PingOutcomeKind.EchoReply, target, 5));
+			}
+
+			public Task<string> ReverseLookupAsync(IPAddress address) => Task.FromResult<string>(null);
+
+			public bool HasPinged(IPAddress a) { lock (SentTo) return SentTo.Contains(a); }
+		}
+
+		[Fact]
+		public async Task RefreshTargetsFollowsTheHostNameToANewAddress()
+		{
+			IPAddress a = IPAddress.Parse("198.51.100.1"), b = IPAddress.Parse("198.51.100.2");
+			IPAddress answer = a;
+			List<IPAddress> currentSeen = new List<IPAddress>();
+			PingSession run = Create("name.test");
+			EchoPinger pinger = new EchoPinger();
+			run.PingerFactory = _ => pinger;
+			run.HostResolver = (host, current) =>
+			{
+				lock (currentSeen) currentSeen.Add(current);
+				if (answer == null) throw new Exception("DNS is down");
+				return (answer, host + " [" + answer + "]");
+			};
+			List<string> log = new List<string>();
+			run.Log += m => { lock (log) log.Add(m); };
+			Assert.True(run.Start());
+			try
+			{
+				MonitoringSession s = Assert.Single(run.Sessions);
+				Assert.True(SpinWait.SpinUntil(() => pinger.HasPinged(a), 2000));
+
+				// The same answer, or no answer at all, changes nothing.
+				run.RefreshTargets();
+				answer = null;
+				run.RefreshTargets();
+				Assert.Equal(a, s.TargetAddress);
+				Assert.DoesNotContain(s.GetRouteEvents(), e => e.Kind == RouteEventKind.Target);
+
+				answer = b;
+				run.RefreshTargets();
+				Assert.Equal(b, s.TargetAddress);
+				Assert.Equal("name.test [198.51.100.2]", s.DisplayName);
+				Assert.Equal(new[] { a, b }, s.GetTargets());
+				RouteEvent change = Assert.Single(s.GetRouteEvents(), e => e.Kind == RouteEventKind.Target);
+				Assert.Equal(b, s.Addresses.GetAddress(change.Value));
+				lock (log) Assert.Contains(log, m => m.Contains("name.test now resolves to 198.51.100.2 (was 198.51.100.1)"));
+				Assert.True(SpinWait.SpinUntil(() => pinger.HasPinged(b), 2000), "the monitor pings the new address");
+				// Each lookup was told which address is pinged now, so it can keep it while the name still resolves to it.
+				lock (currentSeen) Assert.Equal(new IPAddress[] { null, a, a, a }, currentSeen);
+			}
+			finally
+			{
+				await run.StopAsync();
+			}
+		}
+
+		[Fact]
+		public async Task RefreshTargetsSkipsHostsGivenAsAddresses()
+		{
+			PingSession run = Create("192.0.2.7");
+			EchoPinger pinger = new EchoPinger();
+			run.PingerFactory = _ => pinger;
+			int lookups = 0;
+			run.HostResolver = (host, current) => { lookups++; return (IPAddress.Parse(host), host); };
+			Assert.True(run.Start());
+			try
+			{
+				run.RefreshTargets();
+				Assert.Equal(1, lookups); // only the one at Start
+			}
+			finally
+			{
+				await run.StopAsync();
+			}
 		}
 
 		[Fact]

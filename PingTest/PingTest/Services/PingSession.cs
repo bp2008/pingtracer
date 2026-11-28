@@ -24,6 +24,16 @@ namespace PingTracer.Services
 		/// <summary>Creates the pinger for a host string. Tests replace this.</summary>
 		public Func<string, IPinger> PingerFactory { get; set; }
 
+		/// <summary>
+		/// Resolves a host string to the address to ping and a display name, given the address currently pinged for it (null at
+		/// first), which it should keep while the name still resolves to it.  Throws if the name cannot be resolved.  Tests
+		/// replace this.
+		/// </summary>
+		public Func<string, IPAddress, (IPAddress ip, string displayName)> HostResolver { get; set; }
+
+		/// <summary>How often the host names of a running session are resolved again, to follow DNS changes.</summary>
+		public static readonly TimeSpan ReresolveInterval = TimeSpan.FromMinutes(5);
+
 		public PingConfiguration Configuration { get; }
 		public bool IsRunning { get; private set; }
 
@@ -37,6 +47,10 @@ namespace PingTracer.Services
 		private readonly Dictionary<MonitoringSession, LossTracker> lossTrackers = new Dictionary<MonitoringSession, LossTracker>();
 		private Timer pruneTimer;
 		private Timer resolveTimer;
+		private Timer reresolveTimer;
+		private readonly object reresolveLock = new object();
+		/// <summary>The host string each monitored session was started from.  Guarded by stateLock.</summary>
+		private readonly List<(string host, MonitoringSession session)> hostSessions = new List<(string, MonitoringSession)>();
 		private bool traceRoute;
 		private readonly List<string> unresolvedHosts = new List<string>();
 		private readonly object retryLock = new object();
@@ -72,6 +86,7 @@ namespace PingTracer.Services
 			this.data = data;
 			this.runLock = runLock;
 			PingerFactory = DefaultPingerFactory;
+			HostResolver = (host, current) => (ResolveHost(host, Configuration.preferIPv4, out string displayName, current), displayName);
 		}
 
 		/// <summary>Monitoring time to keep, from the configuration.</summary>
@@ -186,6 +201,7 @@ namespace PingTracer.Services
 				resolveTimer = new Timer(_ => RetryUnresolved(), null, TimeSpan.FromSeconds(ResolveRetrySeconds), TimeSpan.FromSeconds(ResolveRetrySeconds));
 			}
 			pruneTimer = new Timer(_ => RunPrune(), null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
+			reresolveTimer = new Timer(_ => RefreshTargets(), null, ReresolveInterval, ReresolveInterval);
 			if (!stopRequested)
 				StatusChanged?.Invoke("Running");
 			return true;
@@ -221,16 +237,65 @@ namespace PingTracer.Services
 			}
 		}
 
+		/// <summary>
+		/// Resolves the host names of the running sessions again (every <see cref="ReresolveInterval"/>) and switches each one
+		/// whose name no longer resolves to the address being pinged.  Without this, a long run keeps tracing the route to the
+		/// one server a name such as www.google.com resolved to at Start, and never sees the routes to the servers DNS hands
+		/// out later.  A switch is recorded as a <see cref="RouteEventKind.Target"/> route event; changes to the hops that
+		/// follow are detected as usual.  Public so tests can run it directly.
+		/// </summary>
+		public void RefreshTargets()
+		{
+			if (!Monitor.TryEnter(reresolveLock)) return;
+			try
+			{
+				List<(string host, MonitoringSession session)> list;
+				lock (stateLock) list = new List<(string, MonitoringSession)>(hostSessions);
+				foreach ((string host, MonitoringSession session) in list)
+				{
+					if (stopRequested) return;
+					if (IPAddress.TryParse(host.Trim(), out _))
+						continue; // an address, not a name
+					IPAddress current = session.TargetAddress;
+					IPAddress ip;
+					string displayName;
+					try
+					{
+						(ip, displayName) = HostResolver(host, current);
+					}
+					catch (Exception ex)
+					{
+						// Keep pinging the address we have; DNS may be down only briefly.
+						BPUtil.Logger.Debug(ex, "Re-resolving " + host);
+						continue;
+					}
+					if (ip == null || ip.Equals(current) || stopRequested)
+						continue;
+					if (session.UpdateTarget(ip, displayName))
+						Log?.Invoke(host + " now resolves to " + ip + " (was " + current + "). Pinging the new address.");
+				}
+			}
+			finally
+			{
+				Monitor.Exit(reresolveLock);
+			}
+		}
+
 		/// <summary>Resolves a host and starts monitoring it. Returns false if the name could not be resolved.</summary>
 		private bool TryStartHost(string host, bool quietFailure)
 		{
 			int intervalMs = ComputeIntervalMs(Configuration.rate, Configuration.pingsPerSecond);
 			int timeoutMs = Math.Clamp(settings.pingTimeoutMs, 200, 30000);
+			SessionMode mode = traceRoute ? SessionMode.TraceRoute : SessionMode.Direct;
+			string hostKey = MonitoringSession.NormalizeHostKey(host);
+			MonitoringSession session = data?.Find(hostKey, mode);
+			bool isNew = session == null;
 			IPAddress ip;
 			string displayName;
 			try
 			{
-				ip = ResolveHost(host, Configuration.preferIPv4, out displayName);
+				// A resumed session keeps the address it pinged before while the name still resolves to it.
+				(ip, displayName) = HostResolver(host, session?.TargetAddress);
 			}
 			catch (Exception ex)
 			{
@@ -240,23 +305,17 @@ namespace PingTracer.Services
 			}
 
 			IPinger pinger = PingerFactory(host);
-			SessionMode mode = traceRoute ? SessionMode.TraceRoute : SessionMode.Direct;
-			string hostKey = MonitoringSession.NormalizeHostKey(host);
-			MonitoringSession session = data?.Find(hostKey, mode);
-			bool isNew = session == null;
 			lock (stateLock)
 			{
 				// The same host listed twice: monitor it once.
 				if (sessions.Any(s => s.HostKey == hostKey && s.Mode == mode))
 					return true;
 			}
+			IPAddress previousTarget = null;
 			if (isNew)
 				session = new MonitoringSession(ip, displayName, mode, intervalMs, timeoutMs, hostKey: hostKey);
 			else
-			{
-				session.UpdateTarget(ip, displayName, timeoutMs);
-				session.ResetRouteTracking();
-			}
+				previousTarget = session.TargetAddress;
 			if (Configuration.reverseDnsLookup)
 				session.HostnameResolver = pinger.ReverseLookupAsync;
 			RouteMonitor monitor = new RouteMonitor(session, pinger, new RouteMonitorOptions
@@ -289,12 +348,20 @@ namespace PingTracer.Services
 				}
 				sessions.Add(session);
 				monitors.Add(monitor);
+				hostSessions.Add((host, session));
 				if (writer != null) writers.Add(writer);
 			}
 			if (isNew)
 			{
 				data?.Add(session);
 				SessionCreated?.Invoke(session);
+			}
+			else
+			{
+				// After the writer exists, so that a change of address (a route event) is saved.
+				session.ResetRouteTracking();
+				if (session.UpdateTarget(ip, displayName, timeoutMs))
+					Log?.Invoke(host + " now resolves to " + ip + " (was " + previousTarget + ").");
 			}
 			Log?.Invoke((traceRoute ? "Tracing route to " : "Pinging ") + displayName + " every " + intervalMs + " ms" + (isNew ? "" : " (continuing the saved graph)"));
 			monitor.Start();
@@ -333,6 +400,7 @@ namespace PingTracer.Services
 			StatusChanged?.Invoke("Stopping...");
 			Interlocked.Exchange(ref pruneTimer, null)?.Dispose();
 			Interlocked.Exchange(ref resolveTimer, null)?.Dispose();
+			Interlocked.Exchange(ref reresolveTimer, null)?.Dispose();
 			await Task.WhenAll(ms.Select(m => m.StopAsync())).ConfigureAwait(false);
 			FlushLossSummaries();
 			foreach (PingDataWriter w in ws)
@@ -563,7 +631,13 @@ namespace PingTracer.Services
 		}
 
 		/// <summary>Resolves a host string to an address. Also handles the simulated-network <c>sim:</c> prefix.</summary>
-		public static IPAddress ResolveHost(string host, bool preferIPv4, out string displayName)
+		/// <param name="host">A host name or address.</param>
+		/// <param name="preferIPv4">Choose an IPv4 address when the name has both kinds.</param>
+		/// <param name="displayName">Receives the name to show for the host.</param>
+		/// <param name="keep">The address currently pinged for this host, if any.  It is returned again while the name still
+		/// resolves to it (among the addresses of the preferred family), so that a name with several addresses in rotating
+		/// order does not switch servers each time it is resolved.</param>
+		public static IPAddress ResolveHost(string host, bool preferIPv4, out string displayName, IPAddress keep = null)
 		{
 			host = host.Trim();
 			if (SimulatedNetwork.IsSimulatedHost(host))
@@ -597,7 +671,10 @@ namespace PingTracer.Services
 				throw new Exception("Unable to resolve \"" + host + "\": " + ex.Message, ex);
 			}
 			AddressFamily preferred = preferIPv4 ? AddressFamily.InterNetwork : AddressFamily.InterNetworkV6;
-			IPAddress ip = addresses.FirstOrDefault(a => a.AddressFamily == preferred) ?? addresses.FirstOrDefault();
+			IPAddress[] candidates = addresses.Where(a => a.AddressFamily == preferred).ToArray();
+			if (candidates.Length == 0)
+				candidates = addresses;
+			IPAddress ip = keep != null && candidates.Contains(keep) ? keep : candidates.FirstOrDefault();
 			if (ip == null)
 				throw new Exception("Unable to resolve \"" + host + "\": no addresses found.");
 			displayName = host + " [" + ip + "]";

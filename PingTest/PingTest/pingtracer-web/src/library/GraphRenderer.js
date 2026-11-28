@@ -809,7 +809,7 @@ export class GraphRenderer
 			// or replies did reach the destination during this time (so the silence is the router ignoring us, not an outage).
 			let destReplied = false;
 			for (const row of sessionRows)
-				if (row.stats.succ > 0 && row.dominantAddr === s.targetAddrId && s.targetAddrId !== ADDR_NONE) destReplied = true;
+				if (row.stats.succ > 0 && s.isTargetAddr(row.dominantAddr)) destReplied = true;
 			for (const row of sessionRows)
 			{
 				const neverReplied = !s.repliedTtls.has(row.ttl);
@@ -1150,7 +1150,8 @@ export class GraphRenderer
 			if (e.initial) continue;
 			let kind;
 			if (e.kind === 'addr' && e.ttl === ttl) kind = 1;
-			else if (e.kind === 'dest' && ttl !== 0) kind = 2;
+			// A new target (the host name resolved to another address) changes the whole route, like a destination change.
+			else if ((e.kind === 'dest' && ttl !== 0) || e.kind === 'target') kind = 2;
 			else continue;
 			if (!map) map = new Map();
 			const col = Math.floor(e.t / ms);
@@ -1534,7 +1535,7 @@ export class GraphRenderer
 			{
 				if (e.initial || e.t < startMs || e.t >= endMs) continue;
 				const x = Math.floor((e.t - startMs) / ms);
-				ctx.fillStyle = e.kind === 'dest' ? cssOf(C.destMarker) : cssOf(C.marker);
+				ctx.fillStyle = e.kind === 'addr' ? cssOf(C.marker) : cssOf(C.destMarker);
 				const tri = Math.round(4 * dpr);
 				ctx.beginPath();
 				ctx.moveTo(x - tri, 1);
@@ -1631,15 +1632,17 @@ export class GraphRenderer
 				const ad = s.addresses.get(a);
 				info.address = ad ? ad.ip : '?';
 				info.host = ad ? ad.host : '';
-				info.isDestination = a === s.targetAddrId;
+				info.isDestination = s.isTargetAddr(a);
 			}
 			info.multi = (d.flags[i] & FLAG_MULTI_ADDR) !== 0;
 		}
 		// Route events in this column.
-		info.events = s.routeEvents.filter(e => !e.initial && e.t >= info.startMs && e.t < info.endMs && (e.kind === 'dest' || e.ttl === row.ttl))
+		info.events = s.routeEvents.filter(e => !e.initial && e.t >= info.startMs && e.t < info.endMs && (e.kind !== 'addr' || e.ttl === row.ttl))
 			.map(e => e.kind === 'dest'
 				? `Destination moved to hop ${e.ttl}` + (e.value ? ` (was ${e.value})` : '')
-				: `Now answering from ${(s.addresses.get(e.value) || {}).ip || '?'}`);
+				: e.kind === 'target'
+					? `Host now resolves to ${(s.addresses.get(e.value) || {}).ip || '?'}`
+					: `Now answering from ${(s.addresses.get(e.value) || {}).ip || '?'}`);
 		return info;
 	}
 }

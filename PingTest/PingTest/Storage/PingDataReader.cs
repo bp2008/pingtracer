@@ -53,6 +53,8 @@ namespace PingTracer.Storage
 		private static Result ReadBody(MonitoringSession session, Stream afterHeader, PingDataFile.Header h)
 		{
 			Result result = new Result { Session = session, Header = h };
+			if (h.Target != null && !h.Target.Equals(IPAddress.Any))
+				session.NoteTarget(h.Target);
 			// Version 3 times are relative to the file's start; version 4 times are absolute.
 			long fileToUnix = h.Version == PingDataFile.LegacyVersion ? h.StartUnixMs : 0;
 			long unixToSession = -session.StartUnixMs;
@@ -270,7 +272,7 @@ namespace PingTracer.Storage
 							byte ttl = r.ReadByte();
 							ushort value = r.ReadUInt16();
 							bool initial = r.ReadByte() != 0;
-							if (kind == RouteEventKind.HopAddress)
+							if (kind == RouteEventKind.HopAddress || kind == RouteEventKind.Target)
 							{
 								value = MapAddress(value);
 								if (value == AddressTable.None)

@@ -98,6 +98,30 @@ namespace PingTracer.Tests
 		}
 
 		[Fact]
+		public void TargetChangesAreSavedAndLoaded()
+		{
+			IPAddress a = IPAddress.Parse("198.51.100.10"), b = IPAddress.Parse("198.51.100.20");
+			MonitoringSession s = new MonitoringSession(a, "example [198.51.100.10]", SessionMode.TraceRoute, 1000, 2000, hostKey: "example");
+			using (PingDataWriter w = new PingDataWriter(s, ConfigDir, Guid1, 3600))
+			{
+				RecordHandle r = s.BeginPing(3);
+				s.CompletePing(3, r, true, 12, a);
+				Assert.True(s.UpdateTarget(b, "example [198.51.100.20]"));
+				r = s.BeginPing(3);
+				s.CompletePing(3, r, true, 14, b);
+			}
+
+			ConfigDataSet set = ConfigDataSet.Load(root, Guid1, ExampleKey, long.MaxValue / 4);
+			MonitoringSession loaded = Assert.Single(set.Sessions);
+			// The file's header still names the first address; the saved route event moves the target on.
+			Assert.Equal(b, loaded.TargetAddress);
+			Assert.Equal(new[] { a, b }, loaded.GetTargets());
+			RouteEvent change = Assert.Single(loaded.GetRouteEvents(), e => e.Kind == RouteEventKind.Target);
+			Assert.False(change.Initial);
+			Assert.Equal(b, loaded.Addresses.GetAddress(change.Value));
+		}
+
+		[Fact]
 		public void LiveWriterSavesOnlyNewDataAndTheFileIsReadableWhileOpen()
 		{
 			MonitoringSession s = BuildSession(); // "earlier runs": must not be written again

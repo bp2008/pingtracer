@@ -52,6 +52,8 @@ namespace PingTracer.Storage
 		public long DataStartUnixMs { get; private set; }
 		/// <summary>Periods between runs during which nothing was monitored (Unix ms, ascending), for drawing.</summary>
 		public IReadOnlyList<(long start, long end)> Gaps { get; private set; } = Array.Empty<(long, long)>();
+		/// <summary>Every address this session has pinged as its destination (the host name can resolve differently over time).</summary>
+		private readonly List<IPAddress> targets = new List<IPAddress>();
 
 		/// <summary>True if this session was loaded from disk and will never receive new data.</summary>
 		public bool IsReadOnly { get; }
@@ -95,6 +97,28 @@ namespace PingTracer.Storage
 			DataStartUnixMs = StartUnixMs;
 			IsReadOnly = readOnly;
 			HostKey = string.IsNullOrWhiteSpace(hostKey) ? NormalizeHostKey(target.ToString()) : hostKey;
+			targets.Add(target);
+		}
+
+		/// <summary>Every address this session has pinged as its destination, oldest first.  Includes <see cref="TargetAddress"/>.</summary>
+		public List<IPAddress> GetTargets()
+		{
+			lock (DataLock)
+				return new List<IPAddress>(targets);
+		}
+
+		/// <summary>Records that an address was (at some time) this session's destination.  Call with DataLock held.</summary>
+		private void NoteTargetLocked(IPAddress address)
+		{
+			if (address != null && !targets.Contains(address))
+				targets.Add(address);
+		}
+
+		/// <summary>Records that an address was this session's destination at some time (disk loading).</summary>
+		internal void NoteTarget(IPAddress address)
+		{
+			lock (DataLock)
+				NoteTargetLocked(address);
 		}
 
 		/// <summary>Normalizes a configuration host entry into a <see cref="HostKey"/>.</summary>
@@ -251,8 +275,21 @@ namespace PingTracer.Storage
 			{
 				if (e.Kind == RouteEventKind.DestinationTtl && Mode != SessionMode.Direct)
 					DestinationTtl = e.Ttl;
+				ApplyTargetEvent(e);
 				AddRouteEvent(e);
 			}
+		}
+
+		/// <summary>For a loaded or imported <see cref="RouteEventKind.Target"/> event, makes its address the current target.</summary>
+		private void ApplyTargetEvent(RouteEvent e)
+		{
+			if (e.Kind != RouteEventKind.Target)
+				return;
+			IPAddress ip = Addresses.GetAddress(e.Value);
+			if (ip == null)
+				return;
+			TargetAddress = ip;
+			NoteTargetLocked(ip);
 		}
 
 		/// <summary>Adds an address to the table without starting a hostname lookup (disk loading).  Returns its id.</summary>
@@ -276,6 +313,7 @@ namespace PingTracer.Storage
 				routeEvents.Add(e);
 				if (e.Kind == RouteEventKind.DestinationTtl && Mode != SessionMode.Direct)
 					DestinationTtl = e.Ttl;
+				ApplyTargetEvent(e);
 				if (e.TimeMs > LastRecordTimeMs) LastRecordTimeMs = e.TimeMs;
 			}
 		}
@@ -350,16 +388,29 @@ namespace PingTracer.Storage
 			}
 		}
 
-		/// <summary>Updates the target before a resumed run (its host name may now resolve to a different address).</summary>
-		public void UpdateTarget(IPAddress target, string displayName, int timeoutMs)
+		/// <summary>
+		/// Updates the target: before a resumed run, or during a run when the host name resolves to a different address.  A
+		/// different address is recorded as a <see cref="RouteEventKind.Target"/> route event, and the monitor pings it from
+		/// its next cycle on.  Returns true if the address changed.
+		/// </summary>
+		public bool UpdateTarget(IPAddress target, string displayName, int? timeoutMs = null)
 		{
 			lock (DataLock)
 			{
-				TargetAddress = target ?? TargetAddress;
+				bool changed = target != null && !target.Equals(TargetAddress);
+				if (changed)
+				{
+					ushort id = GetAddressId(target);
+					TargetAddress = target;
+					NoteTargetLocked(target);
+					AddRouteEvent(new RouteEvent(NowMs, RouteEventKind.Target, 0, id, initial: false));
+				}
 				if (!string.IsNullOrWhiteSpace(displayName))
 					DisplayName = displayName;
-				TimeoutMs = timeoutMs;
+				if (timeoutMs.HasValue)
+					TimeoutMs = timeoutMs.Value;
 				StateChanged?.Invoke(this);
+				return changed;
 			}
 		}
 

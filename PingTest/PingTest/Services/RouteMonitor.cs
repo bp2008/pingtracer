@@ -47,7 +47,6 @@ namespace PingTracer.Services
 		public readonly MonitoringSession Session;
 		private readonly IPinger pinger;
 		private readonly RouteMonitorOptions options;
-		private readonly IPAddress target;
 
 		private CancellationTokenSource cts;
 		private Task loopTask;
@@ -80,7 +79,6 @@ namespace PingTracer.Services
 			this.options = options ?? new RouteMonitorOptions();
 			this.options.MaxHops = Math.Clamp(this.options.MaxHops, 1, 255);
 			this.options.TimeoutMs = Math.Clamp(this.options.TimeoutMs, 100, 60000);
-			target = session.TargetAddress;
 			intervalMs = Math.Max(50, this.options.IntervalMs);
 		}
 
@@ -112,7 +110,7 @@ namespace PingTracer.Services
 				if (loopTask != null || stopCalled)
 					return;
 				if (options.TraceRoute == false)
-					Session.EnsureAddress(target);
+					Session.EnsureAddress(Session.TargetAddress);
 				cts = new CancellationTokenSource();
 				timer = new PeriodicTimer(TimeSpan.FromMilliseconds(intervalMs));
 				Session.SetIntervalMs(intervalMs);
@@ -190,7 +188,8 @@ namespace PingTracer.Services
 			List<int> ttls;
 			lock (Session.DataLock)
 			{
-				cycle = new Cycle(++cycleNumber) { Discovery = Session.DestinationTtl == 0 };
+				// The target is read each cycle: PingSession changes it when the host name resolves to a different address.
+				cycle = new Cycle(++cycleNumber) { Discovery = Session.DestinationTtl == 0, Target = Session.TargetAddress };
 				ttls = options.TraceRoute ? ChooseTraceTtls() : new List<int> { 0 };
 				cycle.Remaining = ttls.Count;
 				foreach (int ttl in ttls)
@@ -264,7 +263,7 @@ namespace PingTracer.Services
 				PingOutcome outcome;
 				try
 				{
-					outcome = await pinger.PingAsync(target, ttl == 0 ? options.DirectTtl : ttl, options.TimeoutMs, CancellationToken.None).ConfigureAwait(false);
+					outcome = await pinger.PingAsync(cycle.Target, ttl == 0 ? options.DirectTtl : ttl, options.TimeoutMs, CancellationToken.None).ConfigureAwait(false);
 				}
 				catch
 				{
@@ -277,7 +276,7 @@ namespace PingTracer.Services
 					if (options.TraceRoute)
 						ProcessTraceResult(cycle, ttl, handle, outcome);
 					else
-						ProcessDirectResult(handle, outcome);
+						ProcessDirectResult(cycle, handle, outcome);
 					if (--cycle.Remaining == 0)
 					{
 						if (options.TraceRoute)
@@ -293,11 +292,17 @@ namespace PingTracer.Services
 			}
 		}
 
-		private void ProcessDirectResult(RecordHandle handle, PingOutcome outcome)
+		private void ProcessDirectResult(Cycle cycle, RecordHandle handle, PingOutcome outcome)
 		{
 			bool ok = outcome.Kind == PingOutcomeKind.EchoReply;
-			Session.CompletePing(0, handle, ok, outcome.RttMs, ok ? (outcome.From ?? target) : null);
+			Session.CompletePing(0, handle, ok, outcome.RttMs, ok ? (outcome.From ?? cycle.Target) : null);
 		}
+
+		/// <summary>
+		/// True if a cycle was sent to an address that is no longer the target.  Its results are recorded, but they say nothing
+		/// about the route to the new target, so they must not move the destination's hop number.
+		/// </summary>
+		private bool IsStale(Cycle cycle) => !cycle.Target.Equals(Session.TargetAddress);
 
 		private void ProcessTraceResult(Cycle cycle, int ttl, RecordHandle handle, PingOutcome outcome)
 		{
@@ -311,7 +316,7 @@ namespace PingTracer.Services
 							Session.VoidPing(ttl, handle);
 							return;
 						}
-						Session.CompletePing(ttl, handle, true, outcome.RttMs, target);
+						Session.CompletePing(ttl, handle, true, outcome.RttMs, cycle.Target);
 						if (ttl < cycle.MinEchoTtl)
 						{
 							for (int i = cycle.Echoes.Count - 1; i >= 0; i--)
@@ -326,7 +331,7 @@ namespace PingTracer.Services
 						}
 						cycle.Echoes.Add((ttl, handle));
 						int dest = Session.DestinationTtl;
-						if (dest == 0 || ttl < dest)
+						if ((dest == 0 || ttl < dest) && !IsStale(cycle))
 						{
 							// During discovery, replies from TTLs beyond the destination can arrive first; that is not a route change.
 							Session.SetDestinationTtl(ttl, initial: cycle.Discovery);
@@ -359,7 +364,11 @@ namespace PingTracer.Services
 				discoveryLogged = true;
 				Log?.Invoke($"{Session.DisplayName}: destination reached at hop {dest}");
 			}
-			if (cycle.MinEchoTtl != int.MaxValue && dest > 0 && cycle.MinEchoTtl <= dest)
+			if (IsStale(cycle))
+			{
+				// Sent to the previous target: only clean up what lies beyond the destination (below).
+			}
+			else if (cycle.MinEchoTtl != int.MaxValue && dest > 0 && cycle.MinEchoTtl <= dest)
 			{
 				consecutiveMisses = 0;
 				consecutiveBeyond = 0;
@@ -413,6 +422,8 @@ namespace PingTracer.Services
 			internal bool ExpiredAtOrBeyondDestination;
 			/// <summary>True if the destination's hop number was unknown when this cycle was dispatched.</summary>
 			internal bool Discovery;
+			/// <summary>The address this cycle's pings were sent to.</summary>
+			public IPAddress Target { get; internal set; }
 			internal int Remaining;
 			private readonly TaskCompletionSource<bool> completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
